@@ -62,8 +62,17 @@ export default function Page() {
       setMessageIndex((current) => (current + 1) % gorkiMessages.length);
     }, 3600);
 
+    const tabTimer = setInterval(() => {
+      setActiveTab((current) => {
+        const index = demoTabs.findIndex((tab) => tab.key === current);
+        const next = demoTabs[(index + 1) % demoTabs.length];
+        return next.key;
+      });
+    }, 4200);
+
     return () => {
       clearInterval(messageTimer);
+      clearInterval(tabTimer);
     };
   }, []);
 
@@ -1373,16 +1382,19 @@ export default function Page() {
         .floatOrders {
           left: -28px;
           top: 62px;
+          animation: floaty 5s ease-in-out infinite;
         }
 
         .floatRevenue {
           right: 82px;
           top: 50px;
+          animation: floaty 5.8s ease-in-out infinite 0.35s;
         }
 
         .floatStock {
           left: 10px;
           bottom: 74px;
+          animation: floaty 5.4s ease-in-out infinite 0.2s;
         }
 
         .sideStack {
@@ -1419,7 +1431,8 @@ export default function Page() {
           width: 130px;
           height: 460px;
           background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.13), transparent);
-          transform: translateX(240px) rotate(28deg);
+          transform: rotate(28deg);
+          animation: shine 4.8s ease-in-out infinite;
         }
 
         .priceLabel {
@@ -1595,6 +1608,7 @@ export default function Page() {
           height: 128px;
           object-fit: contain;
           filter: drop-shadow(0 14px 18px rgba(7, 20, 47, 0.12));
+          animation: gorkiFloat 5.2s ease-in-out infinite;
         }
 
         .gorkiMessages {
@@ -1924,10 +1938,14 @@ export default function Page() {
             width: 170px;
             height: 54px;
             margin: 0 auto;
-            border-radius: 0;
-            background: transparent;
-            border: 0;
-            box-shadow: none;
+            border-radius: 22px;
+            background:
+              linear-gradient(180deg, rgba(7, 15, 32, 0.96), rgba(5, 9, 20, 0.96)),
+              #050914;
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            box-shadow:
+              0 18px 38px rgba(6, 16, 31, 0.18),
+              inset 0 0 22px rgba(11, 99, 255, 0.1);
             justify-content: center;
           }
 
@@ -1976,7 +1994,7 @@ export default function Page() {
             height: auto;
             display: block;
             margin: 0 auto;
-            filter: none;
+            filter: drop-shadow(0 0 10px rgba(11, 99, 255, 0.28));
           }
 
           h1 {
