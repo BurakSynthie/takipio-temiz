@@ -3,30 +3,15 @@
 }
 
 html {
-  width: 100%;
-  min-height: 100%;
-  margin: 0;
-  padding: 0;
   scroll-behavior: smooth;
-  overflow-x: hidden;
-  overflow-y: auto;
   background: #f8fbff;
 }
 
 body {
-  width: 100%;
-  min-height: 100%;
   margin: 0;
   padding: 0;
-  overflow: visible;
   background: #f8fbff;
-}
-
-body,
-button,
-input,
-textarea,
-select {
+  overflow-x: hidden;
   font-family:
     Inter,
     ui-sans-serif,
@@ -44,14 +29,8 @@ a {
 }
 
 button,
-input {
+input,
+textarea,
+select {
   font: inherit;
-}
-
-#__next,
-[data-nextjs-scroll-focus-boundary],
-body > div {
-  min-height: 100%;
-  height: auto !important;
-  overflow: visible !important;
 }
