@@ -18,8 +18,7 @@ body {
   min-height: 100%;
   margin: 0;
   padding: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow: visible;
   background: #f8fbff;
 }
 
@@ -50,12 +49,7 @@ input {
 }
 
 #__next,
-[data-nextjs-scroll-focus-boundary] {
-  min-height: 100%;
-  height: auto !important;
-  overflow: visible !important;
-}
-
+[data-nextjs-scroll-focus-boundary],
 body > div {
   min-height: 100%;
   height: auto !important;
