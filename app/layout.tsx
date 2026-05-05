@@ -16,6 +16,11 @@ export const metadata = {
   title: "Takipio | İşletme Takip Asistanı",
   description:
     "Takipio ile sipariş, müşteri, stok ve ödeme takibini tek panelden yönetin.",
+  icons: {
+    icon: "/favicon.png",
+    shortcut: "/favicon.png",
+    apple: "/favicon.png",
+  },
 };
 
 export default function RootLayout({
