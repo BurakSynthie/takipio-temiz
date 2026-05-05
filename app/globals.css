@@ -3,8 +3,11 @@
 }
 
 html {
+  margin: 0;
+  padding: 0;
   scroll-behavior: smooth;
   background: #f8fbff;
+  overflow-x: hidden;
 }
 
 body {
