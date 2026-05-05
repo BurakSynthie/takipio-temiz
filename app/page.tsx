@@ -47,606 +47,1314 @@ export default function Page() {
   }
 
   return (
-    <main className="posterLanding">
-      <div className="softBlob blobOne" />
-      <div className="softBlob blobTwo" />
-      <div className="dotPattern patternOne" />
-      <div className="dotPattern patternTwo" />
+    <main className="takipioPage">
+      <div className="pageGrid" />
+      <div className="noiseLayer" />
+      <div className="halo haloOne" />
+      <div className="halo haloTwo" />
+      <div className="halo haloThree" />
 
-      <header className="topHeader">
-        <img src="/takipio-logo.png" alt="Takipio" className="topLogo" />
-        <nav className="topNav">
+      <header className="navBar">
+        <a className="brand" href="#top" aria-label="Takipio">
+          <img src="/takipio-logo.png" alt="Takipio" />
+        </a>
+
+        <nav className="navLinks">
           <a href="#features">Özellikler</a>
-          <a href="#price">Fiyat</a>
-          <a href="#gorki">Gorki</a>
-          <a className="navCta" href="#waitlist">Erken Erişim</a>
+          <a href="#showcase">Arayüz</a>
+          <a href="#pricing">Fiyat</a>
+          <a href="#waitlist" className="navButton">Erken Erişim</a>
         </nav>
       </header>
 
-      <section className="heroPoster">
-        <div className="centerHero">
-          <div className="logoMark">
-            <img src="/takipio-logo.png" alt="Takipio" />
+      <section className="hero" id="top">
+        <div className="heroCopy">
+          <div className="launchBadge">
+            <span className="pulseDot" />
+            ÇOK YAKINDA YAYINDA
           </div>
 
-          <p className="preTitle">İŞİNİ BÜYÜTMEK ARTIK ÇOK KOLAY.</p>
-          <h1>takipio</h1>
-          <div className="brushText">HER ŞEY TEK PANELDE!</div>
+          <h1>
+            İşletmeni tek panelden yönet, <span>kontrolü kaybetme.</span>
+          </h1>
 
-          <div className="deviceStage">
-            <LaptopMockup />
-            <PhoneMockup />
+          <p className="heroText">
+            Takipio; sipariş, müşteri, stok, ödeme ve günlük iş akışını sade ama güçlü bir panelde toplayan yeni nesil işletme asistanıdır.
+          </p>
+
+          <form className="waitlistCard" id="waitlist" onSubmit={handleSubmit}>
+            <div className="formHeader">
+              <div className="mailOrb"><MailIcon /></div>
+              <div>
+                <h2>Erken erişim listesine katıl</h2>
+                <p>Açılışta özel <b>TAKIPIO10</b> indirim kodunu ilk alanlardan ol.</p>
+              </div>
+            </div>
+
+            <div className="formRow">
+              <input
+                type="email"
+                placeholder="E-posta adresiniz"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+              <button type="submit">
+                {loading ? "Kaydediliyor..." : saved ? "Kaydedildi ✓" : "Kayıt Ol"}
+              </button>
+            </div>
+
+            {errorMessage && <div className="message error">{errorMessage}</div>}
+            {saved && <div className="message success">Kaydın alındı. Açılışta haber vereceğiz.</div>}
+
+            <div className="formHint">
+              <GiftIcon />
+              İlk ay indirim + erken kullanıcı avantajı
+            </div>
+          </form>
+
+          <div className="miniStats">
+            <div><strong>15</strong><span>müşteriye kadar ücretsiz</span></div>
+            <div><strong>7/24</strong><span>erişim ve takip</span></div>
+            <div><strong>Gorki</strong><span>akıllı asistan</span></div>
           </div>
         </div>
 
-        <aside className="leftStack">
-          <Sticker className="stickerBig" title="SİPARİŞLERİN" strong="KONTROL ALTINDA!" />
-          <MiniCard icon={<UserIcon />} title="MÜŞTERİLERİNİ" strong="YÖNET" />
-          <BlackNote title="STOKLARINI" strong="TAKİP ET" icon={<CubeIcon />} />
-          <MiniCard icon={<WalletIcon />} title="ÖDEMELERİNİ" strong="KOLAYCA YÖNET" tilted />
-        </aside>
+        <div className="heroVisual" id="showcase">
+          <div className="swingTag" id="pricing">
+            <div className="tagString" />
+            <div className="tagBody">
+              <b>AÇILIŞA ÖZEL</b>
+              <span>İlk Ay</span>
+              <del>₺99</del>
+              <strong>₺89</strong>
+            </div>
+          </div>
 
-        <aside className="rightStack" id="price">
-          <PriceTag />
-          <div className="soonScribble">ÇOK<br /><span>YAKINDA!</span></div>
-          <div className="gorkiCut" id="gorki">
+          <div className="mockupStage">
+            <LaptopMockup />
+            <PhoneMockup />
+            <div className="floatingPanel panelOrders">
+              <OrdersIcon />
+              <div><b>Siparişler</b><span>Kontrol altında</span></div>
+            </div>
+            <div className="floatingPanel panelStock">
+              <CubeIcon />
+              <div><b>Stok</b><span>Güncel</span></div>
+            </div>
+            <div className="floatingPanel panelIncome">
+              <WalletIcon />
+              <div><b>₺12.450</b><span>Bugünkü ciro</span></div>
+            </div>
+          </div>
+
+          <div className="gorkiArea">
             <img src="/gorki-hero.png" alt="Gorki" />
-            <div className="gorkiBrush">GORKİ<br /><span>HER ZAMAN YANINDA!</span></div>
+            <div className="gorkiBubble">
+              <HeartIcon />
+              Gorki her zaman yanında.
+            </div>
           </div>
-        </aside>
+        </div>
       </section>
 
-      <section className="featureStrip" id="features">
-        <Feature icon={<BoltIcon />} title="Hızlı" text="Kurulum" />
-        <Feature icon={<ShieldIcon />} title="Güvenli" text="Altyapı" />
-        <Feature icon={<CloudIcon />} title="7/24" text="Erişim" />
-        <Feature icon={<HeadsetIcon />} title="7/24" text="Destek" />
+      <section className="featureGrid" id="features">
+        <FeatureCard icon={<UsersIcon />} title="Müşterilerini yönet" text="Müşteri kayıtları, notlar ve geçmiş işlemler tek yerde dursun." />
+        <FeatureCard icon={<OrdersIcon />} title="Siparişlerini takip et" text="Bekleyen, hazırlanan ve tamamlanan işleri net şekilde gör." />
+        <FeatureCard icon={<CubeIcon />} title="Stok kontrolü" text="Ürün durumlarını, kritik seviyeleri ve hareketleri takip et." />
+        <FeatureCard icon={<WalletIcon />} title="Ödeme takibi" text="Alınan, bekleyen ve geciken ödemeleri hızlıca ayır." />
       </section>
 
-      <section className="waitlistArea" id="waitlist">
-        <div className="startBrush">İŞİNİ BÜYÜTMEYE<br />HEMEN BAŞLA!</div>
-
-        <form className="waitlistForm" onSubmit={handleSubmit}>
+      <section className="bottomSection">
+        <div className="domainCard">
+          <GlobeIcon />
           <div>
-            <h2>Erken erişim listesine katıl</h2>
-            <p>Açılışa özel <b>TAKIPIO10</b> indirim kodunu ilk sen al.</p>
+            <h3>TAKIPIO.COM</h3>
+            <p>Her yerden eriş, işini kontrol et.</p>
           </div>
-          <div className="formRow">
-            <input
-              type="email"
-              placeholder="E-posta adresiniz"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-            <button type="submit">{loading ? "Kaydediliyor..." : saved ? "Kaydedildi ✓" : "Kayıt Ol"}</button>
-          </div>
-          {errorMessage && <div className="message error">{errorMessage}</div>}
-          {saved && <div className="message success">Kaydın alındı. Açılışta haber vereceğiz.</div>}
-        </form>
-      </section>
+        </div>
 
-      <footer className="bottomDomain">
-        <div className="domainPill">TAKIPIO.COM <GlobeIcon /></div>
-        <p>Her yerden eriş, işini <b>kontrol et!</b></p>
-      </footer>
+        <div className="trustCards">
+          <div><ShieldIcon /><span>Güvenli altyapı</span></div>
+          <div><BoltIcon /><span>Hızlı kurulum</span></div>
+          <div><HeadsetIcon /><span>Destek hazır</span></div>
+        </div>
+      </section>
 
       <style jsx global>{`
         :root {
-          --blue: #0b62ff;
-          --blue2: #00a6ff;
-          --dark: #030917;
-          --text: #050915;
+          --blue: #0b63ff;
+          --blue2: #00a8ff;
+          --cyan: #34d5ff;
+          --dark: #050914;
+          --text: #050914;
           --muted: #667085;
-          --soft: #eef5ff;
+          --soft: #f2f7ff;
+          --line: rgba(11, 99, 255, 0.18);
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; }
+        * {
+          box-sizing: border-box;
+          margin: 0;
+          padding: 0;
+        }
 
-        html, body {
-          min-height: 100%;
-          background: #f7fbff;
+        html {
+          scroll-behavior: smooth;
+          background: #ffffff;
+        }
+
+        body {
+          min-height: 100vh;
+          background: #ffffff;
           color: var(--text);
-          font-family: Inter, Arial, Helvetica, sans-serif;
           overflow-x: hidden;
+          font-family: Inter, Arial, Helvetica, sans-serif;
         }
 
-        a { color: inherit; text-decoration: none; }
-        button, input { font-family: inherit; }
+        a {
+          color: inherit;
+          text-decoration: none;
+        }
 
-        .posterLanding {
+        button,
+        input {
+          font-family: inherit;
+        }
+
+        .takipioPage {
           min-height: 100vh;
           position: relative;
           overflow: hidden;
-          padding: 26px 34px 30px;
+          padding: 28px 34px 38px;
           background:
-            radial-gradient(circle at 50% 10%, rgba(11,98,255,.08), transparent 26%),
-            radial-gradient(circle at 84% 38%, rgba(11,98,255,.11), transparent 22%),
-            linear-gradient(180deg, #ffffff 0%, #f5f9ff 58%, #ffffff 100%);
+            radial-gradient(circle at 18% 18%, rgba(11, 99, 255, 0.08), transparent 28%),
+            radial-gradient(circle at 80% 28%, rgba(0, 168, 255, 0.12), transparent 26%),
+            radial-gradient(circle at 62% 76%, rgba(11, 99, 255, 0.08), transparent 28%),
+            linear-gradient(180deg, #ffffff 0%, #f7fbff 58%, #ffffff 100%);
         }
 
-        .softBlob {
+        .pageGrid {
           position: absolute;
+          inset: 0;
+          pointer-events: none;
+          opacity: 0.35;
+          background-image:
+            linear-gradient(rgba(11, 99, 255, 0.055) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(11, 99, 255, 0.055) 1px, transparent 1px);
+          background-size: 72px 72px;
+          mask-image: radial-gradient(circle at 50% 35%, #000 0%, transparent 74%);
+        }
+
+        .noiseLayer {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          opacity: 0.16;
+          background-image: radial-gradient(circle, rgba(11, 99, 255, 0.7) 0 1px, transparent 1.4px);
+          background-size: 86px 86px;
+        }
+
+        .halo {
+          position: absolute;
+          pointer-events: none;
           border-radius: 999px;
-          background: rgba(11,98,255,.08);
-          filter: blur(1px);
-          pointer-events: none;
+          filter: blur(18px);
+          opacity: 0.65;
         }
 
-        .blobOne { width: 410px; height: 410px; left: 135px; top: 80px; }
-        .blobTwo { width: 360px; height: 360px; right: 120px; bottom: 150px; }
-
-        .dotPattern {
-          position: absolute;
-          pointer-events: none;
-          width: 260px;
-          height: 160px;
-          opacity: .22;
-          background-image: radial-gradient(circle, var(--blue) 0 3px, transparent 3.5px);
-          background-size: 16px 16px;
-          transform: rotate(-22deg);
+        .haloOne {
+          width: 390px;
+          height: 390px;
+          left: 110px;
+          top: 110px;
+          background: rgba(11, 99, 255, 0.06);
         }
 
-        .patternOne { right: 250px; top: -10px; }
-        .patternTwo { right: -40px; bottom: 185px; transform: rotate(18deg); }
+        .haloTwo {
+          width: 380px;
+          height: 380px;
+          right: 90px;
+          top: 140px;
+          background: rgba(0, 168, 255, 0.09);
+        }
 
-        .topHeader {
+        .haloThree {
+          width: 310px;
+          height: 310px;
+          right: 32%;
+          bottom: 10px;
+          background: rgba(11, 99, 255, 0.055);
+        }
+
+        .navBar {
           max-width: 1480px;
+          height: 72px;
           margin: 0 auto;
-          height: 64px;
           display: flex;
           align-items: center;
           justify-content: space-between;
           position: relative;
-          z-index: 10;
+          z-index: 20;
         }
 
-        .topLogo {
-          width: 190px;
-          height: 64px;
-          object-fit: contain;
-          object-position: left center;
-          filter: drop-shadow(0 8px 18px rgba(11,98,255,.18));
-        }
-
-        .topNav {
+        .brand {
+          width: 205px;
+          height: 70px;
           display: flex;
           align-items: center;
-          gap: 30px;
+        }
+
+        .brand img {
+          width: 200px;
+          max-height: 70px;
+          object-fit: contain;
+          object-position: left center;
+          filter: drop-shadow(0 12px 22px rgba(11, 99, 255, 0.18));
+        }
+
+        .navLinks {
+          display: flex;
+          align-items: center;
+          gap: 31px;
           font-size: 15px;
           font-weight: 850;
           color: #1d2939;
         }
 
-        .navCta {
-          padding: 13px 18px;
-          border-radius: 999px;
-          color: white;
-          background: var(--blue);
-          box-shadow: 0 14px 28px rgba(11,98,255,.23);
+        .navLinks a {
+          transition: 0.25s ease;
         }
 
-        .heroPoster {
+        .navLinks a:hover {
+          color: var(--blue);
+          transform: translateY(-1px);
+        }
+
+        .navButton {
+          padding: 13px 18px;
+          border-radius: 999px;
+          color: white !important;
+          background: linear-gradient(135deg, var(--blue), var(--blue2));
+          box-shadow: 0 16px 28px rgba(11, 99, 255, 0.22);
+        }
+
+        .hero {
           max-width: 1480px;
           min-height: 760px;
           margin: 0 auto;
-          position: relative;
           display: grid;
-          grid-template-columns: 280px 1fr 310px;
-          gap: 18px;
-          align-items: start;
-          padding-top: 8px;
-        }
-
-        .centerHero {
-          text-align: center;
+          grid-template-columns: minmax(480px, 0.95fr) minmax(680px, 1.25fr);
+          gap: 42px;
+          align-items: center;
           position: relative;
           z-index: 4;
         }
 
-        .logoMark img {
-          width: 54px;
-          height: 54px;
-          object-fit: contain;
-          margin-bottom: 15px;
-          filter: drop-shadow(0 8px 18px rgba(11,98,255,.22));
+        .heroCopy {
+          position: relative;
+          z-index: 8;
+          padding-top: 12px;
         }
 
-        .preTitle {
-          font-size: clamp(26px, 3vw, 44px);
-          line-height: 1.05;
-          font-weight: 950;
-          letter-spacing: -1.2px;
-          margin-top: 2px;
-        }
-
-        .preTitle::after {
-          content: "ARTIK ÇOK KOLAY.";
-          display: block;
+        .launchBadge {
+          width: max-content;
+          display: inline-flex;
+          align-items: center;
+          gap: 10px;
+          padding: 11px 17px;
+          border-radius: 999px;
+          border: 1px solid rgba(11, 99, 255, 0.18);
+          background: rgba(255, 255, 255, 0.72);
+          box-shadow: 0 14px 30px rgba(11, 99, 255, 0.08);
           color: var(--blue);
-          margin-top: 7px;
+          font-size: 14px;
+          font-weight: 950;
+          letter-spacing: 0.9px;
+          backdrop-filter: blur(12px);
+          margin-bottom: 26px;
+        }
+
+        .pulseDot {
+          width: 9px;
+          height: 9px;
+          border-radius: 50%;
+          background: #22c55e;
+          box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.55);
+          animation: dotPulse 1.8s ease-in-out infinite;
         }
 
         h1 {
-          font-size: clamp(100px, 13vw, 190px);
-          line-height: .82;
-          letter-spacing: -12px;
+          max-width: 720px;
+          color: #050914;
+          font-size: clamp(54px, 5.1vw, 88px);
+          line-height: 0.97;
+          letter-spacing: -4.8px;
           font-weight: 950;
-          color: #030917;
-          margin: 18px 0 8px;
-          text-shadow: 0 22px 34px rgba(11,98,255,.10);
+          margin-bottom: 22px;
         }
 
-        .brushText,
-        .startBrush,
-        .gorkiBrush {
-          color: white;
-          background: var(--blue);
-          box-shadow: 0 14px 28px rgba(11,98,255,.22);
-          transform: rotate(-2deg);
+        h1 span {
+          display: block;
+          color: var(--blue);
+          text-shadow: 0 12px 30px rgba(11, 99, 255, 0.16);
         }
 
-        .brushText {
-          width: max-content;
-          max-width: 100%;
-          margin: 0 auto;
-          padding: 12px 28px 15px;
-          font-size: clamp(22px, 3vw, 40px);
-          font-weight: 950;
-          letter-spacing: 2px;
-          position: relative;
-          clip-path: polygon(1% 16%, 100% 0, 97% 88%, 5% 100%);
+        .heroText {
+          max-width: 650px;
+          color: var(--muted);
+          font-size: 21px;
+          line-height: 1.58;
+          letter-spacing: -0.4px;
+          margin-bottom: 27px;
         }
 
-        .deviceStage {
-          position: relative;
-          height: 360px;
-          margin-top: 34px;
+        .waitlistCard {
+          width: min(680px, 100%);
+          border-radius: 28px;
+          padding: 23px;
+          background: rgba(255, 255, 255, 0.82);
+          border: 1px solid rgba(11, 99, 255, 0.16);
+          box-shadow: 0 26px 55px rgba(7, 20, 47, 0.11);
+          backdrop-filter: blur(18px);
+          transition: 0.32s ease;
+        }
+
+        .waitlistCard:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 35px 70px rgba(7, 20, 47, 0.15), 0 0 0 6px rgba(11, 99, 255, 0.04);
+        }
+
+        .formHeader {
           display: flex;
-          align-items: end;
+          align-items: center;
+          gap: 16px;
+          margin-bottom: 18px;
+        }
+
+        .mailOrb {
+          width: 56px;
+          height: 56px;
+          flex: 0 0 auto;
+          border-radius: 18px;
+          display: grid;
+          place-items: center;
+          color: white;
+          background: linear-gradient(135deg, var(--blue), var(--blue2));
+          box-shadow: 0 16px 30px rgba(11, 99, 255, 0.24);
+        }
+
+        .mailOrb svg {
+          width: 28px;
+          height: 28px;
+        }
+
+        .formHeader h2 {
+          font-size: 25px;
+          line-height: 1.1;
+          letter-spacing: -0.9px;
+          margin-bottom: 6px;
+        }
+
+        .formHeader p {
+          color: var(--muted);
+          font-size: 15px;
+          line-height: 1.45;
+        }
+
+        .formHeader b {
+          color: var(--blue);
+        }
+
+        .formRow {
+          display: grid;
+          grid-template-columns: 1fr 172px;
+          gap: 12px;
+          margin-bottom: 12px;
+        }
+
+        .formRow input {
+          height: 58px;
+          border: 1px solid rgba(11, 99, 255, 0.18);
+          border-radius: 18px;
+          outline: none;
+          background: #f7fbff;
+          color: #050914;
+          padding: 0 18px;
+          font-size: 16px;
+          transition: 0.25s ease;
+        }
+
+        .formRow input:focus {
+          border-color: rgba(11, 99, 255, 0.48);
+          box-shadow: 0 0 0 5px rgba(11, 99, 255, 0.08);
+          background: white;
+        }
+
+        .formRow button {
+          height: 58px;
+          border: 0;
+          border-radius: 18px;
+          background: linear-gradient(135deg, var(--blue), var(--blue2));
+          color: white;
+          font-size: 17px;
+          font-weight: 950;
+          cursor: pointer;
+          box-shadow: 0 16px 28px rgba(11, 99, 255, 0.24);
+          transition: 0.25s ease;
+        }
+
+        .formRow button:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 22px 38px rgba(11, 99, 255, 0.3);
+        }
+
+        .message {
+          margin: 0 0 12px;
+          padding: 12px 14px;
+          border-radius: 14px;
+          font-size: 14px;
+          font-weight: 760;
+        }
+
+        .message.error {
+          color: #b42318;
+          background: #fff1f0;
+          border: 1px solid #ffdad6;
+        }
+
+        .message.success {
+          color: #067647;
+          background: #ecfdf3;
+          border: 1px solid #abefc6;
+        }
+
+        .formHint {
+          display: flex;
+          align-items: center;
+          gap: 9px;
+          color: var(--blue);
+          font-size: 14px;
+          font-weight: 850;
+        }
+
+        .formHint svg {
+          width: 20px;
+          height: 20px;
+        }
+
+        .miniStats {
+          width: min(680px, 100%);
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 12px;
+          margin-top: 17px;
+        }
+
+        .miniStats div {
+          min-height: 82px;
+          border-radius: 22px;
+          padding: 14px;
+          background: rgba(255, 255, 255, 0.68);
+          border: 1px solid rgba(11, 99, 255, 0.12);
+          box-shadow: 0 16px 35px rgba(7, 20, 47, 0.06);
+          transition: 0.25s ease;
+        }
+
+        .miniStats div:hover {
+          transform: translateY(-4px);
+          border-color: rgba(11, 99, 255, 0.3);
+        }
+
+        .miniStats strong {
+          display: block;
+          color: var(--blue);
+          font-size: 24px;
+          line-height: 1;
+          margin-bottom: 7px;
+        }
+
+        .miniStats span {
+          color: #475467;
+          font-size: 13px;
+          line-height: 1.35;
+          font-weight: 760;
+        }
+
+        .heroVisual {
+          min-height: 710px;
+          position: relative;
+          display: flex;
+          align-items: center;
           justify-content: center;
         }
 
-        .laptop {
-          width: min(650px, 92%);
-          height: 330px;
-          border-radius: 24px 24px 15px 15px;
-          padding: 16px 16px 24px;
-          background: linear-gradient(135deg, #c8d2e1, #f3f6fb 48%, #8c9aac);
-          box-shadow: 0 26px 55px rgba(7,20,47,.22);
+        .mockupStage {
+          width: min(760px, 100%);
+          height: 520px;
           position: relative;
-          transform: perspective(900px) rotateX(5deg);
+          display: flex;
+          align-items: end;
+          justify-content: center;
+          perspective: 1100px;
         }
 
-        .laptop::after {
+        .laptopMock {
+          width: min(680px, 91%);
+          height: 372px;
+          position: relative;
+          border-radius: 28px 28px 18px 18px;
+          padding: 16px 16px 28px;
+          background: linear-gradient(135deg, #c5cfdd, #f8fbff 48%, #8c99aa);
+          box-shadow: 0 36px 80px rgba(7, 20, 47, 0.2);
+          transform: rotateX(4deg) rotateY(-7deg) rotateZ(-1deg);
+          transition: 0.35s ease;
+        }
+
+        .mockupStage:hover .laptopMock {
+          transform: rotateX(2deg) rotateY(-3deg) rotateZ(0deg) translateY(-8px);
+        }
+
+        .laptopMock::after {
           content: "";
           position: absolute;
-          left: 8%;
-          right: 8%;
-          bottom: -16px;
-          height: 22px;
-          border-radius: 0 0 28px 28px;
-          background: linear-gradient(180deg, #d8dee8, #8792a2);
-          box-shadow: 0 14px 24px rgba(7,20,47,.16);
+          left: 7%;
+          right: 7%;
+          bottom: -18px;
+          height: 25px;
+          border-radius: 0 0 34px 34px;
+          background: linear-gradient(180deg, #e5ebf3, #7d8796);
+          box-shadow: 0 18px 30px rgba(7, 20, 47, 0.16);
         }
 
-        .screen {
+        .laptopScreen {
           width: 100%;
           height: 100%;
-          border-radius: 18px;
           overflow: hidden;
+          border-radius: 20px;
           background: #041020;
-          border: 1px solid rgba(255,255,255,.12);
-          box-shadow: inset 0 0 35px rgba(0,166,255,.08);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          box-shadow: inset 0 0 42px rgba(0, 168, 255, 0.09);
           text-align: left;
         }
 
         .screenTop {
-          height: 54px;
+          height: 55px;
           display: flex;
           align-items: center;
           justify-content: space-between;
           padding: 0 18px;
           color: white;
-          border-bottom: 1px solid rgba(255,255,255,.08);
+          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         }
 
-        .screenBrand { display: flex; align-items: center; gap: 9px; font-weight: 900; }
-        .screenBrand img { width: 26px; height: 26px; object-fit: contain; }
-        .screenDots { display: flex; gap: 7px; }
-        .screenDots span { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.34); }
+        .screenBrand {
+          display: flex;
+          align-items: center;
+          gap: 9px;
+          font-weight: 950;
+        }
 
-        .screenBody { display: grid; grid-template-columns: 140px 1fr; min-height: calc(100% - 54px); }
-        .screenMenu { padding: 16px 12px; border-right: 1px solid rgba(255,255,255,.08); display: grid; gap: 9px; align-content: start; }
-        .screenMenu span { height: 28px; border-radius: 8px; background: rgba(255,255,255,.07); }
-        .screenMenu span:first-child { background: var(--blue); }
+        .screenBrand img {
+          width: 25px;
+          height: 25px;
+          object-fit: contain;
+        }
 
-        .screenContent { padding: 16px; }
-        .dashCards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 13px; }
-        .dashCard { min-height: 70px; padding: 12px; border-radius: 12px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08); color: white; }
-        .dashCard small { color: #8fb7ff; display: block; margin-bottom: 8px; }
-        .dashCard b { font-size: 20px; }
-        .graph { height: 130px; border-radius: 14px; background: linear-gradient(180deg, rgba(11,98,255,.20), rgba(11,98,255,.03)); border: 1px solid rgba(255,255,255,.08); position: relative; overflow: hidden; }
-        .graph svg { width: 100%; height: 100%; }
+        .screenActions {
+          display: flex;
+          gap: 7px;
+        }
 
-        .phone {
-          width: 155px;
-          height: 305px;
-          border-radius: 30px;
-          padding: 10px;
-          background: linear-gradient(135deg, #1a2433, #050b15);
-          box-shadow: 0 22px 40px rgba(7,20,47,.28);
+        .screenActions span {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background: rgba(255, 255, 255, 0.3);
+        }
+
+        .screenBody {
+          height: calc(100% - 55px);
+          display: grid;
+          grid-template-columns: 150px 1fr;
+        }
+
+        .mockMenu {
+          padding: 16px 12px;
+          border-right: 1px solid rgba(255, 255, 255, 0.08);
+          display: grid;
+          align-content: start;
+          gap: 10px;
+        }
+
+        .mockMenu span {
+          height: 30px;
+          border-radius: 9px;
+          background: rgba(255, 255, 255, 0.07);
+        }
+
+        .mockMenu span:first-child {
+          background: linear-gradient(135deg, var(--blue), var(--blue2));
+          box-shadow: 0 10px 20px rgba(11, 99, 255, 0.22);
+        }
+
+        .mockContent {
+          padding: 16px;
+        }
+
+        .mockCards {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 10px;
+          margin-bottom: 12px;
+        }
+
+        .mockCard {
+          min-height: 76px;
+          padding: 12px;
+          border-radius: 14px;
+          background: rgba(255, 255, 255, 0.06);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          color: white;
+        }
+
+        .mockCard small {
+          display: block;
+          color: #8fb7ff;
+          font-size: 11px;
+          margin-bottom: 8px;
+        }
+
+        .mockCard b {
+          font-size: 20px;
+        }
+
+        .mockGraph {
+          height: 152px;
+          border-radius: 16px;
+          overflow: hidden;
+          background: linear-gradient(180deg, rgba(11, 99, 255, 0.2), rgba(11, 99, 255, 0.03));
+          border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .mockGraph svg {
+          width: 100%;
+          height: 100%;
+        }
+
+        .phoneMock {
           position: absolute;
-          right: 10%;
-          bottom: 5px;
+          right: 8%;
+          bottom: 0;
+          width: 170px;
+          height: 338px;
+          border-radius: 36px;
+          padding: 10px;
+          background: linear-gradient(135deg, #1c2533, #050b15);
+          border: 3px solid #101827;
+          box-shadow: 0 30px 60px rgba(7, 20, 47, 0.24);
           transform: rotate(-2deg);
-          border: 3px solid #141b27;
+          transition: 0.35s ease;
+          z-index: 6;
+        }
+
+        .mockupStage:hover .phoneMock {
+          transform: rotate(1deg) translateY(-12px);
         }
 
         .phoneScreen {
           height: 100%;
-          border-radius: 22px;
-          background: #031020;
-          padding: 14px 10px;
+          border-radius: 27px;
+          overflow: hidden;
+          background: #041020;
           color: white;
+          padding: 14px 10px;
+        }
+
+        .phoneHead {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 12px;
+          font-size: 12px;
+          font-weight: 900;
+        }
+
+        .phoneHead span {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .phoneHead img {
+          width: 20px;
+          height: 20px;
+          object-fit: contain;
+        }
+
+        .phoneGrid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 7px;
+        }
+
+        .phoneCard {
+          min-height: 62px;
+          border-radius: 13px;
+          padding: 9px;
+          background: rgba(255, 255, 255, 0.07);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .phoneCard small {
+          display: block;
+          color: #8fb7ff;
+          font-size: 9px;
+          margin-bottom: 6px;
+        }
+
+        .phoneCard b {
+          display: block;
+          font-size: 14px;
+        }
+
+        .phoneList {
+          margin-top: 11px;
+          display: grid;
+          gap: 8px;
+        }
+
+        .phoneList span {
+          height: 31px;
+          border-radius: 11px;
+          background: rgba(255, 255, 255, 0.07);
+          border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .floatingPanel {
+          position: absolute;
+          z-index: 8;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 13px 15px;
+          min-width: 178px;
+          border-radius: 20px;
+          background: rgba(255, 255, 255, 0.82);
+          border: 1px solid rgba(11, 99, 255, 0.16);
+          box-shadow: 0 22px 40px rgba(7, 20, 47, 0.12);
+          backdrop-filter: blur(16px);
+          transition: 0.28s ease;
+        }
+
+        .floatingPanel:hover {
+          transform: translateY(-8px) scale(1.02);
+          border-color: rgba(11, 99, 255, 0.35);
+          box-shadow: 0 32px 55px rgba(7, 20, 47, 0.17);
+        }
+
+        .floatingPanel svg {
+          width: 27px;
+          height: 27px;
+          color: var(--blue);
+          flex: 0 0 auto;
+        }
+
+        .floatingPanel b {
+          display: block;
+          color: #050914;
+          font-size: 15px;
+          line-height: 1.1;
+        }
+
+        .floatingPanel span {
+          display: block;
+          color: var(--muted);
+          font-size: 12px;
+          font-weight: 750;
+          margin-top: 3px;
+        }
+
+        .panelOrders {
+          left: 0;
+          top: 68px;
+          animation: floatPanel 4.8s ease-in-out infinite;
+        }
+
+        .panelStock {
+          left: 42px;
+          bottom: 70px;
+          animation: floatPanel 5.2s ease-in-out infinite 0.3s;
+        }
+
+        .panelIncome {
+          right: 0;
+          top: 128px;
+          animation: floatPanel 5.6s ease-in-out infinite 0.6s;
+        }
+
+        .swingTag {
+          position: absolute;
+          top: 40px;
+          right: 18px;
+          width: 208px;
+          height: 245px;
+          z-index: 12;
+          transform-origin: 50% 0;
+          animation: swing 3.7s ease-in-out infinite;
+        }
+
+        .tagString {
+          width: 2px;
+          height: 48px;
+          margin: 0 auto -2px;
+          background: linear-gradient(180deg, rgba(5, 9, 20, 0.18), rgba(5, 9, 20, 0.55));
+        }
+
+        .tagBody {
+          position: relative;
+          min-height: 192px;
+          padding: 15px 16px 18px;
+          border-radius: 23px;
+          background: #060b17;
+          color: white;
+          text-align: center;
+          box-shadow: 0 28px 50px rgba(7, 20, 47, 0.28);
           overflow: hidden;
         }
 
-        .phoneLogo { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 900; margin-bottom: 12px; }
-        .phoneLogo img { width: 20px; height: 20px; object-fit: contain; }
-        .phoneGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
-        .phoneCard { border-radius: 10px; padding: 9px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.08); }
-        .phoneCard small { display: block; color: #85a7dd; font-size: 9px; margin-bottom: 5px; }
-        .phoneCard b { font-size: 14px; }
-        .phoneList { margin-top: 10px; display: grid; gap: 7px; }
-        .phoneList span { height: 28px; border-radius: 9px; background: rgba(255,255,255,.07); }
-
-        .leftStack,
-        .rightStack {
-          position: relative;
-          z-index: 5;
-          min-height: 670px;
+        .tagBody::before {
+          content: "";
+          position: absolute;
+          left: 50%;
+          top: 10px;
+          width: 14px;
+          height: 14px;
+          border-radius: 50%;
+          transform: translateX(-50%);
+          background: #f7fbff;
+          box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.2);
         }
 
-        .sticker,
-        .miniCard,
-        .blackNote,
-        .priceTag {
-          border-radius: 22px;
-          box-shadow: 0 16px 34px rgba(7,20,47,.13);
-        }
-
-        .sticker {
-          padding: 23px 20px;
-          background: rgba(255,255,255,.78);
-          border: 2px dashed rgba(11,98,255,.38);
-          transform: rotate(-4deg);
-          backdrop-filter: blur(8px);
-        }
-
-        .sticker p,
-        .miniCard p,
-        .blackNote p { font-size: 24px; font-weight: 950; line-height: 1.02; }
-        .sticker strong,
-        .miniCard strong,
-        .blackNote strong { display: block; color: var(--blue); font-size: 34px; line-height: .98; margin-top: 4px; }
-        .stickerBig { margin-top: 58px; }
-
-        .miniCard {
-          margin-top: 40px;
-          padding: 19px 20px;
-          display: flex;
-          gap: 13px;
-          align-items: center;
-          background: white;
-          border: 2px dashed rgba(11,98,255,.55);
-          transform: rotate(-5deg);
-        }
-
-        .miniCard.tilted { transform: rotate(-9deg); margin-top: 42px; }
-        .miniIcon { width: 48px; height: 48px; color: var(--blue); flex: 0 0 auto; }
-        .miniIcon svg { width: 48px; height: 48px; fill: none; stroke: currentColor; stroke-width: 2.7; stroke-linecap: round; stroke-linejoin: round; }
-        .miniCard p { font-size: 18px; }
-        .miniCard strong { font-size: 25px; }
-
-        .blackNote {
-          width: 210px;
-          margin-top: 44px;
-          padding: 27px 21px;
-          background: #0b111d;
-          color: white;
-          transform: rotate(-5deg);
-        }
-
-        .blackNote strong { font-size: 30px; }
-        .blackNote .noteIcon { width: 45px; height: 45px; margin-top: 18px; color: white; }
-        .blackNote svg { width: 45px; height: 45px; fill: none; stroke: currentColor; stroke-width: 2.5; }
-
-        .priceTag {
-          margin-top: 42px;
-          margin-left: 16px;
-          width: 260px;
-          min-height: 220px;
-          padding: 18px;
-          background: #09111e;
-          color: white;
-          transform: rotate(5deg);
-          position: relative;
-        }
-
-        .priceRibbon {
-          width: max-content;
-          padding: 10px 15px;
-          border-radius: 8px;
-          color: white;
+        .tagBody b {
+          display: inline-flex;
+          margin-top: 15px;
+          padding: 8px 10px;
+          border-radius: 10px;
           background: var(--blue);
-          font-size: 25px;
-          font-weight: 950;
-          transform: rotate(2deg);
-          margin: -14px auto 14px;
-          box-shadow: 0 12px 20px rgba(11,98,255,.25);
+          font-size: 16px;
+          transform: rotate(-3deg);
+          box-shadow: 0 12px 22px rgba(11, 99, 255, 0.3);
         }
 
-        .priceTag p { font-size: 24px; font-weight: 900; line-height: 1.1; text-align: center; }
-        .oldPrice { display: block; color: rgba(255,255,255,.36); font-size: 55px; font-weight: 950; text-decoration: line-through; text-decoration-color: var(--blue); text-decoration-thickness: 7px; text-align: center; margin: 4px 0 -6px; }
-        .newPrice { display: block; color: white; font-size: 92px; line-height: .95; font-weight: 950; text-align: center; text-shadow: 0 0 24px rgba(11,98,255,.85); }
-
-        .soonScribble {
-          margin-top: 60px;
-          font-size: 54px;
-          line-height: .84;
+        .tagBody span {
+          display: block;
+          margin-top: 12px;
+          color: #d7e8ff;
+          font-size: 18px;
           font-weight: 950;
-          transform: rotate(-7deg);
+          text-transform: uppercase;
         }
-        .soonScribble span { color: var(--blue); }
 
-        .gorkiCut {
+        .tagBody del {
+          display: block;
+          color: rgba(255, 255, 255, 0.35);
+          font-size: 43px;
+          font-weight: 950;
+          line-height: 1;
+          text-decoration-color: var(--blue);
+          text-decoration-thickness: 5px;
+          margin-top: 2px;
+        }
+
+        .tagBody strong {
+          display: block;
+          color: white;
+          font-size: 72px;
+          line-height: 0.95;
+          text-shadow: 0 0 24px rgba(11, 99, 255, 0.9);
+        }
+
+        .gorkiArea {
           position: absolute;
           right: 0;
-          bottom: 0;
-          width: 295px;
-          height: 300px;
+          bottom: 10px;
+          z-index: 14;
+          width: 245px;
+          min-height: 260px;
+          pointer-events: none;
         }
 
-        .gorkiCut img {
-          position: absolute;
-          right: 8px;
-          bottom: 82px;
-          width: 190px;
-          height: 190px;
+        .gorkiArea img {
+          width: 218px;
+          height: 218px;
           object-fit: contain;
-          filter: drop-shadow(0 18px 25px rgba(7,20,47,.18));
+          filter: drop-shadow(0 22px 26px rgba(7, 20, 47, 0.16));
           animation: gorkiFloat 4.8s ease-in-out infinite;
         }
 
-        .gorkiBrush {
+        .gorkiBubble {
           position: absolute;
-          right: 0;
-          bottom: 8px;
-          padding: 17px 19px;
-          background: #050915;
-          clip-path: polygon(0 13%, 100% 0, 94% 100%, 5% 88%);
-          font-size: 31px;
+          right: 4px;
+          bottom: 0;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          width: max-content;
+          max-width: 235px;
+          padding: 12px 15px;
+          border-radius: 999px;
+          color: white;
+          background: #050914;
+          box-shadow: 0 18px 35px rgba(7, 20, 47, 0.18);
+          font-size: 13px;
           font-weight: 950;
-          line-height: 1;
-          text-align: center;
-          transform: rotate(-4deg);
         }
-        .gorkiBrush span { font-size: 21px; }
 
-        .featureStrip {
-          max-width: 880px;
-          margin: -8px auto 0;
+        .gorkiBubble svg {
+          width: 16px;
+          height: 16px;
+          color: #ffffff;
+          flex: 0 0 auto;
+        }
+
+        .featureGrid {
+          max-width: 1480px;
+          margin: 10px auto 0;
           display: grid;
           grid-template-columns: repeat(4, 1fr);
           gap: 16px;
           position: relative;
-          z-index: 6;
+          z-index: 10;
         }
 
-        .featureItem {
-          min-height: 92px;
+        .featureCard {
+          min-height: 160px;
+          padding: 22px;
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          border-radius: 28px;
+          background: rgba(255, 255, 255, 0.76);
+          border: 1px solid rgba(11, 99, 255, 0.14);
+          box-shadow: 0 20px 44px rgba(7, 20, 47, 0.08);
+          backdrop-filter: blur(16px);
+          transition: 0.3s ease;
+        }
+
+        .featureCard:hover {
+          transform: translateY(-8px);
+          border-color: rgba(11, 99, 255, 0.34);
+          box-shadow: 0 30px 60px rgba(7, 20, 47, 0.13);
+        }
+
+        .featureIcon {
+          width: 52px;
+          height: 52px;
+          flex: 0 0 auto;
+          border-radius: 18px;
           display: grid;
           place-items: center;
-          text-align: center;
-          border-right: 2px dashed rgba(11,98,255,.3);
+          color: white;
+          background: linear-gradient(135deg, var(--blue), var(--blue2));
+          box-shadow: 0 16px 28px rgba(11, 99, 255, 0.22);
         }
-        .featureItem:last-child { border-right: 0; }
-        .featureIcon { width: 38px; height: 38px; color: var(--blue); margin-bottom: 5px; }
-        .featureIcon svg { width: 38px; height: 38px; fill: none; stroke: currentColor; stroke-width: 2.7; stroke-linecap: round; stroke-linejoin: round; }
-        .featureItem h3 { color: var(--blue); font-size: 20px; line-height: 1; font-weight: 950; text-transform: uppercase; }
-        .featureItem p { color: #111827; font-size: 16px; font-weight: 900; text-transform: uppercase; margin-top: 4px; }
 
-        .waitlistArea {
-          max-width: 1180px;
-          margin: 30px auto 0;
+        .featureIcon svg {
+          width: 27px;
+          height: 27px;
+        }
+
+        .featureCard h3 {
+          font-size: 20px;
+          letter-spacing: -0.55px;
+          line-height: 1.1;
+          margin-bottom: 8px;
+        }
+
+        .featureCard p {
+          color: var(--muted);
+          font-size: 14px;
+          line-height: 1.45;
+        }
+
+        .bottomSection {
+          max-width: 1480px;
+          margin: 20px auto 0;
           display: grid;
-          grid-template-columns: 320px 1fr;
-          gap: 24px;
-          align-items: center;
+          grid-template-columns: 1fr 1.35fr;
+          gap: 16px;
           position: relative;
-          z-index: 7;
+          z-index: 10;
         }
 
-        .startBrush {
-          padding: 22px 28px;
-          font-size: 33px;
-          line-height: 1.05;
-          font-weight: 950;
-          clip-path: polygon(2% 8%, 100% 0, 95% 92%, 0 100%);
-        }
-
-        .waitlistForm {
-          padding: 24px;
+        .domainCard,
+        .trustCards {
+          min-height: 112px;
           border-radius: 28px;
           background: white;
-          border: 1px solid rgba(11,98,255,.18);
-          box-shadow: 0 22px 45px rgba(7,20,47,.10);
+          border: 1px solid rgba(11, 99, 255, 0.14);
+          box-shadow: 0 20px 44px rgba(7, 20, 47, 0.08);
         }
-        .waitlistForm h2 { font-size: 28px; letter-spacing: -1px; margin-bottom: 6px; }
-        .waitlistForm p { color: var(--muted); font-size: 16px; margin-bottom: 17px; }
-        .waitlistForm b { color: var(--blue); }
-        .formRow { display: grid; grid-template-columns: 1fr 190px; gap: 12px; }
-        .formRow input { height: 58px; border: 1px solid rgba(11,98,255,.20); border-radius: 16px; outline: none; padding: 0 18px; font-size: 17px; color: var(--text); background: #f8fbff; }
-        .formRow button { height: 58px; border: 0; border-radius: 16px; background: var(--blue); color: white; font-size: 18px; font-weight: 950; cursor: pointer; box-shadow: 0 16px 28px rgba(11,98,255,.23); }
 
-        .message { margin-top: 12px; padding: 12px 14px; border-radius: 14px; font-size: 14px; font-weight: 750; }
-        .message.error { color: #b42318; background: #fff1f0; border: 1px solid #ffdad6; }
-        .message.success { color: #067647; background: #ecfdf3; border: 1px solid #abefc6; }
-
-        .bottomDomain {
-          max-width: 760px;
-          margin: 28px auto 0;
-          text-align: center;
-          position: relative;
-          z-index: 8;
+        .domainCard {
+          display: flex;
+          align-items: center;
+          gap: 18px;
+          padding: 22px 25px;
         }
-        .domainPill { height: 72px; display: inline-flex; align-items: center; justify-content: center; gap: 14px; padding: 0 48px; border: 3px solid var(--blue); border-radius: 999px; background: white; color: #050915; font-size: 49px; font-weight: 950; letter-spacing: 1px; box-shadow: 0 16px 35px rgba(7,20,47,.10); }
-        .domainPill svg { width: 43px; height: 43px; color: var(--blue); fill: none; stroke: currentColor; stroke-width: 2.4; }
-        .bottomDomain p { margin-top: 10px; color: #111827; font-size: 18px; font-weight: 850; text-transform: uppercase; }
-        .bottomDomain b { color: var(--blue); }
+
+        .domainCard svg {
+          width: 46px;
+          height: 46px;
+          color: var(--blue);
+          flex: 0 0 auto;
+        }
+
+        .domainCard h3 {
+          font-size: 36px;
+          line-height: 1;
+          letter-spacing: -1.3px;
+        }
+
+        .domainCard p {
+          margin-top: 6px;
+          color: var(--muted);
+          font-weight: 760;
+        }
+
+        .trustCards {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          padding: 16px;
+          gap: 12px;
+        }
+
+        .trustCards div {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 11px;
+          border-radius: 20px;
+          background: #f7fbff;
+          border: 1px solid rgba(11, 99, 255, 0.1);
+          color: #1d2939;
+          font-size: 15px;
+          font-weight: 900;
+          transition: 0.25s ease;
+        }
+
+        .trustCards div:hover {
+          transform: translateY(-4px);
+          background: white;
+          border-color: rgba(11, 99, 255, 0.26);
+        }
+
+        .trustCards svg {
+          width: 25px;
+          height: 25px;
+          color: var(--blue);
+          flex: 0 0 auto;
+        }
+
+        svg {
+          fill: none;
+          stroke: currentColor;
+          stroke-width: 2.4;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+        }
+
+        @keyframes dotPulse {
+          0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.55); }
+          70% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }
+          100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+        }
+
+        @keyframes swing {
+          0%, 100% { transform: rotate(-4deg); }
+          50% { transform: rotate(5deg); }
+        }
+
+        @keyframes floatPanel {
+          0%, 100% { translate: 0 0; }
+          50% { translate: 0 -12px; }
+        }
 
         @keyframes gorkiFloat {
-          0%,100% { transform: translateY(0); }
+          0%, 100% { transform: translateY(0); }
           50% { transform: translateY(-12px); }
         }
 
-        @media (max-width: 1280px) {
-          .heroPoster { grid-template-columns: 230px 1fr 250px; }
-          .sticker p { font-size: 20px; }
-          .sticker strong { font-size: 27px; }
-          .priceTag { width: 225px; }
-          .newPrice { font-size: 76px; }
+        @media (max-width: 1320px) {
+          .hero {
+            grid-template-columns: 1fr;
+            gap: 10px;
+          }
+
+          .heroCopy {
+            max-width: 850px;
+          }
+
+          .heroVisual {
+            min-height: 640px;
+          }
+
+          .featureGrid {
+            grid-template-columns: repeat(2, 1fr);
+          }
         }
 
-        @media (max-width: 980px) {
-          .posterLanding { padding: 20px 16px 26px; }
-          .topNav { display: none; }
-          .heroPoster { grid-template-columns: 1fr; min-height: auto; }
-          .leftStack, .rightStack { min-height: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-          .stickerBig, .miniCard, .blackNote, .priceTag, .soonScribble { margin: 0; transform: rotate(0); width: auto; }
-          .gorkiCut { position: relative; width: 100%; height: 260px; grid-column: 1 / -1; }
-          .featureStrip { grid-template-columns: repeat(2, 1fr); margin-top: 20px; }
-          .featureItem { border-right: 0; border-bottom: 2px dashed rgba(11,98,255,.20); }
-          .waitlistArea { grid-template-columns: 1fr; }
-          .deviceStage { height: 330px; }
-          .phone { right: 1%; }
+        @media (max-width: 900px) {
+          .takipioPage {
+            padding: 22px 16px 30px;
+          }
+
+          .navLinks {
+            display: none;
+          }
+
+          .brand {
+            width: 170px;
+          }
+
+          .brand img {
+            width: 165px;
+          }
+
+          .hero {
+            min-height: auto;
+          }
+
+          h1 {
+            letter-spacing: -3px;
+          }
+
+          .heroText {
+            font-size: 18px;
+          }
+
+          .heroVisual {
+            min-height: 570px;
+          }
+
+          .mockupStage {
+            height: 460px;
+          }
+
+          .swingTag {
+            right: 0;
+            top: 10px;
+            scale: 0.82;
+          }
+
+          .gorkiArea {
+            scale: 0.86;
+            right: -18px;
+          }
+
+          .panelOrders,
+          .panelStock,
+          .panelIncome {
+            display: none;
+          }
+
+          .bottomSection {
+            grid-template-columns: 1fr;
+          }
         }
 
-        @media (max-width: 620px) {
-          .topLogo { width: 160px; }
-          h1 { letter-spacing: -6px; }
-          .leftStack, .rightStack { grid-template-columns: 1fr; }
-          .deviceStage { height: 275px; }
-          .laptop { height: 265px; }
-          .screenBody { grid-template-columns: 88px 1fr; }
-          .dashCards { grid-template-columns: 1fr; }
-          .dashCards .dashCard:nth-child(2), .dashCards .dashCard:nth-child(3) { display: none; }
-          .phone { width: 118px; height: 230px; right: -5px; }
-          .featureStrip { grid-template-columns: 1fr 1fr; }
-          .formRow { grid-template-columns: 1fr; }
-          .domainPill { height: 58px; font-size: 31px; padding: 0 24px; }
-          .bottomDomain p { font-size: 14px; }
+        @media (max-width: 640px) {
+          .launchBadge {
+            font-size: 12px;
+          }
+
+          .formHeader {
+            align-items: flex-start;
+          }
+
+          .formRow {
+            grid-template-columns: 1fr;
+          }
+
+          .miniStats {
+            grid-template-columns: 1fr;
+          }
+
+          .heroVisual {
+            min-height: 510px;
+            overflow: hidden;
+          }
+
+          .mockupStage {
+            height: 410px;
+          }
+
+          .laptopMock {
+            width: 97%;
+            height: 290px;
+            padding: 11px 11px 22px;
+          }
+
+          .screenBody {
+            grid-template-columns: 92px 1fr;
+          }
+
+          .mockCards {
+            grid-template-columns: 1fr;
+          }
+
+          .mockCards .mockCard:nth-child(2),
+          .mockCards .mockCard:nth-child(3) {
+            display: none;
+          }
+
+          .mockGraph {
+            height: 122px;
+          }
+
+          .phoneMock {
+            width: 125px;
+            height: 250px;
+            right: -8px;
+            bottom: 12px;
+          }
+
+          .swingTag {
+            top: 6px;
+            right: -38px;
+            scale: 0.66;
+          }
+
+          .gorkiArea {
+            right: -65px;
+            bottom: -15px;
+            scale: 0.72;
+          }
+
+          .featureGrid {
+            grid-template-columns: 1fr;
+          }
+
+          .featureCard {
+            min-height: 135px;
+          }
+
+          .domainCard {
+            align-items: flex-start;
+          }
+
+          .domainCard h3 {
+            font-size: 29px;
+          }
+
+          .trustCards {
+            grid-template-columns: 1fr;
+          }
+
+          .trustCards div {
+            min-height: 64px;
+          }
         }
       `}</style>
     </main>
@@ -655,23 +1363,23 @@ export default function Page() {
 
 function LaptopMockup() {
   return (
-    <div className="laptop">
-      <div className="screen">
+    <div className="laptopMock">
+      <div className="laptopScreen">
         <div className="screenTop">
           <div className="screenBrand"><img src="/takipio-logo.png" alt="" /> takipio</div>
-          <div className="screenDots"><span /><span /><span /></div>
+          <div className="screenActions"><span /><span /><span /></div>
         </div>
         <div className="screenBody">
-          <div className="screenMenu"><span /><span /><span /><span /><span /></div>
-          <div className="screenContent">
-            <div className="dashCards">
-              <div className="dashCard"><small>Toplam Gelir</small><b>₺125.250</b></div>
-              <div className="dashCard"><small>Sipariş</small><b>128</b></div>
-              <div className="dashCard"><small>Müşteri</small><b>89</b></div>
+          <div className="mockMenu"><span /><span /><span /><span /><span /></div>
+          <div className="mockContent">
+            <div className="mockCards">
+              <div className="mockCard"><small>Toplam Gelir</small><b>₺125.250</b></div>
+              <div className="mockCard"><small>Sipariş</small><b>128</b></div>
+              <div className="mockCard"><small>Müşteri</small><b>89</b></div>
             </div>
-            <div className="graph">
-              <svg viewBox="0 0 480 150" preserveAspectRatio="none" aria-hidden="true">
-                <path d="M0 124 C40 96 60 83 96 96 C140 113 142 55 190 72 C230 86 230 35 278 54 C330 75 330 18 382 34 C425 47 430 8 480 18" fill="none" stroke="#0b62ff" strokeWidth="6" strokeLinecap="round" />
+            <div className="mockGraph">
+              <svg viewBox="0 0 520 170" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M0 138 C40 110 65 98 105 110 C150 126 160 58 210 78 C250 94 260 45 310 62 C360 82 374 28 420 42 C460 54 470 18 520 28" fill="none" stroke="#0b63ff" strokeWidth="7" strokeLinecap="round" />
               </svg>
             </div>
           </div>
@@ -683,9 +1391,9 @@ function LaptopMockup() {
 
 function PhoneMockup() {
   return (
-    <div className="phone">
+    <div className="phoneMock">
       <div className="phoneScreen">
-        <div className="phoneLogo"><img src="/takipio-logo.png" alt="" /> takipio</div>
+        <div className="phoneHead"><span><img src="/takipio-logo.png" alt="" /> takipio</span><b>9:41</b></div>
         <div className="phoneGrid">
           <div className="phoneCard"><small>Gelir</small><b>₺12k</b></div>
           <div className="phoneCard"><small>Sipariş</small><b>128</b></div>
@@ -698,38 +1406,26 @@ function PhoneMockup() {
   );
 }
 
-function Sticker({ title, strong, className = "" }: { title: string; strong: string; className?: string }) {
-  return <div className={`sticker ${className}`}><p>{title}</p><strong>{strong}</strong></div>;
-}
-
-function MiniCard({ icon, title, strong, tilted = false }: { icon: React.ReactNode; title: string; strong: string; tilted?: boolean }) {
-  return <div className={`miniCard ${tilted ? "tilted" : ""}`}><span className="miniIcon">{icon}</span><div><p>{title}</p><strong>{strong}</strong></div></div>;
-}
-
-function BlackNote({ title, strong, icon }: { title: string; strong: string; icon: React.ReactNode }) {
-  return <div className="blackNote"><p>{title}</p><strong>{strong}</strong><div className="noteIcon">{icon}</div></div>;
-}
-
-function PriceTag() {
+function FeatureCard({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) {
   return (
-    <div className="priceTag">
-      <div className="priceRibbon">AÇILIŞA ÖZEL</div>
-      <p>İLK AY SADECE</p>
-      <span className="oldPrice">₺99</span>
-      <span className="newPrice">₺89</span>
-    </div>
+    <article className="featureCard">
+      <div className="featureIcon">{icon}</div>
+      <div>
+        <h3>{title}</h3>
+        <p>{text}</p>
+      </div>
+    </article>
   );
 }
 
-function Feature({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) {
-  return <div className="featureItem"><span className="featureIcon">{icon}</span><h3>{title}</h3><p>{text}</p></div>;
-}
-
-function UserIcon() { return <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="4" /><path d="M2 22c1.2-5.3 4.2-8 8-8s6.8 2.7 8 8" /><path d="M17 11a4 4 0 1 0-1.5-7.7" /><path d="M18 14c2.4.7 3.8 2.9 4.5 6" /></svg>; }
+function MailIcon() { return <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3" /><path d="M4 7l8 7 8-7" /></svg>; }
+function GiftIcon() { return <svg viewBox="0 0 24 24"><path d="M20 12v8H4v-8" /><path d="M2 7h20v5H2z" /><path d="M12 22V7" /><path d="M12 7H7.5A2.5 2.5 0 1 1 10 4.5C10 6 12 7 12 7z" /><path d="M12 7h4.5A2.5 2.5 0 1 0 14 4.5C14 6 12 7 12 7z" /></svg>; }
+function UsersIcon() { return <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="4" /><path d="M2 22c1.2-5.3 4.2-8 8-8s6.8 2.7 8 8" /><path d="M17 11a4 4 0 1 0-1.5-7.7" /><path d="M18 14c2.4.7 3.8 2.9 4.5 6" /></svg>; }
+function OrdersIcon() { return <svg viewBox="0 0 24 24"><path d="M6 2h12l3 5v15H3V7l3-5z" /><path d="M3 7h18" /><path d="M8 12h8" /><path d="M8 16h5" /></svg>; }
 function CubeIcon() { return <svg viewBox="0 0 24 24"><path d="M12 2l9 5-9 5-9-5 9-5z" /><path d="M3 7v10l9 5 9-5V7" /><path d="M12 12v10" /></svg>; }
 function WalletIcon() { return <svg viewBox="0 0 24 24"><path d="M3 7h18v12H3z" /><path d="M16 12h5v4h-5a2 2 0 0 1 0-4z" /><path d="M3 7l3-4h12l3 4" /></svg>; }
-function BoltIcon() { return <svg viewBox="0 0 24 24"><path d="M13 2L3 14h8l-1 8 11-14h-8l0-6z" /></svg>; }
-function ShieldIcon() { return <svg viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6l8-4z" /><path d="M8.5 12l2.3 2.3 4.8-5" /></svg>; }
-function CloudIcon() { return <svg viewBox="0 0 24 24"><path d="M17.5 19H8a5 5 0 1 1 1-9.9A7 7 0 0 1 22 12.5 4.5 4.5 0 0 1 17.5 19z" /><path d="M12 15V8" /><path d="M9 11l3-3 3 3" /></svg>; }
-function HeadsetIcon() { return <svg viewBox="0 0 24 24"><path d="M4 13v-1a8 8 0 0 1 16 0v1" /><path d="M4 13h4v6H4z" /><path d="M16 13h4v6h-4z" /><path d="M16 21h-4" /></svg>; }
+function HeartIcon() { return <svg viewBox="0 0 24 24"><path d="M12 21s-8-4.8-9.6-10C1.2 7.1 3.7 4.5 7 4.5c2 0 3.8 1.2 5 3 1.2-1.8 3-3 5-3 3.3 0 5.8 2.6 4.6 6.5C20 16.2 12 21 12 21z" /></svg>; }
 function GlobeIcon() { return <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path d="M2 12h20" /><path d="M12 2a15 15 0 0 1 0 20" /><path d="M12 2a15 15 0 0 0 0 20" /></svg>; }
+function ShieldIcon() { return <svg viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6l8-4z" /><path d="M8.5 12l2.3 2.3 4.8-5" /></svg>; }
+function BoltIcon() { return <svg viewBox="0 0 24 24"><path d="M13 2L3 14h8l-1 8 11-14h-8l0-6z" /></svg>; }
+function HeadsetIcon() { return <svg viewBox="0 0 24 24"><path d="M4 13v-1a8 8 0 0 1 16 0v1" /><path d="M4 13h4v6H4z" /><path d="M16 13h4v6h-4z" /><path d="M16 21h-4" /></svg>; }
