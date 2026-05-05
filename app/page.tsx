@@ -1903,19 +1903,32 @@ export default function Page() {
           }
 
           .navLinks {
-            display: none;
+            display: none !important;
           }
 
           .navBar {
-            width: calc(100% - 32px);
-            height: 66px;
+            width: 100%;
+            height: auto;
             top: 12px;
-            border-radius: 24px;
+            left: 0;
+            transform: none;
+            padding: 0;
+            background: transparent;
+            border: 0;
+            box-shadow: none;
+            backdrop-filter: none;
+            justify-content: center;
           }
 
           .brandCapsule {
-            width: 156px;
-            height: 50px;
+            width: 170px;
+            height: 54px;
+            margin: 0 auto;
+            border-radius: 0;
+            background: transparent;
+            border: 0;
+            box-shadow: none;
+            justify-content: center;
           }
 
           .mobileNav {
@@ -1959,7 +1972,11 @@ export default function Page() {
           }
 
           .brandCapsule img {
-            width: 128px;
+            width: 138px;
+            height: auto;
+            display: block;
+            margin: 0 auto;
+            filter: none;
           }
 
           h1 {
