@@ -3,11 +3,21 @@
 import React, { useState } from "react";
 import { supabase } from "../lib/supabase";
 
+type DemoTab = "overview" | "orders" | "customers" | "payments";
+
+const demoTabs: { key: DemoTab; label: string; value: string }[] = [
+  { key: "overview", label: "Genel Bakış", value: "₺125.250" },
+  { key: "orders", label: "Siparişler", value: "128" },
+  { key: "customers", label: "Müşteriler", value: "89" },
+  { key: "payments", label: "Ödemeler", value: "₺18.900" },
+];
+
 export default function Page() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [activeTab, setActiveTab] = useState<DemoTab>("overview");
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -61,8 +71,11 @@ export default function Page() {
 
         <nav className="navLinks">
           <a href="#features">Özellikler</a>
-          <a href="#showcase">Arayüz</a>
+          <a href="#showcase">Canlı Demo</a>
           <a href="#pricing">Fiyat</a>
+          <a href="https://instagram.com/takipiocom" target="_blank" rel="noreferrer" className="instaLink">
+            <InstagramIcon /> @takipiocom
+          </a>
           <a href="#waitlist" className="navButton">Erken Erişim</a>
         </nav>
       </header>
@@ -121,19 +134,22 @@ export default function Page() {
         </div>
 
         <div className="heroVisual" id="showcase">
-          <div className="swingTag" id="pricing">
-            <div className="tagString" />
-            <div className="tagBody">
-              <b>AÇILIŞA ÖZEL</b>
-              <span>İlk Ay</span>
+          <div className="premiumPriceCard" id="pricing">
+            <div className="priceShine" />
+            <div className="priceTop">AÇILIŞA ÖZEL</div>
+            <p>İlk ay sadece</p>
+            <div className="priceValues">
               <del>₺99</del>
               <strong>₺89</strong>
             </div>
+            <span>Sonrasında ₺99 / ay</span>
+            <button type="button">Erken erişime katıl</button>
           </div>
 
           <div className="mockupStage">
-            <LaptopMockup />
-            <PhoneMockup />
+            <LaptopMockup activeTab={activeTab} setActiveTab={setActiveTab} />
+            <PhoneMockup activeTab={activeTab} setActiveTab={setActiveTab} />
+
             <div className="floatingPanel panelOrders">
               <OrdersIcon />
               <div><b>Siparişler</b><span>Kontrol altında</span></div>
@@ -173,6 +189,14 @@ export default function Page() {
             <p>Her yerden eriş, işini kontrol et.</p>
           </div>
         </div>
+
+        <a className="instagramCard" href="https://instagram.com/takipiocom" target="_blank" rel="noreferrer">
+          <InstagramIcon />
+          <div>
+            <strong>@takipiocom</strong>
+            <span>Gelişmeleri ve lansman duyurularını takip et.</span>
+          </div>
+        </a>
 
         <div className="trustCards">
           <div><ShieldIcon /><span>Güvenli altyapı</span></div>
@@ -316,7 +340,7 @@ export default function Page() {
         .navLinks {
           display: flex;
           align-items: center;
-          gap: 31px;
+          gap: 27px;
           font-size: 15px;
           font-weight: 850;
           color: #1d2939;
@@ -339,13 +363,29 @@ export default function Page() {
           box-shadow: 0 16px 28px rgba(11, 99, 255, 0.22);
         }
 
+        .instaLink {
+          display: inline-flex;
+          align-items: center;
+          gap: 7px;
+          padding: 10px 12px;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.68);
+          border: 1px solid rgba(11, 99, 255, 0.12);
+        }
+
+        .instaLink svg {
+          width: 18px;
+          height: 18px;
+          color: #e1306c;
+        }
+
         .hero {
           max-width: 1480px;
-          min-height: 760px;
+          min-height: 790px;
           margin: 0 auto;
           display: grid;
-          grid-template-columns: minmax(480px, 0.95fr) minmax(680px, 1.25fr);
-          gap: 42px;
+          grid-template-columns: minmax(480px, 0.9fr) minmax(760px, 1.35fr);
+          gap: 54px;
           align-items: center;
           position: relative;
           z-index: 4;
@@ -582,37 +622,38 @@ export default function Page() {
         }
 
         .heroVisual {
-          min-height: 710px;
+          min-height: 735px;
           position: relative;
           display: flex;
           align-items: center;
           justify-content: center;
+          padding-right: 230px;
         }
 
         .mockupStage {
-          width: min(760px, 100%);
-          height: 520px;
+          width: min(730px, 100%);
+          height: 560px;
           position: relative;
           display: flex;
           align-items: end;
           justify-content: center;
-          perspective: 1100px;
+          perspective: 1200px;
         }
 
         .laptopMock {
-          width: min(680px, 91%);
-          height: 372px;
+          width: min(650px, 92%);
+          height: 382px;
           position: relative;
-          border-radius: 28px 28px 18px 18px;
-          padding: 16px 16px 28px;
+          border-radius: 30px 30px 18px 18px;
+          padding: 16px 16px 30px;
           background: linear-gradient(135deg, #c5cfdd, #f8fbff 48%, #8c99aa);
-          box-shadow: 0 36px 80px rgba(7, 20, 47, 0.2);
-          transform: rotateX(4deg) rotateY(-7deg) rotateZ(-1deg);
+          box-shadow: 0 38px 90px rgba(7, 20, 47, 0.22);
+          transform: rotateX(4deg) rotateY(-8deg) rotateZ(-1deg);
           transition: 0.35s ease;
         }
 
         .mockupStage:hover .laptopMock {
-          transform: rotateX(2deg) rotateY(-3deg) rotateZ(0deg) translateY(-8px);
+          transform: rotateX(2deg) rotateY(-4deg) rotateZ(0deg) translateY(-8px);
         }
 
         .laptopMock::after {
@@ -631,7 +672,7 @@ export default function Page() {
           width: 100%;
           height: 100%;
           overflow: hidden;
-          border-radius: 20px;
+          border-radius: 21px;
           background: #041020;
           border: 1px solid rgba(255, 255, 255, 0.12);
           box-shadow: inset 0 0 42px rgba(0, 168, 255, 0.09);
@@ -639,7 +680,7 @@ export default function Page() {
         }
 
         .screenTop {
-          height: 55px;
+          height: 56px;
           display: flex;
           align-items: center;
           justify-content: space-between;
@@ -674,9 +715,9 @@ export default function Page() {
         }
 
         .screenBody {
-          height: calc(100% - 55px);
+          height: calc(100% - 56px);
           display: grid;
-          grid-template-columns: 150px 1fr;
+          grid-template-columns: 156px 1fr;
         }
 
         .mockMenu {
@@ -687,13 +728,21 @@ export default function Page() {
           gap: 10px;
         }
 
-        .mockMenu span {
-          height: 30px;
-          border-radius: 9px;
+        .mockMenu button {
+          min-height: 34px;
+          border: 0;
+          border-radius: 10px;
           background: rgba(255, 255, 255, 0.07);
+          color: rgba(255, 255, 255, 0.66);
+          font-size: 11px;
+          font-weight: 800;
+          cursor: pointer;
+          transition: 0.22s ease;
         }
 
-        .mockMenu span:first-child {
+        .mockMenu button:hover,
+        .mockMenu button.active {
+          color: white;
           background: linear-gradient(135deg, var(--blue), var(--blue2));
           box-shadow: 0 10px 20px rgba(11, 99, 255, 0.22);
         }
@@ -716,6 +765,12 @@ export default function Page() {
           background: rgba(255, 255, 255, 0.06);
           border: 1px solid rgba(255, 255, 255, 0.08);
           color: white;
+          transition: 0.22s ease;
+        }
+
+        .mockCard:hover {
+          background: rgba(255, 255, 255, 0.1);
+          transform: translateY(-3px);
         }
 
         .mockCard small {
@@ -730,11 +785,12 @@ export default function Page() {
         }
 
         .mockGraph {
-          height: 152px;
+          height: 150px;
           border-radius: 16px;
           overflow: hidden;
           background: linear-gradient(180deg, rgba(11, 99, 255, 0.2), rgba(11, 99, 255, 0.03));
           border: 1px solid rgba(255, 255, 255, 0.08);
+          position: relative;
         }
 
         .mockGraph svg {
@@ -742,24 +798,47 @@ export default function Page() {
           height: 100%;
         }
 
+        .mockList {
+          margin-top: 11px;
+          display: grid;
+          gap: 8px;
+        }
+
+        .mockList div {
+          min-height: 36px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 12px;
+          border-radius: 12px;
+          color: rgba(255,255,255,.78);
+          background: rgba(255,255,255,.055);
+          border: 1px solid rgba(255,255,255,.06);
+          font-size: 12px;
+        }
+
+        .mockList b {
+          color: white;
+        }
+
         .phoneMock {
           position: absolute;
-          right: 8%;
-          bottom: 0;
-          width: 170px;
-          height: 338px;
+          right: -40px;
+          bottom: 22px;
+          width: 168px;
+          height: 334px;
           border-radius: 36px;
           padding: 10px;
           background: linear-gradient(135deg, #1c2533, #050b15);
           border: 3px solid #101827;
           box-shadow: 0 30px 60px rgba(7, 20, 47, 0.24);
-          transform: rotate(-2deg);
+          transform: rotate(3deg);
           transition: 0.35s ease;
           z-index: 6;
         }
 
         .mockupStage:hover .phoneMock {
-          transform: rotate(1deg) translateY(-12px);
+          transform: rotate(0deg) translateY(-12px) translateX(8px);
         }
 
         .phoneScreen {
@@ -790,6 +869,28 @@ export default function Page() {
           width: 20px;
           height: 20px;
           object-fit: contain;
+        }
+
+        .phoneTabs {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 6px;
+          margin-bottom: 8px;
+        }
+
+        .phoneTabs button {
+          height: 25px;
+          border: 0;
+          border-radius: 8px;
+          background: rgba(255,255,255,.07);
+          color: rgba(255,255,255,.62);
+          font-size: 9px;
+          font-weight: 800;
+        }
+
+        .phoneTabs button.active {
+          color: white;
+          background: var(--blue);
         }
 
         .phoneGrid {
@@ -825,7 +926,7 @@ export default function Page() {
         }
 
         .phoneList span {
-          height: 31px;
+          height: 30px;
           border-radius: 11px;
           background: rgba(255, 255, 255, 0.07);
           border: 1px solid rgba(255, 255, 255, 0.06);
@@ -840,7 +941,7 @@ export default function Page() {
           padding: 13px 15px;
           min-width: 178px;
           border-radius: 20px;
-          background: rgba(255, 255, 255, 0.82);
+          background: rgba(255, 255, 255, 0.84);
           border: 1px solid rgba(11, 99, 255, 0.16);
           box-shadow: 0 22px 40px rgba(7, 20, 47, 0.12);
           backdrop-filter: blur(16px);
@@ -876,109 +977,131 @@ export default function Page() {
         }
 
         .panelOrders {
-          left: 0;
-          top: 68px;
+          left: -15px;
+          top: 52px;
           animation: floatPanel 4.8s ease-in-out infinite;
         }
 
         .panelStock {
-          left: 42px;
-          bottom: 70px;
+          left: 18px;
+          bottom: 58px;
           animation: floatPanel 5.2s ease-in-out infinite 0.3s;
         }
 
         .panelIncome {
-          right: 0;
-          top: 128px;
+          right: 115px;
+          top: 116px;
           animation: floatPanel 5.6s ease-in-out infinite 0.6s;
         }
 
-        .swingTag {
+        .premiumPriceCard {
           position: absolute;
-          top: 40px;
-          right: 18px;
-          width: 208px;
-          height: 245px;
+          top: 42px;
+          right: 0;
+          width: 220px;
+          min-height: 272px;
           z-index: 12;
-          transform-origin: 50% 0;
-          animation: swing 3.7s ease-in-out infinite;
-        }
-
-        .tagString {
-          width: 2px;
-          height: 48px;
-          margin: 0 auto -2px;
-          background: linear-gradient(180deg, rgba(5, 9, 20, 0.18), rgba(5, 9, 20, 0.55));
-        }
-
-        .tagBody {
-          position: relative;
-          min-height: 192px;
-          padding: 15px 16px 18px;
-          border-radius: 23px;
-          background: #060b17;
-          color: white;
-          text-align: center;
-          box-shadow: 0 28px 50px rgba(7, 20, 47, 0.28);
           overflow: hidden;
+          border-radius: 30px;
+          padding: 18px;
+          background:
+            radial-gradient(circle at 50% 8%, rgba(52,213,255,.26), transparent 36%),
+            linear-gradient(180deg, #070d1b 0%, #050914 100%);
+          color: white;
+          box-shadow: 0 30px 70px rgba(7, 20, 47, 0.28);
+          border: 1px solid rgba(255,255,255,.12);
+          transform: rotate(2deg);
+          transition: 0.32s ease;
         }
 
-        .tagBody::before {
-          content: "";
+        .premiumPriceCard:hover {
+          transform: rotate(0deg) translateY(-7px);
+          box-shadow: 0 42px 90px rgba(7, 20, 47, 0.34);
+        }
+
+        .priceShine {
           position: absolute;
-          left: 50%;
-          top: 10px;
-          width: 14px;
-          height: 14px;
-          border-radius: 50%;
-          transform: translateX(-50%);
-          background: #f7fbff;
-          box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.2);
+          inset: -60px auto auto -90px;
+          width: 120px;
+          height: 420px;
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,.18), transparent);
+          transform: rotate(28deg);
+          animation: shineMove 4.6s ease-in-out infinite;
         }
 
-        .tagBody b {
-          display: inline-flex;
-          margin-top: 15px;
-          padding: 8px 10px;
-          border-radius: 10px;
-          background: var(--blue);
-          font-size: 16px;
-          transform: rotate(-3deg);
-          box-shadow: 0 12px 22px rgba(11, 99, 255, 0.3);
-        }
-
-        .tagBody span {
-          display: block;
-          margin-top: 12px;
-          color: #d7e8ff;
-          font-size: 18px;
+        .priceTop {
+          width: max-content;
+          margin: 0 auto 18px;
+          padding: 10px 12px;
+          border-radius: 13px;
+          background: linear-gradient(135deg, var(--blue), var(--blue2));
+          font-size: 15px;
           font-weight: 950;
-          text-transform: uppercase;
+          box-shadow: 0 14px 25px rgba(11,99,255,.32);
         }
 
-        .tagBody del {
+        .premiumPriceCard p {
+          text-align: center;
+          text-transform: uppercase;
+          color: rgba(255,255,255,.84);
+          font-size: 15px;
+          font-weight: 950;
+        }
+
+        .priceValues {
+          text-align: center;
+          margin: 5px 0 8px;
+        }
+
+        .priceValues del {
           display: block;
-          color: rgba(255, 255, 255, 0.35);
-          font-size: 43px;
+          color: rgba(255,255,255,.34);
+          font-size: 42px;
           font-weight: 950;
           line-height: 1;
           text-decoration-color: var(--blue);
           text-decoration-thickness: 5px;
-          margin-top: 2px;
         }
 
-        .tagBody strong {
+        .priceValues strong {
           display: block;
           color: white;
           font-size: 72px;
-          line-height: 0.95;
+          line-height: .95;
           text-shadow: 0 0 24px rgba(11, 99, 255, 0.9);
+        }
+
+        .premiumPriceCard span {
+          display: block;
+          color: rgba(255,255,255,.62);
+          text-align: center;
+          font-size: 13px;
+          font-weight: 750;
+          margin-bottom: 13px;
+        }
+
+        .premiumPriceCard button {
+          width: 100%;
+          height: 43px;
+          border: 0;
+          border-radius: 15px;
+          color: white;
+          font-size: 13px;
+          font-weight: 950;
+          background: rgba(255,255,255,.12);
+          border: 1px solid rgba(255,255,255,.16);
+          cursor: pointer;
+          transition: .25s ease;
+        }
+
+        .premiumPriceCard button:hover {
+          background: var(--blue);
         }
 
         .gorkiArea {
           position: absolute;
-          right: 0;
-          bottom: 10px;
+          right: 4px;
+          bottom: 16px;
           z-index: 14;
           width: 245px;
           min-height: 260px;
@@ -1082,14 +1205,15 @@ export default function Page() {
           max-width: 1480px;
           margin: 20px auto 0;
           display: grid;
-          grid-template-columns: 1fr 1.35fr;
+          grid-template-columns: 1fr .95fr 1.35fr;
           gap: 16px;
           position: relative;
           z-index: 10;
         }
 
         .domainCard,
-        .trustCards {
+        .trustCards,
+        .instagramCard {
           min-height: 112px;
           border-radius: 28px;
           background: white;
@@ -1097,11 +1221,19 @@ export default function Page() {
           box-shadow: 0 20px 44px rgba(7, 20, 47, 0.08);
         }
 
-        .domainCard {
+        .domainCard,
+        .instagramCard {
           display: flex;
           align-items: center;
           gap: 18px;
           padding: 22px 25px;
+          transition: .28s ease;
+        }
+
+        .domainCard:hover,
+        .instagramCard:hover {
+          transform: translateY(-6px);
+          border-color: rgba(11,99,255,.32);
         }
 
         .domainCard svg {
@@ -1112,7 +1244,7 @@ export default function Page() {
         }
 
         .domainCard h3 {
-          font-size: 36px;
+          font-size: 34px;
           line-height: 1;
           letter-spacing: -1.3px;
         }
@@ -1121,6 +1253,27 @@ export default function Page() {
           margin-top: 6px;
           color: var(--muted);
           font-weight: 760;
+        }
+
+        .instagramCard svg {
+          width: 44px;
+          height: 44px;
+          color: #e1306c;
+          flex: 0 0 auto;
+        }
+
+        .instagramCard strong {
+          display: block;
+          color: #050914;
+          font-size: 21px;
+          margin-bottom: 5px;
+        }
+
+        .instagramCard span {
+          color: var(--muted);
+          font-size: 14px;
+          line-height: 1.35;
+          font-weight: 750;
         }
 
         .trustCards {
@@ -1171,11 +1324,6 @@ export default function Page() {
           100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
         }
 
-        @keyframes swing {
-          0%, 100% { transform: rotate(-4deg); }
-          50% { transform: rotate(5deg); }
-        }
-
         @keyframes floatPanel {
           0%, 100% { translate: 0 0; }
           50% { translate: 0 -12px; }
@@ -1186,7 +1334,12 @@ export default function Page() {
           50% { transform: translateY(-12px); }
         }
 
-        @media (max-width: 1320px) {
+        @keyframes shineMove {
+          0% { transform: translateX(0) rotate(28deg); }
+          45%, 100% { transform: translateX(360px) rotate(28deg); }
+        }
+
+        @media (max-width: 1380px) {
           .hero {
             grid-template-columns: 1fr;
             gap: 10px;
@@ -1197,11 +1350,16 @@ export default function Page() {
           }
 
           .heroVisual {
-            min-height: 640px;
+            min-height: 690px;
+            padding-right: 220px;
           }
 
           .featureGrid {
             grid-template-columns: repeat(2, 1fr);
+          }
+
+          .bottomSection {
+            grid-template-columns: 1fr;
           }
         }
 
@@ -1235,17 +1393,23 @@ export default function Page() {
           }
 
           .heroVisual {
-            min-height: 570px;
+            min-height: 720px;
+            padding-right: 0;
+            padding-top: 230px;
           }
 
           .mockupStage {
             height: 460px;
           }
 
-          .swingTag {
-            right: 0;
+          .premiumPriceCard {
             top: 10px;
-            scale: 0.82;
+            right: 50%;
+            transform: translateX(50%) rotate(0deg);
+          }
+
+          .premiumPriceCard:hover {
+            transform: translateX(50%) translateY(-7px) rotate(0deg);
           }
 
           .gorkiArea {
@@ -1259,7 +1423,7 @@ export default function Page() {
             display: none;
           }
 
-          .bottomSection {
+          .trustCards {
             grid-template-columns: 1fr;
           }
         }
@@ -1282,8 +1446,9 @@ export default function Page() {
           }
 
           .heroVisual {
-            min-height: 510px;
+            min-height: 650px;
             overflow: hidden;
+            padding-top: 218px;
           }
 
           .mockupStage {
@@ -1292,7 +1457,7 @@ export default function Page() {
 
           .laptopMock {
             width: 97%;
-            height: 290px;
+            height: 292px;
             padding: 11px 11px 22px;
           }
 
@@ -1310,7 +1475,11 @@ export default function Page() {
           }
 
           .mockGraph {
-            height: 122px;
+            height: 105px;
+          }
+
+          .mockList {
+            display: none;
           }
 
           .phoneMock {
@@ -1320,10 +1489,14 @@ export default function Page() {
             bottom: 12px;
           }
 
-          .swingTag {
-            top: 6px;
-            right: -38px;
-            scale: 0.66;
+          .premiumPriceCard {
+            width: 190px;
+            min-height: 230px;
+            scale: .86;
+          }
+
+          .priceValues strong {
+            font-size: 58px;
           }
 
           .gorkiArea {
@@ -1340,20 +1513,13 @@ export default function Page() {
             min-height: 135px;
           }
 
-          .domainCard {
+          .domainCard,
+          .instagramCard {
             align-items: flex-start;
           }
 
           .domainCard h3 {
             font-size: 29px;
-          }
-
-          .trustCards {
-            grid-template-columns: 1fr;
-          }
-
-          .trustCards div {
-            min-height: 64px;
           }
         }
       `}</style>
@@ -1361,7 +1527,9 @@ export default function Page() {
   );
 }
 
-function LaptopMockup() {
+function LaptopMockup({ activeTab, setActiveTab }: { activeTab: DemoTab; setActiveTab: (tab: DemoTab) => void }) {
+  const active = demoTabs.find((item) => item.key === activeTab) ?? demoTabs[0];
+
   return (
     <div className="laptopMock">
       <div className="laptopScreen">
@@ -1370,17 +1538,28 @@ function LaptopMockup() {
           <div className="screenActions"><span /><span /><span /></div>
         </div>
         <div className="screenBody">
-          <div className="mockMenu"><span /><span /><span /><span /><span /></div>
+          <div className="mockMenu">
+            {demoTabs.map((tab) => (
+              <button key={tab.key} className={activeTab === tab.key ? "active" : ""} onClick={() => setActiveTab(tab.key)} type="button">
+                {tab.label}
+              </button>
+            ))}
+          </div>
           <div className="mockContent">
             <div className="mockCards">
-              <div className="mockCard"><small>Toplam Gelir</small><b>₺125.250</b></div>
-              <div className="mockCard"><small>Sipariş</small><b>128</b></div>
-              <div className="mockCard"><small>Müşteri</small><b>89</b></div>
+              <div className="mockCard"><small>{active.label}</small><b>{active.value}</b></div>
+              <div className="mockCard"><small>Aktif işlem</small><b>{activeTab === "orders" ? "24" : activeTab === "payments" ? "8" : "18"}</b></div>
+              <div className="mockCard"><small>Durum</small><b>{activeTab === "payments" ? "Takipte" : "Güncel"}</b></div>
             </div>
             <div className="mockGraph">
               <svg viewBox="0 0 520 170" preserveAspectRatio="none" aria-hidden="true">
                 <path d="M0 138 C40 110 65 98 105 110 C150 126 160 58 210 78 C250 94 260 45 310 62 C360 82 374 28 420 42 C460 54 470 18 520 28" fill="none" stroke="#0b63ff" strokeWidth="7" strokeLinecap="round" />
               </svg>
+            </div>
+            <div className="mockList">
+              <div><span>{activeTab === "customers" ? "Arden Coffee" : "Nova Car Wash"}</span><b>{activeTab === "payments" ? "Ödeme bekliyor" : "Aktif"}</b></div>
+              <div><span>{activeTab === "orders" ? "Özel oto kokusu" : "Atlas Rent A Car"}</span><b>{activeTab === "orders" ? "Hazırlanıyor" : "Güncel"}</b></div>
+              <div><span>{activeTab === "overview" ? "Gorki önerisi" : "Otomatik takip"}</span><b>{activeTab === "overview" ? "2 uyarı" : "Açık"}</b></div>
             </div>
           </div>
         </div>
@@ -1389,13 +1568,22 @@ function LaptopMockup() {
   );
 }
 
-function PhoneMockup() {
+function PhoneMockup({ activeTab, setActiveTab }: { activeTab: DemoTab; setActiveTab: (tab: DemoTab) => void }) {
+  const active = demoTabs.find((item) => item.key === activeTab) ?? demoTabs[0];
+
   return (
     <div className="phoneMock">
       <div className="phoneScreen">
         <div className="phoneHead"><span><img src="/takipio-logo.png" alt="" /> takipio</span><b>9:41</b></div>
+        <div className="phoneTabs">
+          {demoTabs.slice(0, 4).map((tab) => (
+            <button key={tab.key} className={activeTab === tab.key ? "active" : ""} onClick={() => setActiveTab(tab.key)} type="button">
+              {tab.label.split(" ")[0]}
+            </button>
+          ))}
+        </div>
         <div className="phoneGrid">
-          <div className="phoneCard"><small>Gelir</small><b>₺12k</b></div>
+          <div className="phoneCard"><small>{active.label}</small><b>{active.value}</b></div>
           <div className="phoneCard"><small>Sipariş</small><b>128</b></div>
           <div className="phoneCard"><small>Müşteri</small><b>89</b></div>
           <div className="phoneCard"><small>Stok</small><b>Güncel</b></div>
@@ -1429,3 +1617,4 @@ function GlobeIcon() { return <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r
 function ShieldIcon() { return <svg viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6l8-4z" /><path d="M8.5 12l2.3 2.3 4.8-5" /></svg>; }
 function BoltIcon() { return <svg viewBox="0 0 24 24"><path d="M13 2L3 14h8l-1 8 11-14h-8l0-6z" /></svg>; }
 function HeadsetIcon() { return <svg viewBox="0 0 24 24"><path d="M4 13v-1a8 8 0 0 1 16 0v1" /><path d="M4 13h4v6H4z" /><path d="M16 13h4v6h-4z" /><path d="M16 21h-4" /></svg>; }
+function InstagramIcon() { return <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17" cy="7" r="1" /></svg>; }
