@@ -103,7 +103,14 @@ export default function Page() {
   }
 
   return (
-    <main className={`takipioPremium ${pageReady ? "pageReady" : ""}`}>
+    <main
+  className="takipioPremium"
+  style={{
+    opacity: pageReady ? 1 : 0,
+    visibility: pageReady ? "visible" : "hidden",
+    transition: "opacity 180ms ease",
+  }}
+>
       <div className="mesh meshOne" />
       <div className="mesh meshTwo" />
       <div className="mesh meshThree" />
