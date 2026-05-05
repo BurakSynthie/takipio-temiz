@@ -2724,3 +2724,4 @@ function InstagramIcon() {
       <circle cx="17" cy="7" r="1" />
     </svg>
   );
+}
