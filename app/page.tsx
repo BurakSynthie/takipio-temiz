@@ -267,6 +267,10 @@ export default function Page() {
         </div>
       </section>
 
+      <a href="#top" className="floatingTopButton" aria-label="Yukarı çık">
+        ↑
+      </a>
+
       <section className="featureGrid" id="features">
         <FeatureCard
           icon={<PanelIcon />}
@@ -382,6 +386,15 @@ export default function Page() {
             sans-serif;
         }
 
+        #top,
+        #features,
+        #product,
+        #assistant,
+        #pricing,
+        #waitlist {
+          scroll-margin-top: 124px;
+        }
+
         a {
           color: inherit;
           text-decoration: none;
@@ -407,7 +420,8 @@ export default function Page() {
         .takipioPremium {
           min-height: 100vh;
           position: relative;
-          overflow: hidden;
+          overflow-x: hidden;
+          overflow-y: visible;
           padding: 28px 34px 38px;
           background:
             radial-gradient(circle at 20% 18%, rgba(11, 99, 255, 0.085), transparent 30%),
@@ -426,6 +440,7 @@ export default function Page() {
             linear-gradient(90deg, rgba(11, 99, 255, 0.052) 1px, transparent 1px);
           background-size: 78px 78px;
           mask-image: radial-gradient(circle at 58% 38%, black 0%, transparent 72%);
+          z-index: 0;
         }
 
         .noise {
@@ -435,6 +450,7 @@ export default function Page() {
           opacity: 0.15;
           background-image: radial-gradient(circle, rgba(11, 99, 255, 0.58) 0 1px, transparent 1.4px);
           background-size: 94px 94px;
+          z-index: 0;
         }
 
         .mesh {
@@ -442,6 +458,7 @@ export default function Page() {
           pointer-events: none;
           border-radius: 999px;
           filter: blur(24px);
+          z-index: 0;
         }
 
         .meshOne {
@@ -475,8 +492,15 @@ export default function Page() {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          position: relative;
-          z-index: 20;
+          position: sticky;
+          top: 18px;
+          z-index: 999;
+          padding: 8px 10px;
+          border-radius: 30px;
+          background: rgba(255, 255, 255, 0.68);
+          border: 1px solid rgba(11, 99, 255, 0.1);
+          backdrop-filter: blur(20px);
+          box-shadow: 0 18px 45px rgba(15, 32, 64, 0.08);
         }
 
         .brandCapsule {
@@ -563,7 +587,7 @@ export default function Page() {
           gap: 58px;
           align-items: center;
           position: relative;
-          z-index: 4;
+          z-index: 2;
         }
 
         .heroCopy {
@@ -1618,7 +1642,7 @@ export default function Page() {
           grid-template-columns: repeat(5, 1fr);
           gap: 16px;
           position: relative;
-          z-index: 10;
+          z-index: 2;
         }
 
         .featureCard {
@@ -1678,7 +1702,7 @@ export default function Page() {
           grid-template-columns: 1fr 0.95fr 1.35fr;
           gap: 16px;
           position: relative;
-          z-index: 10;
+          z-index: 2;
         }
 
         .domainCard,
@@ -1771,6 +1795,30 @@ export default function Page() {
           flex: 0 0 auto;
         }
 
+        .floatingTopButton {
+          position: fixed;
+          right: 18px;
+          bottom: 18px;
+          z-index: 1000;
+          width: 46px;
+          height: 46px;
+          display: grid;
+          place-items: center;
+          border-radius: 999px;
+          color: white;
+          background: linear-gradient(135deg, var(--blue), var(--blue2));
+          box-shadow: 0 18px 35px rgba(11, 99, 255, 0.28);
+          font-size: 22px;
+          font-weight: 950;
+          border: 1px solid rgba(255, 255, 255, 0.4);
+          transition: 0.24s ease;
+        }
+
+        .floatingTopButton:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 24px 46px rgba(11, 99, 255, 0.34);
+        }
+
         @keyframes pulse {
           0% {
             box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.55);
@@ -1857,6 +1905,7 @@ export default function Page() {
 
           .navBar {
             height: 66px;
+            top: 12px;
           }
 
           .brandCapsule {
@@ -1938,7 +1987,7 @@ export default function Page() {
 
           .demoArea {
             min-height: 500px;
-            overflow: hidden;
+            overflow: visible;
             padding-top: 24px;
           }
 
@@ -2129,6 +2178,10 @@ export default function Page() {
         @media (max-width: 460px) {
           .takipioPremium {
             padding: 18px 12px 28px;
+          }
+
+          .navBar {
+            border-radius: 24px;
           }
 
           h1 {
@@ -2671,4 +2724,3 @@ function InstagramIcon() {
       <circle cx="17" cy="7" r="1" />
     </svg>
   );
-}
