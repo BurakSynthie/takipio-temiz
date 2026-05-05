@@ -447,9 +447,9 @@ export default function Page() {
           position: absolute;
           inset: 0;
           pointer-events: none;
-          opacity: 0.15;
-          background-image: radial-gradient(circle, rgba(11, 99, 255, 0.58) 0 1px, transparent 1.4px);
-          background-size: 94px 94px;
+          opacity: 0.08;
+          background-image: radial-gradient(circle, rgba(11, 99, 255, 0.5) 0 1px, transparent 1.4px);
+          background-size: 120px 120px;
           z-index: 0;
         }
 
@@ -457,8 +457,9 @@ export default function Page() {
           position: absolute;
           pointer-events: none;
           border-radius: 999px;
-          filter: blur(24px);
+          filter: blur(16px);
           z-index: 0;
+          transform: translateZ(0);
         }
 
         .meshOne {
@@ -487,20 +488,24 @@ export default function Page() {
 
         .navBar {
           max-width: 1500px;
+          width: calc(100% - 68px);
           height: 74px;
           margin: 0 auto;
           display: flex;
           align-items: center;
           justify-content: space-between;
-          position: sticky;
+          position: fixed;
+          left: 50%;
           top: 18px;
+          transform: translateX(-50%);
           z-index: 999;
           padding: 8px 10px;
           border-radius: 30px;
-          background: rgba(255, 255, 255, 0.68);
+          background: rgba(255, 255, 255, 0.88);
           border: 1px solid rgba(11, 99, 255, 0.1);
-          backdrop-filter: blur(20px);
           box-shadow: 0 18px 45px rgba(15, 32, 64, 0.08);
+          backface-visibility: hidden;
+          will-change: transform;
         }
 
         .brandCapsule {
@@ -582,6 +587,7 @@ export default function Page() {
           max-width: 1500px;
           min-height: 805px;
           margin: 0 auto;
+          padding-top: 92px;
           display: grid;
           grid-template-columns: minmax(470px, 0.86fr) minmax(820px, 1.42fr);
           gap: 58px;
@@ -1904,6 +1910,7 @@ export default function Page() {
           }
 
           .navBar {
+            width: calc(100% - 32px);
             height: 66px;
             top: 12px;
           }
