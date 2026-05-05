@@ -5,8 +5,8 @@
 html {
   margin: 0;
   padding: 0;
-  scroll-behavior: smooth;
   background: #f8fbff;
+  scroll-behavior: smooth;
   overflow-x: hidden;
 }
 
@@ -24,6 +24,29 @@ body {
     "Segoe UI",
     Arial,
     sans-serif;
+}
+
+body,
+#__next,
+[data-nextjs-scroll-focus-boundary] {
+  width: 100%;
+}
+
+body > div {
+  width: 100%;
+  min-height: 100%;
+  overflow: visible !important;
+}
+
+.takipioPremium {
+  opacity: 0;
+  visibility: hidden;
+  min-height: 100vh;
+}
+
+.takipioPremium.pageReady {
+  opacity: 1;
+  visibility: visible;
 }
 
 a {
