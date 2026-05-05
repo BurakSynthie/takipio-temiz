@@ -12,7 +12,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "Takipio | İşletme Takip Asistanı",
   description:
     "Takipio ile sipariş, müşteri, stok ve ödeme takibini tek panelden yönetin.",
@@ -24,11 +24,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col">{children}</body>
+    <html lang="tr">
+      <body>{children}</body>
     </html>
   );
 }
