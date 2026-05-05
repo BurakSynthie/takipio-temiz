@@ -17,9 +17,14 @@ export const metadata = {
   description:
     "Takipio ile sipariş, müşteri, stok ve ödeme takibini tek panelden yönetin.",
   icons: {
-    icon: "/favicon.png",
-    shortcut: "/favicon.png",
-    apple: "/favicon.png",
+    icon: [
+      {
+        url: "/takipio-favicon.png",
+        type: "image/png",
+      },
+    ],
+    shortcut: "/takipio-favicon.png",
+    apple: "/takipio-favicon.png",
   },
 };
 
