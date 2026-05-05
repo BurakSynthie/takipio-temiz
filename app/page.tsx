@@ -60,19 +60,10 @@ export default function Page() {
   useEffect(() => {
     const messageTimer = setInterval(() => {
       setMessageIndex((current) => (current + 1) % gorkiMessages.length);
-    }, 2600);
-
-    const tabTimer = setInterval(() => {
-      setActiveTab((current) => {
-        const index = demoTabs.findIndex((tab) => tab.key === current);
-        const next = demoTabs[(index + 1) % demoTabs.length];
-        return next.key;
-      });
-    }, 4200);
+    }, 3600);
 
     return () => {
       clearInterval(messageTimer);
-      clearInterval(tabTimer);
     };
   }, []);
 
@@ -145,6 +136,13 @@ export default function Page() {
           </a>
         </nav>
       </header>
+
+      <nav className="mobileNav" aria-label="Mobil menü">
+        <a href="#top">Ana Sayfa</a>
+        <a href="#product">Ürün</a>
+        <a href="#features">Özellikler</a>
+        <a href="#waitlist">Kayıt Ol</a>
+      </nav>
 
       <section className="hero" id="top">
         <div className="heroCopy">
@@ -457,8 +455,8 @@ export default function Page() {
           position: absolute;
           pointer-events: none;
           border-radius: 999px;
-          filter: blur(16px);
           z-index: 0;
+          opacity: 0.72;
           transform: translateZ(0);
         }
 
@@ -501,11 +499,11 @@ export default function Page() {
           z-index: 999;
           padding: 8px 10px;
           border-radius: 30px;
-          background: rgba(255, 255, 255, 0.88);
+          background: rgba(255, 255, 255, 0.94);
           border: 1px solid rgba(11, 99, 255, 0.1);
-          box-shadow: 0 18px 45px rgba(15, 32, 64, 0.08);
+          box-shadow: 0 12px 30px rgba(15, 32, 64, 0.06);
           backface-visibility: hidden;
-          will-change: transform;
+          will-change: auto;
         }
 
         .brandCapsule {
@@ -1375,19 +1373,16 @@ export default function Page() {
         .floatOrders {
           left: -28px;
           top: 62px;
-          animation: floaty 4.8s ease-in-out infinite;
         }
 
         .floatRevenue {
           right: 82px;
           top: 50px;
-          animation: floaty 5.5s ease-in-out infinite 0.4s;
         }
 
         .floatStock {
           left: 10px;
           bottom: 74px;
-          animation: floaty 5.2s ease-in-out infinite 0.2s;
         }
 
         .sideStack {
@@ -1423,9 +1418,8 @@ export default function Page() {
           inset: -70px auto auto -100px;
           width: 130px;
           height: 460px;
-          background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.18), transparent);
-          transform: rotate(28deg);
-          animation: shine 4.6s ease-in-out infinite;
+          background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.13), transparent);
+          transform: translateX(240px) rotate(28deg);
         }
 
         .priceLabel {
@@ -1600,8 +1594,7 @@ export default function Page() {
           width: 128px;
           height: 128px;
           object-fit: contain;
-          filter: drop-shadow(0 18px 24px rgba(7, 20, 47, 0.14));
-          animation: gorkiFloat 4.8s ease-in-out infinite;
+          filter: drop-shadow(0 14px 18px rgba(7, 20, 47, 0.12));
         }
 
         .gorkiMessages {
@@ -1813,11 +1806,15 @@ export default function Page() {
           border-radius: 999px;
           color: white;
           background: linear-gradient(135deg, var(--blue), var(--blue2));
-          box-shadow: 0 18px 35px rgba(11, 99, 255, 0.28);
+          box-shadow: 0 14px 26px rgba(11, 99, 255, 0.24);
           font-size: 22px;
           font-weight: 950;
           border: 1px solid rgba(255, 255, 255, 0.4);
-          transition: 0.24s ease;
+          transition: 0.2s ease;
+        }
+
+        .mobileNav {
+          display: none;
         }
 
         .floatingTopButton:hover {
@@ -1902,7 +1899,7 @@ export default function Page() {
 
         @media (max-width: 1080px) {
           .takipioPremium {
-            padding: 22px 16px 30px;
+            padding: 22px 16px 92px;
           }
 
           .navLinks {
@@ -1913,15 +1910,56 @@ export default function Page() {
             width: calc(100% - 32px);
             height: 66px;
             top: 12px;
+            border-radius: 24px;
           }
 
           .brandCapsule {
-            width: 168px;
-            height: 54px;
+            width: 156px;
+            height: 50px;
+          }
+
+          .mobileNav {
+            position: fixed;
+            left: 12px;
+            right: 12px;
+            bottom: 12px;
+            z-index: 1001;
+            height: 58px;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 7px;
+            padding: 7px;
+            border-radius: 24px;
+            background: rgba(255, 255, 255, 0.96);
+            border: 1px solid rgba(11, 99, 255, 0.12);
+            box-shadow: 0 16px 34px rgba(15, 32, 64, 0.14);
+          }
+
+          .mobileNav a {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 17px;
+            color: #1d2939;
+            background: #f7fbff;
+            border: 1px solid rgba(11, 99, 255, 0.08);
+            font-size: 12px;
+            font-weight: 900;
+          }
+
+          .mobileNav a:last-child {
+            color: white;
+            background: linear-gradient(135deg, var(--blue), var(--blue2));
+            box-shadow: 0 10px 20px rgba(11, 99, 255, 0.2);
+          }
+
+          .floatingTopButton {
+            right: 18px;
+            bottom: 82px;
           }
 
           .brandCapsule img {
-            width: 136px;
+            width: 128px;
           }
 
           h1 {
@@ -1969,6 +2007,23 @@ export default function Page() {
         }
 
         @media (max-width: 780px) {
+          .mesh,
+          .noise,
+          .softGrid {
+            display: none;
+          }
+
+          .pricePanel:hover,
+          .gorkiPanel:hover,
+          .waitlistCard:hover,
+          .featureCard:hover,
+          .domainCard:hover,
+          .instagramCard:hover,
+          .trustCard div:hover,
+          .floatingTopButton:hover {
+            transform: none;
+          }
+
           .hero {
             min-height: auto;
             gap: 24px;
