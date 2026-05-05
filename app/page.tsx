@@ -251,7 +251,6 @@ export default function Page() {
         * { box-sizing: border-box; }
         html { width: 100%; min-height: 100%; overflow-x: hidden; overflow-y: auto; scroll-behavior: smooth; background: var(--bg); }
         body { width: 100%; min-height: 100%; margin: 0; overflow-x: hidden; overflow-y: auto; background: var(--bg); color: var(--ink); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-        body > div, #__next, [data-nextjs-scroll-focus-boundary] { overflow: visible !important; height: auto !important; min-height: 100% !important; }
         #top, #features, #product, #assistant, #pricing, #waitlist { scroll-margin-top: 124px; }
         a { color: inherit; text-decoration: none; }
         button, input { font-family: inherit; }
