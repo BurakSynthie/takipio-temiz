@@ -5,8 +5,8 @@ import { supabase } from "../lib/supabase";
 
 export default function Page() {
   const [email, setEmail] = useState("");
-  const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -22,9 +22,12 @@ export default function Page() {
 
     setLoading(true);
 
-    const { error } = await supabase
-      .from("waitlist_signups")
-      .insert([{ email: cleanEmail }]);
+    const { error } = await supabase.from("waitlist_signups").insert([
+      {
+        email: cleanEmail,
+        coupon_code: "TAKIPIO10",
+      },
+    ]);
 
     setLoading(false);
 
@@ -40,329 +43,157 @@ export default function Page() {
 
     setSaved(true);
     setEmail("");
-    setTimeout(() => setSaved(false), 3000);
+    setTimeout(() => setSaved(false), 3200);
   }
 
   return (
-    <main className="takipioLanding">
-      <div className="bgNoise" />
-      <div className="bgGrid" />
-      <div className="glow glowA" />
-      <div className="glow glowB" />
-      <div className="glow glowC" />
+    <main className="posterLanding">
+      <div className="softBlob blobOne" />
+      <div className="softBlob blobTwo" />
+      <div className="dotPattern patternOne" />
+      <div className="dotPattern patternTwo" />
 
-      <nav className="navbar">
-        <a className="logoWrap" href="#top" aria-label="Takipio Ana Sayfa">
-          <img src="/takipio-logo.png" alt="Takipio" />
-        </a>
-
-        <div className="navLinks">
+      <header className="topHeader">
+        <img src="/takipio-logo.png" alt="Takipio" className="topLogo" />
+        <nav className="topNav">
           <a href="#features">Özellikler</a>
+          <a href="#price">Fiyat</a>
           <a href="#gorki">Gorki</a>
-          <a href="#early">Erken Erişim</a>
-          <a href="#contact">İletişim</a>
-          <a className="navButton" href="#early">Yakında</a>
-        </div>
-      </nav>
+          <a className="navCta" href="#waitlist">Erken Erişim</a>
+        </nav>
+      </header>
 
-      <section className="hero" id="top">
-        <div className="heroTextArea">
-          <div className="statusBadge">
-            <span />
-            ÇOK YAKINDA
+      <section className="heroPoster">
+        <div className="centerHero">
+          <div className="logoMark">
+            <img src="/takipio-logo.png" alt="Takipio" />
           </div>
 
-          <h1>
-            İşletmeni takip et, <br />
-            <strong>kontrolü kaybetme.</strong>
-          </h1>
+          <p className="preTitle">İŞİNİ BÜYÜTMEK ARTIK ÇOK KOLAY.</p>
+          <h1>takipio</h1>
+          <div className="brushText">HER ŞEY TEK PANELDE!</div>
 
-          <p className="heroDesc">
-            Takipio; müşteri, sipariş, stok, ödeme ve günlük iş akışını tek ekranda toplayan yeni nesil işletme asistanıdır.
-          </p>
-
-          <form className="earlyAccess" id="early" onSubmit={handleSubmit}>
-            <div className="earlyHeader">
-              <div className="mailIcon">
-                <svg viewBox="0 0 64 64" aria-hidden="true">
-                  <rect x="10" y="16" width="44" height="32" rx="8" />
-                  <path d="M12 21l20 16 20-16" />
-                </svg>
-              </div>
-
-              <div>
-                <h2>Erken erişim listesine katıl</h2>
-                <p>Açılışta özel indirim ve ilk kullanım avantajlarını kaçırma.</p>
-              </div>
-            </div>
-
-            <div className="inputGroup">
-              <input
-                type="email"
-                placeholder="E-posta adresiniz"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-              <button type="submit">
-                {loading ? "Kaydediliyor..." : saved ? "Kaydedildi ✓" : "Kayıt Ol"}
-                {!saved && !loading && (
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M9 5l7 7-7 7" />
-                  </svg>
-                )}
-              </button>
-            </div>
-
-            {errorMessage && <div className="formMessage error">{errorMessage}</div>}
-            {saved && <div className="formMessage success">Kaydın alındı abi. Açılışta haber vereceğiz.</div>}
-
-            <div className="promoLine">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M20 12v8H4v-8" />
-                <path d="M2 7h20v5H2z" />
-                <path d="M12 22V7" />
-                <path d="M12 7H7.5A2.5 2.5 0 1 1 10 4.5C10 6 12 7 12 7z" />
-                <path d="M12 7h4.5A2.5 2.5 0 1 0 14 4.5C14 6 12 7 12 7z" />
-              </svg>
-              İlk açılışa özel erken kullanıcı avantajı
-            </div>
-          </form>
-        </div>
-
-        <div className="heroVisual" id="gorki">
-          <div className="planetGlow" />
-          <div className="orbit orbitOne" />
-          <div className="orbit orbitTwo" />
-
-          <img className="gorki" src="/gorki-hero.png" alt="Gorki Takipio Asistanı" />
-
-          <div className="floatingCard chartCard">
-            <div className="cardTop">
-              <span>Satış Grafiği</span>
-              <b>+18%</b>
-            </div>
-            <svg viewBox="0 0 260 125" aria-hidden="true">
-              <path className="gridLine" d="M0 104H260M0 76H260M0 48H260M0 20H260" />
-              <path className="chartGlow" d="M8 100L45 78L80 86L118 48L154 64L192 31L225 40L252 14" />
-              <path className="chartLine" d="M8 100L45 78L80 86L118 48L154 64L192 31L225 40L252 14" />
-              <g>
-                <circle cx="45" cy="78" r="5" />
-                <circle cx="118" cy="48" r="5" />
-                <circle cx="192" cy="31" r="5" />
-                <circle cx="252" cy="14" r="6" />
-              </g>
-            </svg>
-          </div>
-
-          <div className="floatingCard revenueCard">
-            <small>Bugünkü Ciro</small>
-            <strong>₺12.450</strong>
-            <span>Aktif takip</span>
-          </div>
-
-          <div className="floatingCard stockCard">
-            <div className="boxIcon">
-              <svg viewBox="0 0 48 48" aria-hidden="true">
-                <path d="M24 5l16 9v20L24 44 8 34V14L24 5z" />
-                <path d="M8 14l16 10 16-10" />
-                <path d="M24 24v20" />
-              </svg>
-            </div>
-            <div>
-              <small>Stok Durumu</small>
-              <strong>Güncel</strong>
-            </div>
-          </div>
-
-          <div className="gorkiBubble">
-            <span>
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 21s-8-4.8-9.6-10C1.2 7.1 3.7 4.5 7 4.5c2 0 3.8 1.2 5 3 1.2-1.8 3-3 5-3 3.3 0 5.8 2.6 4.6 6.5C20 16.2 12 21 12 21z" />
-              </svg>
-            </span>
-            Gorki her zaman yanında.
+          <div className="deviceStage">
+            <LaptopMockup />
+            <PhoneMockup />
           </div>
         </div>
+
+        <aside className="leftStack">
+          <Sticker className="stickerBig" title="SİPARİŞLERİN" strong="KONTROL ALTINDA!" />
+          <MiniCard icon={<UserIcon />} title="MÜŞTERİLERİNİ" strong="YÖNET" />
+          <BlackNote title="STOKLARINI" strong="TAKİP ET" icon={<CubeIcon />} />
+          <MiniCard icon={<WalletIcon />} title="ÖDEMELERİNİ" strong="KOLAYCA YÖNET" tilted />
+        </aside>
+
+        <aside className="rightStack" id="price">
+          <PriceTag />
+          <div className="soonScribble">ÇOK<br /><span>YAKINDA!</span></div>
+          <div className="gorkiCut" id="gorki">
+            <img src="/gorki-hero.png" alt="Gorki" />
+            <div className="gorkiBrush">GORKİ<br /><span>HER ZAMAN YANINDA!</span></div>
+          </div>
+        </aside>
       </section>
 
-      <section className="features" id="features">
-        <FeatureCard
-          icon="customer"
-          title="Müşteri takibi"
-          text="Müşteri bilgilerini, sipariş geçmişini ve notlarını tek panelde düzenle."
-        />
-        <FeatureCard
-          icon="order"
-          title="Sipariş kontrolü"
-          text="Bekleyen, tamamlanan ve ödeme bekleyen işleri hızlıca görüntüle."
-        />
-        <FeatureCard
-          icon="money"
-          title="Gelir & ödeme takibi"
-          text="Günlük ciro, ödeme durumu ve genel performansı net şekilde takip et."
-        />
-        <FeatureCard
-          icon="assistant"
-          title="Akıllı Gorki asistanı"
-          text="İşletmeni yönetirken sana hatırlatma, özet ve pratik yönlendirme sunsun."
-        />
+      <section className="featureStrip" id="features">
+        <Feature icon={<BoltIcon />} title="Hızlı" text="Kurulum" />
+        <Feature icon={<ShieldIcon />} title="Güvenli" text="Altyapı" />
+        <Feature icon={<CloudIcon />} title="7/24" text="Erişim" />
+        <Feature icon={<HeadsetIcon />} title="7/24" text="Destek" />
       </section>
 
-      <section className="storeAndContact" id="contact">
-        <div className="storePanel">
-          <div className="storeIntro">
-            <h3>Mobil uygulama da geliyor</h3>
-            <p>Takipio yakında App Store ve Google Play üzerinde yerini alacak.</p>
-          </div>
+      <section className="waitlistArea" id="waitlist">
+        <div className="startBrush">İŞİNİ BÜYÜTMEYE<br />HEMEN BAŞLA!</div>
 
-          <div className="storeButtons">
-            <StoreButton type="apple" title="App Store" />
-            <StoreButton type="play" title="Google Play" />
+        <form className="waitlistForm" onSubmit={handleSubmit}>
+          <div>
+            <h2>Erken erişim listesine katıl</h2>
+            <p>Açılışa özel <b>TAKIPIO10</b> indirim kodunu ilk sen al.</p>
           </div>
-        </div>
-
-        <a className="instagramPanel" href="https://instagram.com/takipiocom" target="_blank">
-          <span className="instagramIcon">
-            <svg viewBox="0 0 64 64" aria-hidden="true">
-              <defs>
-                <linearGradient id="ig" x1="10" y1="58" x2="55" y2="8" gradientUnits="userSpaceOnUse">
-                  <stop stopColor="#ffd600" />
-                  <stop offset=".35" stopColor="#ff0069" />
-                  <stop offset=".7" stopColor="#d300c5" />
-                  <stop offset="1" stopColor="#7638fa" />
-                </linearGradient>
-              </defs>
-              <rect x="8" y="8" width="48" height="48" rx="15" fill="url(#ig)" />
-              <rect x="18" y="18" width="28" height="28" rx="9" />
-              <circle cx="32" cy="32" r="7" />
-              <circle cx="43" cy="21" r="3" />
-            </svg>
-          </span>
-          <span>
-            <strong>@takipiocom</strong>
-            <p>Gelişmeleri Instagram hesabımızdan takip edebilirsin.</p>
-          </span>
-        </a>
+          <div className="formRow">
+            <input
+              type="email"
+              placeholder="E-posta adresiniz"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+            <button type="submit">{loading ? "Kaydediliyor..." : saved ? "Kaydedildi ✓" : "Kayıt Ol"}</button>
+          </div>
+          {errorMessage && <div className="message error">{errorMessage}</div>}
+          {saved && <div className="message success">Kaydın alındı. Açılışta haber vereceğiz.</div>}
+        </form>
       </section>
+
+      <footer className="bottomDomain">
+        <div className="domainPill">TAKIPIO.COM <GlobeIcon /></div>
+        <p>Her yerden eriş, işini <b>kontrol et!</b></p>
+      </footer>
 
       <style jsx global>{`
         :root {
-          --bg: #020611;
-          --panel: rgba(7, 20, 47, 0.76);
-          --panelLight: rgba(11, 35, 78, 0.72);
-          --stroke: rgba(70, 142, 255, 0.42);
-          --strokeSoft: rgba(145, 179, 234, 0.22);
-          --blue: #0a7cff;
-          --blue2: #29c6ff;
-          --text: #f4f8ff;
-          --muted: #aab6ca;
-          --green: #43ff88;
+          --blue: #0b62ff;
+          --blue2: #00a6ff;
+          --dark: #030917;
+          --text: #050915;
+          --muted: #667085;
+          --soft: #eef5ff;
         }
 
-        * {
-          box-sizing: border-box;
-          margin: 0;
-          padding: 0;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
 
-        html {
-          scroll-behavior: smooth;
-          background: var(--bg);
-        }
-
-        body {
-          min-height: 100vh;
+        html, body {
+          min-height: 100%;
+          background: #f7fbff;
           color: var(--text);
-          background: var(--bg);
-          overflow-x: hidden;
           font-family: Inter, Arial, Helvetica, sans-serif;
+          overflow-x: hidden;
         }
 
-        a {
-          color: inherit;
-          text-decoration: none;
-        }
+        a { color: inherit; text-decoration: none; }
+        button, input { font-family: inherit; }
 
-        button,
-        input {
-          font-family: inherit;
-        }
-
-        .takipioLanding {
-          width: min(1760px, 100%);
+        .posterLanding {
           min-height: 100vh;
-          margin: 0 auto;
           position: relative;
           overflow: hidden;
-          padding: 30px 54px 38px;
+          padding: 26px 34px 30px;
           background:
-            radial-gradient(circle at 72% 22%, rgba(0, 118, 255, 0.28), transparent 23%),
-            radial-gradient(circle at 16% 77%, rgba(0, 84, 255, 0.16), transparent 27%),
-            linear-gradient(135deg, #02040a 0%, #030916 45%, #02040a 100%);
+            radial-gradient(circle at 50% 10%, rgba(11,98,255,.08), transparent 26%),
+            radial-gradient(circle at 84% 38%, rgba(11,98,255,.11), transparent 22%),
+            linear-gradient(180deg, #ffffff 0%, #f5f9ff 58%, #ffffff 100%);
         }
 
-        .bgNoise,
-        .bgGrid,
-        .glow {
+        .softBlob {
           position: absolute;
+          border-radius: 999px;
+          background: rgba(11,98,255,.08);
+          filter: blur(1px);
           pointer-events: none;
         }
 
-        .bgNoise {
-          inset: 0;
-          z-index: 0;
-          opacity: 0.21;
-          background-image:
-            radial-gradient(circle, rgba(74, 156, 255, 0.9) 0 1px, transparent 1.5px),
-            radial-gradient(circle, rgba(255, 255, 255, 0.2) 0 1px, transparent 1.5px);
-          background-size: 92px 92px, 144px 144px;
-          mask-image: linear-gradient(to bottom, transparent 0%, #000 16%, #000 82%, transparent 100%);
+        .blobOne { width: 410px; height: 410px; left: 135px; top: 80px; }
+        .blobTwo { width: 360px; height: 360px; right: 120px; bottom: 150px; }
+
+        .dotPattern {
+          position: absolute;
+          pointer-events: none;
+          width: 260px;
+          height: 160px;
+          opacity: .22;
+          background-image: radial-gradient(circle, var(--blue) 0 3px, transparent 3.5px);
+          background-size: 16px 16px;
+          transform: rotate(-22deg);
         }
 
-        .bgGrid {
-          inset: 0;
-          z-index: 0;
-          opacity: 0.12;
-          background-image:
-            linear-gradient(rgba(70, 142, 255, 0.18) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(70, 142, 255, 0.18) 1px, transparent 1px);
-          background-size: 82px 82px;
-          mask-image: radial-gradient(circle at 70% 45%, #000 0%, transparent 64%);
-        }
+        .patternOne { right: 250px; top: -10px; }
+        .patternTwo { right: -40px; bottom: 185px; transform: rotate(18deg); }
 
-        .glow {
-          z-index: 0;
-          border-radius: 999px;
-          filter: blur(48px);
-        }
-
-        .glowA {
-          width: 460px;
-          height: 460px;
-          top: 65px;
-          right: 180px;
-          background: rgba(0, 119, 255, 0.32);
-        }
-
-        .glowB {
-          width: 390px;
-          height: 300px;
-          left: 30px;
-          bottom: 130px;
-          background: rgba(0, 80, 255, 0.18);
-        }
-
-        .glowC {
-          width: 300px;
-          height: 220px;
-          right: 470px;
-          bottom: 10px;
-          background: rgba(39, 198, 255, 0.14);
-        }
-
-        .navbar {
-          height: 74px;
+        .topHeader {
+          max-width: 1480px;
+          margin: 0 auto;
+          height: 64px;
           display: flex;
           align-items: center;
           justify-content: space-between;
@@ -370,1020 +201,535 @@ export default function Page() {
           z-index: 10;
         }
 
-        .logoWrap {
-          width: 245px;
-          height: 82px;
-          display: flex;
-          align-items: center;
-          margin-left: -10px;
-        }
-
-        .logoWrap img {
-          width: 232px;
-          max-height: 82px;
+        .topLogo {
+          width: 190px;
+          height: 64px;
           object-fit: contain;
           object-position: left center;
-          filter: drop-shadow(0 0 24px rgba(0, 122, 255, 0.45));
+          filter: drop-shadow(0 8px 18px rgba(11,98,255,.18));
         }
 
-        .navLinks {
+        .topNav {
           display: flex;
           align-items: center;
-          gap: 42px;
-          color: rgba(255, 255, 255, 0.78);
-          font-size: 18px;
-        }
-
-        .navLinks a {
-          white-space: nowrap;
-          transition: 0.24s ease;
-        }
-
-        .navLinks a:hover {
-          color: #fff;
-          text-shadow: 0 0 18px rgba(0, 132, 255, 0.85);
-        }
-
-        .navButton {
-          color: white !important;
+          gap: 30px;
+          font-size: 15px;
           font-weight: 850;
-          padding: 15px 31px;
-          border-radius: 14px;
-          border: 1px solid rgba(48, 137, 255, 0.86);
-          background: linear-gradient(180deg, rgba(9, 42, 98, 0.95), rgba(7, 20, 45, 0.64));
-          box-shadow: 0 0 24px rgba(0, 115, 255, 0.3), inset 0 0 18px rgba(0, 100, 255, 0.2);
+          color: #1d2939;
         }
 
-        .hero {
-          position: relative;
-          z-index: 2;
-          min-height: 650px;
-          display: grid;
-          grid-template-columns: minmax(590px, 48%) minmax(640px, 52%);
-          gap: 10px;
-          align-items: center;
-        }
-
-        .heroTextArea {
-          position: relative;
-          z-index: 5;
-          padding-top: 10px;
-        }
-
-        .statusBadge {
-          width: max-content;
-          min-width: 240px;
-          height: 52px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          gap: 14px;
-          margin: 30px 0 30px;
-          padding: 0 29px;
+        .navCta {
+          padding: 13px 18px;
           border-radius: 999px;
-          border: 1px solid rgba(33, 139, 255, 0.95);
-          color: #2fc4ff;
-          font-size: 22px;
-          font-weight: 950;
-          letter-spacing: 7px;
-          background: linear-gradient(180deg, rgba(9, 38, 88, 0.74), rgba(3, 15, 40, 0.68));
-          box-shadow: 0 0 26px rgba(0, 119, 255, 0.58), inset 0 0 24px rgba(0, 119, 255, 0.22);
-          animation: badgePulse 2.7s ease-in-out infinite;
+          color: white;
+          background: var(--blue);
+          box-shadow: 0 14px 28px rgba(11,98,255,.23);
         }
 
-        .statusBadge span {
-          width: 9px;
-          height: 9px;
-          border-radius: 50%;
-          background: #37ff91;
-          box-shadow: 0 0 15px rgba(55, 255, 145, 0.9);
+        .heroPoster {
+          max-width: 1480px;
+          min-height: 760px;
+          margin: 0 auto;
+          position: relative;
+          display: grid;
+          grid-template-columns: 280px 1fr 310px;
+          gap: 18px;
+          align-items: start;
+          padding-top: 8px;
+        }
+
+        .centerHero {
+          text-align: center;
+          position: relative;
+          z-index: 4;
+        }
+
+        .logoMark img {
+          width: 54px;
+          height: 54px;
+          object-fit: contain;
+          margin-bottom: 15px;
+          filter: drop-shadow(0 8px 18px rgba(11,98,255,.22));
+        }
+
+        .preTitle {
+          font-size: clamp(26px, 3vw, 44px);
+          line-height: 1.05;
+          font-weight: 950;
+          letter-spacing: -1.2px;
+          margin-top: 2px;
+        }
+
+        .preTitle::after {
+          content: "ARTIK ÇOK KOLAY.";
+          display: block;
+          color: var(--blue);
+          margin-top: 7px;
         }
 
         h1 {
-          max-width: 940px;
-          color: white;
-          font-size: 74px;
-          line-height: 1.08;
-          letter-spacing: -3.6px;
+          font-size: clamp(100px, 13vw, 190px);
+          line-height: .82;
+          letter-spacing: -12px;
           font-weight: 950;
-          text-shadow: 0 8px 28px rgba(0, 0, 0, 0.58);
-          margin-bottom: 22px;
+          color: #030917;
+          margin: 18px 0 8px;
+          text-shadow: 0 22px 34px rgba(11,98,255,.10);
         }
 
-        h1 strong {
-          color: var(--blue);
+        .brushText,
+        .startBrush,
+        .gorkiBrush {
+          color: white;
+          background: var(--blue);
+          box-shadow: 0 14px 28px rgba(11,98,255,.22);
+          transform: rotate(-2deg);
+        }
+
+        .brushText {
+          width: max-content;
+          max-width: 100%;
+          margin: 0 auto;
+          padding: 12px 28px 15px;
+          font-size: clamp(22px, 3vw, 40px);
           font-weight: 950;
-          text-shadow: 0 0 30px rgba(0, 124, 255, 0.48);
-        }
-
-        .heroDesc {
-          max-width: 805px;
-          color: var(--muted);
-          font-size: 25px;
-          line-height: 1.58;
-          letter-spacing: -0.35px;
-          margin-bottom: 28px;
-        }
-
-        .earlyAccess {
-          width: min(790px, 100%);
-          padding: 28px 30px 19px;
-          border-radius: 20px;
-          border: 1px solid var(--stroke);
-          background: linear-gradient(180deg, rgba(8, 24, 56, 0.9), rgba(7, 18, 39, 0.78));
-          box-shadow: 0 18px 60px rgba(0, 0, 0, 0.38), inset 0 0 70px rgba(0, 102, 255, 0.08);
-          backdrop-filter: blur(18px);
-        }
-
-        .earlyHeader {
-          display: flex;
-          align-items: center;
-          gap: 22px;
-          margin-bottom: 23px;
-        }
-
-        .mailIcon {
-          width: 68px;
-          height: 68px;
-          flex: 0 0 auto;
-          border-radius: 50%;
-          display: grid;
-          place-items: center;
-          color: #28bcff;
-          background: radial-gradient(circle at 40% 30%, #0f8eff, #053d91 64%, #061d4b);
-          border: 1px solid rgba(72, 162, 255, 0.75);
-          box-shadow: 0 0 25px rgba(0, 124, 255, 0.38), inset 0 0 20px rgba(255, 255, 255, 0.09);
-        }
-
-        .mailIcon svg {
-          width: 40px;
-          height: 40px;
-          fill: none;
-          stroke: currentColor;
-          stroke-width: 4;
-          stroke-linecap: round;
-          stroke-linejoin: round;
-        }
-
-        .earlyHeader h2 {
-          color: white;
-          font-size: 30px;
-          line-height: 1.1;
-          letter-spacing: -0.8px;
-          margin-bottom: 8px;
-        }
-
-        .earlyHeader p {
-          color: rgba(255, 255, 255, 0.8);
-          font-size: 17px;
-          line-height: 1.45;
-        }
-
-        .inputGroup {
-          display: grid;
-          grid-template-columns: 1fr 218px;
-          gap: 18px;
-          margin-bottom: 15px;
-        }
-
-        .inputGroup input {
-          width: 100%;
-          height: 62px;
-          padding: 0 22px;
-          border: 1px solid rgba(134, 157, 192, 0.34);
-          border-radius: 12px;
-          outline: none;
-          color: white;
-          font-size: 20px;
-          background: rgba(3, 10, 23, 0.64);
-          box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.25);
-        }
-
-        .inputGroup input::placeholder {
-          color: rgba(255, 255, 255, 0.48);
-        }
-
-        .inputGroup button {
-          height: 62px;
-          border: 0;
-          border-radius: 12px;
-          cursor: pointer;
-          color: white;
-          font-size: 22px;
-          font-weight: 900;
-          background: linear-gradient(135deg, #0693ff, #0a67ff);
-          box-shadow: 0 0 25px rgba(0, 132, 255, 0.58), inset 0 0 24px rgba(255, 255, 255, 0.16);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 12px;
-          transition: 0.24s ease;
-        }
-
-        .inputGroup button:hover {
-          transform: translateY(-2px);
-          filter: brightness(1.08);
-        }
-
-        .inputGroup button svg {
-          width: 24px;
-          height: 24px;
-          fill: none;
-          stroke: white;
-          stroke-width: 3;
-          stroke-linecap: round;
-          stroke-linejoin: round;
-        }
-
-        .formMessage {
-          margin: -2px 0 14px;
-          padding: 12px 14px;
-          border-radius: 10px;
-          font-size: 15px;
-          line-height: 1.35;
-        }
-
-        .formMessage.error {
-          color: #ffb4b4;
-          border: 1px solid rgba(255, 82, 82, 0.35);
-          background: rgba(255, 82, 82, 0.09);
-        }
-
-        .formMessage.success {
-          color: #b9ffd2;
-          border: 1px solid rgba(67, 255, 136, 0.35);
-          background: rgba(67, 255, 136, 0.09);
-        }
-
-        .promoLine {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          color: #1694ff;
-          font-size: 17px;
-        }
-
-        .promoLine svg {
-          width: 22px;
-          height: 22px;
-          fill: none;
-          stroke: currentColor;
-          stroke-width: 2.2;
-          stroke-linecap: round;
-          stroke-linejoin: round;
-        }
-
-        .heroVisual {
+          letter-spacing: 2px;
           position: relative;
-          height: 668px;
+          clip-path: polygon(1% 16%, 100% 0, 97% 88%, 5% 100%);
+        }
+
+        .deviceStage {
+          position: relative;
+          height: 360px;
+          margin-top: 34px;
           display: flex;
-          align-items: center;
+          align-items: end;
           justify-content: center;
-          isolation: isolate;
         }
 
-        .planetGlow {
-          position: absolute;
-          left: -15%;
-          right: -8%;
-          bottom: 5px;
-          height: 196px;
-          z-index: 1;
-          border-top: 3px solid rgba(95, 190, 255, 0.78);
-          border-radius: 50% 50% 0 0 / 100% 100% 0 0;
-          background: radial-gradient(ellipse at center top, rgba(39, 151, 255, 0.75), rgba(0, 70, 172, 0.24) 19%, transparent 57%);
-          filter: drop-shadow(0 -22px 34px rgba(0, 117, 255, 0.45));
+        .laptop {
+          width: min(650px, 92%);
+          height: 330px;
+          border-radius: 24px 24px 15px 15px;
+          padding: 16px 16px 24px;
+          background: linear-gradient(135deg, #c8d2e1, #f3f6fb 48%, #8c9aac);
+          box-shadow: 0 26px 55px rgba(7,20,47,.22);
+          position: relative;
+          transform: perspective(900px) rotateX(5deg);
         }
 
-        .planetGlow::after {
+        .laptop::after {
           content: "";
           position: absolute;
           left: 8%;
           right: 8%;
-          top: -28px;
-          height: 82px;
-          background: radial-gradient(ellipse at center, rgba(53, 151, 255, 0.46), transparent 68%);
-          filter: blur(13px);
+          bottom: -16px;
+          height: 22px;
+          border-radius: 0 0 28px 28px;
+          background: linear-gradient(180deg, #d8dee8, #8792a2);
+          box-shadow: 0 14px 24px rgba(7,20,47,.16);
         }
 
-        .orbit {
-          position: absolute;
-          z-index: 1;
-          border: 1px solid rgba(45, 130, 255, 0.15);
-          border-radius: 50%;
-          transform: rotate(-13deg);
+        .screen {
+          width: 100%;
+          height: 100%;
+          border-radius: 18px;
+          overflow: hidden;
+          background: #041020;
+          border: 1px solid rgba(255,255,255,.12);
+          box-shadow: inset 0 0 35px rgba(0,166,255,.08);
+          text-align: left;
         }
 
-        .orbitOne {
-          width: 820px;
-          height: 330px;
-          bottom: 57px;
-          right: -115px;
-        }
-
-        .orbitTwo {
-          width: 620px;
-          height: 230px;
-          bottom: 110px;
-          right: -25px;
-          opacity: 0.7;
-        }
-
-        .gorki {
-          position: relative;
-          z-index: 4;
-          width: min(600px, 80%);
-          max-height: 630px;
-          margin-top: 36px;
-          object-fit: contain;
-          filter: drop-shadow(0 0 38px rgba(33, 139, 255, 0.58)) drop-shadow(0 28px 40px rgba(0, 0, 0, 0.48));
-          animation: gorkiFloat 5.6s ease-in-out infinite;
-        }
-
-        .floatingCard {
-          position: absolute;
-          z-index: 6;
-          border: 1px solid rgba(55, 129, 255, 0.44);
-          border-radius: 16px;
-          background: linear-gradient(180deg, rgba(8, 30, 70, 0.78), rgba(5, 16, 39, 0.66));
-          box-shadow: 0 18px 35px rgba(0, 0, 0, 0.34), inset 0 0 30px rgba(0, 115, 255, 0.07);
-          backdrop-filter: blur(14px);
-        }
-
-        .chartCard {
-          width: 270px;
-          height: 178px;
-          top: 102px;
-          right: 24px;
-          padding: 18px;
-          transform: rotate(-7deg);
-          animation: floatCard 5.1s ease-in-out infinite;
-        }
-
-        .cardTop {
+        .screenTop {
+          height: 54px;
           display: flex;
           align-items: center;
           justify-content: space-between;
-          margin-bottom: 11px;
-          color: #d7e2f5;
-          font-size: 13px;
-          font-weight: 750;
-        }
-
-        .cardTop b {
-          color: var(--green);
-        }
-
-        .chartCard svg {
-          width: 100%;
-          height: 122px;
-          overflow: visible;
-        }
-
-        .gridLine {
-          fill: none;
-          stroke: rgba(83, 137, 216, 0.15);
-          stroke-width: 1;
-        }
-
-        .chartGlow {
-          fill: none;
-          stroke: #118cff;
-          stroke-width: 10;
-          stroke-linecap: round;
-          stroke-linejoin: round;
-          opacity: 0.22;
-          filter: blur(3px);
-        }
-
-        .chartLine {
-          fill: none;
-          stroke: #168cff;
-          stroke-width: 5;
-          stroke-linecap: round;
-          stroke-linejoin: round;
-        }
-
-        .chartCard circle {
-          fill: #25b9ff;
-          filter: drop-shadow(0 0 8px rgba(36, 183, 255, 0.95));
-        }
-
-        .revenueCard {
-          width: 195px;
-          min-height: 124px;
-          right: 7px;
-          top: 330px;
-          padding: 19px 20px;
-          animation: floatCard 5.2s ease-in-out infinite 0.25s;
-        }
-
-        .revenueCard small,
-        .stockCard small {
-          display: block;
-          color: #78a7e7;
-          font-size: 13px;
-          margin-bottom: 8px;
-        }
-
-        .revenueCard strong {
-          display: block;
+          padding: 0 18px;
           color: white;
-          font-size: 27px;
-          line-height: 1;
-          letter-spacing: -0.6px;
-          margin-bottom: 12px;
+          border-bottom: 1px solid rgba(255,255,255,.08);
         }
 
-        .revenueCard span {
-          display: inline-flex;
-          color: var(--green);
-          background: rgba(20, 255, 114, 0.12);
-          padding: 6px 10px;
-          border-radius: 8px;
-          font-size: 14px;
-          font-weight: 850;
-        }
+        .screenBrand { display: flex; align-items: center; gap: 9px; font-weight: 900; }
+        .screenBrand img { width: 26px; height: 26px; object-fit: contain; }
+        .screenDots { display: flex; gap: 7px; }
+        .screenDots span { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.34); }
 
-        .stockCard {
-          right: 96px;
-          bottom: 118px;
-          width: 212px;
-          min-height: 76px;
-          padding: 16px;
-          display: flex;
-          align-items: center;
-          gap: 14px;
-          animation: floatCard 5.5s ease-in-out infinite 0.55s;
-        }
+        .screenBody { display: grid; grid-template-columns: 140px 1fr; min-height: calc(100% - 54px); }
+        .screenMenu { padding: 16px 12px; border-right: 1px solid rgba(255,255,255,.08); display: grid; gap: 9px; align-content: start; }
+        .screenMenu span { height: 28px; border-radius: 8px; background: rgba(255,255,255,.07); }
+        .screenMenu span:first-child { background: var(--blue); }
 
-        .stockCard strong {
-          display: block;
-          color: white;
-          font-size: 16px;
-        }
+        .screenContent { padding: 16px; }
+        .dashCards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 13px; }
+        .dashCard { min-height: 70px; padding: 12px; border-radius: 12px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08); color: white; }
+        .dashCard small { color: #8fb7ff; display: block; margin-bottom: 8px; }
+        .dashCard b { font-size: 20px; }
+        .graph { height: 130px; border-radius: 14px; background: linear-gradient(180deg, rgba(11,98,255,.20), rgba(11,98,255,.03)); border: 1px solid rgba(255,255,255,.08); position: relative; overflow: hidden; }
+        .graph svg { width: 100%; height: 100%; }
 
-        .boxIcon {
-          width: 46px;
-          height: 46px;
-          display: grid;
-          place-items: center;
-          color: #278bff;
-          flex: 0 0 auto;
-        }
-
-        .boxIcon svg {
-          width: 40px;
-          height: 40px;
-          fill: none;
-          stroke: currentColor;
-          stroke-width: 3;
-          stroke-linecap: round;
-          stroke-linejoin: round;
-          filter: drop-shadow(0 0 10px rgba(39, 139, 255, 0.55));
-        }
-
-        .gorkiBubble {
+        .phone {
+          width: 155px;
+          height: 305px;
+          border-radius: 30px;
+          padding: 10px;
+          background: linear-gradient(135deg, #1a2433, #050b15);
+          box-shadow: 0 22px 40px rgba(7,20,47,.28);
           position: absolute;
-          z-index: 7;
-          left: 272px;
-          bottom: 72px;
-          min-width: 320px;
-          display: flex;
-          align-items: center;
-          gap: 15px;
-          padding: 16px 26px;
-          border-radius: 999px;
-          border: 1px solid rgba(44, 126, 255, 0.64);
+          right: 10%;
+          bottom: 5px;
+          transform: rotate(-2deg);
+          border: 3px solid #141b27;
+        }
+
+        .phoneScreen {
+          height: 100%;
+          border-radius: 22px;
+          background: #031020;
+          padding: 14px 10px;
           color: white;
-          font-size: 20px;
-          font-weight: 750;
-          background: rgba(9, 25, 54, 0.88);
-          box-shadow: 0 0 32px rgba(0, 111, 255, 0.4);
-          backdrop-filter: blur(14px);
+          overflow: hidden;
         }
 
-        .gorkiBubble span {
-          width: 30px;
-          height: 30px;
-          border-radius: 50%;
-          display: grid;
-          place-items: center;
-          background: white;
-          color: #197fff;
-          box-shadow: 0 0 18px rgba(255, 255, 255, 0.82);
-          flex: 0 0 auto;
-        }
+        .phoneLogo { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 900; margin-bottom: 12px; }
+        .phoneLogo img { width: 20px; height: 20px; object-fit: contain; }
+        .phoneGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+        .phoneCard { border-radius: 10px; padding: 9px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.08); }
+        .phoneCard small { display: block; color: #85a7dd; font-size: 9px; margin-bottom: 5px; }
+        .phoneCard b { font-size: 14px; }
+        .phoneList { margin-top: 10px; display: grid; gap: 7px; }
+        .phoneList span { height: 28px; border-radius: 9px; background: rgba(255,255,255,.07); }
 
-        .gorkiBubble svg {
-          width: 18px;
-          height: 18px;
-          fill: currentColor;
-        }
-
-        .features {
+        .leftStack,
+        .rightStack {
           position: relative;
           z-index: 5;
+          min-height: 670px;
+        }
+
+        .sticker,
+        .miniCard,
+        .blackNote,
+        .priceTag {
+          border-radius: 22px;
+          box-shadow: 0 16px 34px rgba(7,20,47,.13);
+        }
+
+        .sticker {
+          padding: 23px 20px;
+          background: rgba(255,255,255,.78);
+          border: 2px dashed rgba(11,98,255,.38);
+          transform: rotate(-4deg);
+          backdrop-filter: blur(8px);
+        }
+
+        .sticker p,
+        .miniCard p,
+        .blackNote p { font-size: 24px; font-weight: 950; line-height: 1.02; }
+        .sticker strong,
+        .miniCard strong,
+        .blackNote strong { display: block; color: var(--blue); font-size: 34px; line-height: .98; margin-top: 4px; }
+        .stickerBig { margin-top: 58px; }
+
+        .miniCard {
+          margin-top: 40px;
+          padding: 19px 20px;
+          display: flex;
+          gap: 13px;
+          align-items: center;
+          background: white;
+          border: 2px dashed rgba(11,98,255,.55);
+          transform: rotate(-5deg);
+        }
+
+        .miniCard.tilted { transform: rotate(-9deg); margin-top: 42px; }
+        .miniIcon { width: 48px; height: 48px; color: var(--blue); flex: 0 0 auto; }
+        .miniIcon svg { width: 48px; height: 48px; fill: none; stroke: currentColor; stroke-width: 2.7; stroke-linecap: round; stroke-linejoin: round; }
+        .miniCard p { font-size: 18px; }
+        .miniCard strong { font-size: 25px; }
+
+        .blackNote {
+          width: 210px;
+          margin-top: 44px;
+          padding: 27px 21px;
+          background: #0b111d;
+          color: white;
+          transform: rotate(-5deg);
+        }
+
+        .blackNote strong { font-size: 30px; }
+        .blackNote .noteIcon { width: 45px; height: 45px; margin-top: 18px; color: white; }
+        .blackNote svg { width: 45px; height: 45px; fill: none; stroke: currentColor; stroke-width: 2.5; }
+
+        .priceTag {
+          margin-top: 42px;
+          margin-left: 16px;
+          width: 260px;
+          min-height: 220px;
+          padding: 18px;
+          background: #09111e;
+          color: white;
+          transform: rotate(5deg);
+          position: relative;
+        }
+
+        .priceRibbon {
+          width: max-content;
+          padding: 10px 15px;
+          border-radius: 8px;
+          color: white;
+          background: var(--blue);
+          font-size: 25px;
+          font-weight: 950;
+          transform: rotate(2deg);
+          margin: -14px auto 14px;
+          box-shadow: 0 12px 20px rgba(11,98,255,.25);
+        }
+
+        .priceTag p { font-size: 24px; font-weight: 900; line-height: 1.1; text-align: center; }
+        .oldPrice { display: block; color: rgba(255,255,255,.36); font-size: 55px; font-weight: 950; text-decoration: line-through; text-decoration-color: var(--blue); text-decoration-thickness: 7px; text-align: center; margin: 4px 0 -6px; }
+        .newPrice { display: block; color: white; font-size: 92px; line-height: .95; font-weight: 950; text-align: center; text-shadow: 0 0 24px rgba(11,98,255,.85); }
+
+        .soonScribble {
+          margin-top: 60px;
+          font-size: 54px;
+          line-height: .84;
+          font-weight: 950;
+          transform: rotate(-7deg);
+        }
+        .soonScribble span { color: var(--blue); }
+
+        .gorkiCut {
+          position: absolute;
+          right: 0;
+          bottom: 0;
+          width: 295px;
+          height: 300px;
+        }
+
+        .gorkiCut img {
+          position: absolute;
+          right: 8px;
+          bottom: 82px;
+          width: 190px;
+          height: 190px;
+          object-fit: contain;
+          filter: drop-shadow(0 18px 25px rgba(7,20,47,.18));
+          animation: gorkiFloat 4.8s ease-in-out infinite;
+        }
+
+        .gorkiBrush {
+          position: absolute;
+          right: 0;
+          bottom: 8px;
+          padding: 17px 19px;
+          background: #050915;
+          clip-path: polygon(0 13%, 100% 0, 94% 100%, 5% 88%);
+          font-size: 31px;
+          font-weight: 950;
+          line-height: 1;
+          text-align: center;
+          transform: rotate(-4deg);
+        }
+        .gorkiBrush span { font-size: 21px; }
+
+        .featureStrip {
+          max-width: 880px;
+          margin: -8px auto 0;
           display: grid;
           grid-template-columns: repeat(4, 1fr);
-          gap: 18px;
-          margin-top: -4px;
-        }
-
-        .featureCard {
-          min-height: 150px;
-          padding: 24px 22px;
-          border: 1px solid rgba(75, 111, 163, 0.48);
-          border-radius: 16px;
-          display: flex;
-          align-items: flex-start;
-          gap: 18px;
-          background: linear-gradient(180deg, rgba(10, 25, 55, 0.78), rgba(5, 14, 31, 0.8));
-          box-shadow: 0 18px 38px rgba(0, 0, 0, 0.3), inset 0 0 34px rgba(0, 99, 255, 0.055);
-          backdrop-filter: blur(12px);
-        }
-
-        .featureIcon {
-          width: 48px;
-          height: 48px;
-          flex: 0 0 auto;
-          display: grid;
-          place-items: center;
-          color: #168cff;
-        }
-
-        .featureIcon svg {
-          width: 48px;
-          height: 48px;
-          fill: none;
-          stroke: currentColor;
-          stroke-width: 3;
-          stroke-linecap: round;
-          stroke-linejoin: round;
-          filter: drop-shadow(0 0 13px rgba(0, 120, 255, 0.45));
-        }
-
-        .featureCard h3 {
-          color: white;
-          font-size: 20px;
-          line-height: 1.18;
-          letter-spacing: -0.35px;
-          margin-bottom: 10px;
-        }
-
-        .featureCard p {
-          color: var(--muted);
-          font-size: 15px;
-          line-height: 1.45;
-        }
-
-        .storeAndContact {
+          gap: 16px;
           position: relative;
-          z-index: 5;
-          display: grid;
-          grid-template-columns: 1.35fr 0.65fr;
-          gap: 18px;
-          margin-top: 22px;
+          z-index: 6;
         }
 
-        .storePanel,
-        .instagramPanel {
-          min-height: 124px;
-          border: 1px solid rgba(75, 111, 163, 0.48);
-          border-radius: 18px;
-          background: linear-gradient(180deg, rgba(10, 25, 55, 0.78), rgba(5, 14, 31, 0.8));
-          box-shadow: 0 18px 38px rgba(0, 0, 0, 0.3), inset 0 0 34px rgba(0, 99, 255, 0.055);
-          backdrop-filter: blur(12px);
-        }
-
-        .storePanel {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 22px;
-          padding: 24px 28px;
-        }
-
-        .storeIntro h3 {
-          color: white;
-          font-size: 25px;
-          letter-spacing: -0.6px;
-          margin-bottom: 8px;
-        }
-
-        .storeIntro p {
-          color: var(--muted);
-          font-size: 16px;
-          line-height: 1.45;
-        }
-
-        .storeButtons {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 14px;
-          width: min(430px, 100%);
-        }
-
-        .storeButton {
-          height: 82px;
-          border: 1px solid rgba(123, 145, 184, 0.34);
-          border-radius: 14px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 14px;
-          background: rgba(5, 13, 29, 0.48);
-          transition: 0.24s ease;
-        }
-
-        .storeButton:hover {
-          transform: translateY(-2px);
-          border-color: rgba(71, 153, 255, 0.75);
-          box-shadow: 0 0 22px rgba(0, 119, 255, 0.2);
-        }
-
-        .storeButton svg {
-          width: 39px;
-          height: 39px;
-        }
-
-        .storeButton strong {
-          display: block;
-          color: white;
-          font-size: 19px;
-          line-height: 1.1;
-        }
-
-        .storeButton small {
-          display: block;
-          margin-top: 5px;
-          color: #9ca8ba;
-          font-size: 13px;
-        }
-
-        .instagramPanel {
-          padding: 24px 26px;
-          display: flex;
-          align-items: center;
-          gap: 18px;
-          transition: 0.24s ease;
-        }
-
-        .instagramPanel:hover {
-          transform: translateY(-2px);
-          border-color: rgba(71, 153, 255, 0.75);
-        }
-
-        .instagramIcon {
-          width: 54px;
-          height: 54px;
+        .featureItem {
+          min-height: 92px;
           display: grid;
           place-items: center;
-          flex: 0 0 auto;
-          filter: drop-shadow(0 0 16px rgba(255, 0, 120, 0.45));
+          text-align: center;
+          border-right: 2px dashed rgba(11,98,255,.3);
+        }
+        .featureItem:last-child { border-right: 0; }
+        .featureIcon { width: 38px; height: 38px; color: var(--blue); margin-bottom: 5px; }
+        .featureIcon svg { width: 38px; height: 38px; fill: none; stroke: currentColor; stroke-width: 2.7; stroke-linecap: round; stroke-linejoin: round; }
+        .featureItem h3 { color: var(--blue); font-size: 20px; line-height: 1; font-weight: 950; text-transform: uppercase; }
+        .featureItem p { color: #111827; font-size: 16px; font-weight: 900; text-transform: uppercase; margin-top: 4px; }
+
+        .waitlistArea {
+          max-width: 1180px;
+          margin: 30px auto 0;
+          display: grid;
+          grid-template-columns: 320px 1fr;
+          gap: 24px;
+          align-items: center;
+          position: relative;
+          z-index: 7;
         }
 
-        .instagramIcon svg {
-          width: 54px;
-          height: 54px;
+        .startBrush {
+          padding: 22px 28px;
+          font-size: 33px;
+          line-height: 1.05;
+          font-weight: 950;
+          clip-path: polygon(2% 8%, 100% 0, 95% 92%, 0 100%);
         }
 
-        .instagramIcon rect:nth-of-type(2),
-        .instagramIcon circle {
-          fill: none;
-          stroke: white;
-          stroke-width: 4;
+        .waitlistForm {
+          padding: 24px;
+          border-radius: 28px;
+          background: white;
+          border: 1px solid rgba(11,98,255,.18);
+          box-shadow: 0 22px 45px rgba(7,20,47,.10);
         }
+        .waitlistForm h2 { font-size: 28px; letter-spacing: -1px; margin-bottom: 6px; }
+        .waitlistForm p { color: var(--muted); font-size: 16px; margin-bottom: 17px; }
+        .waitlistForm b { color: var(--blue); }
+        .formRow { display: grid; grid-template-columns: 1fr 190px; gap: 12px; }
+        .formRow input { height: 58px; border: 1px solid rgba(11,98,255,.20); border-radius: 16px; outline: none; padding: 0 18px; font-size: 17px; color: var(--text); background: #f8fbff; }
+        .formRow button { height: 58px; border: 0; border-radius: 16px; background: var(--blue); color: white; font-size: 18px; font-weight: 950; cursor: pointer; box-shadow: 0 16px 28px rgba(11,98,255,.23); }
 
-        .instagramIcon circle:last-child {
-          fill: white;
-          stroke: none;
-        }
+        .message { margin-top: 12px; padding: 12px 14px; border-radius: 14px; font-size: 14px; font-weight: 750; }
+        .message.error { color: #b42318; background: #fff1f0; border: 1px solid #ffdad6; }
+        .message.success { color: #067647; background: #ecfdf3; border: 1px solid #abefc6; }
 
-        .instagramPanel strong {
-          display: block;
-          color: white;
-          font-size: 22px;
-          margin-bottom: 7px;
+        .bottomDomain {
+          max-width: 760px;
+          margin: 28px auto 0;
+          text-align: center;
+          position: relative;
+          z-index: 8;
         }
-
-        .instagramPanel p {
-          color: var(--muted);
-          font-size: 15px;
-          line-height: 1.45;
-        }
-
-        @keyframes badgePulse {
-          0%, 100% {
-            box-shadow: 0 0 22px rgba(0, 119, 255, 0.48), inset 0 0 20px rgba(0, 119, 255, 0.2);
-          }
-          50% {
-            box-shadow: 0 0 42px rgba(0, 174, 255, 0.78), inset 0 0 26px rgba(0, 119, 255, 0.35);
-          }
-        }
+        .domainPill { height: 72px; display: inline-flex; align-items: center; justify-content: center; gap: 14px; padding: 0 48px; border: 3px solid var(--blue); border-radius: 999px; background: white; color: #050915; font-size: 49px; font-weight: 950; letter-spacing: 1px; box-shadow: 0 16px 35px rgba(7,20,47,.10); }
+        .domainPill svg { width: 43px; height: 43px; color: var(--blue); fill: none; stroke: currentColor; stroke-width: 2.4; }
+        .bottomDomain p { margin-top: 10px; color: #111827; font-size: 18px; font-weight: 850; text-transform: uppercase; }
+        .bottomDomain b { color: var(--blue); }
 
         @keyframes gorkiFloat {
-          0%, 100% {
-            transform: translateY(0);
-          }
-          50% {
-            transform: translateY(-18px);
-          }
+          0%,100% { transform: translateY(0); }
+          50% { transform: translateY(-12px); }
         }
 
-        @keyframes floatCard {
-          0%, 100% {
-            translate: 0 0;
-          }
-          50% {
-            translate: 0 -12px;
-          }
+        @media (max-width: 1280px) {
+          .heroPoster { grid-template-columns: 230px 1fr 250px; }
+          .sticker p { font-size: 20px; }
+          .sticker strong { font-size: 27px; }
+          .priceTag { width: 225px; }
+          .newPrice { font-size: 76px; }
         }
 
-        @media (max-width: 1380px) {
-          .takipioLanding {
-            padding: 28px 30px 36px;
-          }
-
-          .hero {
-            grid-template-columns: 1fr;
-            gap: 0;
-          }
-
-          .heroTextArea {
-            max-width: 900px;
-          }
-
-          .heroVisual {
-            height: 600px;
-          }
-
-          .features {
-            grid-template-columns: repeat(2, 1fr);
-          }
-
-          .storeAndContact {
-            grid-template-columns: 1fr;
-          }
+        @media (max-width: 980px) {
+          .posterLanding { padding: 20px 16px 26px; }
+          .topNav { display: none; }
+          .heroPoster { grid-template-columns: 1fr; min-height: auto; }
+          .leftStack, .rightStack { min-height: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+          .stickerBig, .miniCard, .blackNote, .priceTag, .soonScribble { margin: 0; transform: rotate(0); width: auto; }
+          .gorkiCut { position: relative; width: 100%; height: 260px; grid-column: 1 / -1; }
+          .featureStrip { grid-template-columns: repeat(2, 1fr); margin-top: 20px; }
+          .featureItem { border-right: 0; border-bottom: 2px dashed rgba(11,98,255,.20); }
+          .waitlistArea { grid-template-columns: 1fr; }
+          .deviceStage { height: 330px; }
+          .phone { right: 1%; }
         }
 
-        @media (max-width: 940px) {
-          .navLinks {
-            display: none;
-          }
-
-          .logoWrap {
-            width: 215px;
-          }
-
-          .logoWrap img {
-            width: 205px;
-          }
-
-          h1 {
-            font-size: 56px;
-            letter-spacing: -2.7px;
-          }
-
-          .heroDesc {
-            font-size: 21px;
-          }
-
-          .chartCard {
-            right: 1%;
-          }
-
-          .revenueCard {
-            right: 1%;
-          }
-
-          .stockCard {
-            right: 5%;
-          }
-
-          .gorkiBubble {
-            left: 50%;
-            transform: translateX(-50%);
-            bottom: 42px;
-            white-space: nowrap;
-          }
-
-          .storePanel {
-            align-items: flex-start;
-            flex-direction: column;
-          }
-
-          .storeButtons {
-            width: 100%;
-          }
-        }
-
-        @media (max-width: 680px) {
-          .takipioLanding {
-            padding: 20px 15px 28px;
-          }
-
-          .navbar {
-            height: 62px;
-          }
-
-          .logoWrap {
-            width: 175px;
-            height: 62px;
-          }
-
-          .logoWrap img {
-            width: 170px;
-            max-height: 62px;
-          }
-
-          .statusBadge {
-            min-width: 190px;
-            height: 44px;
-            font-size: 15px;
-            letter-spacing: 5px;
-            margin-top: 30px;
-          }
-
-          h1 {
-            font-size: 43px;
-            letter-spacing: -2px;
-          }
-
-          .heroDesc {
-            font-size: 18px;
-          }
-
-          .earlyAccess {
-            padding: 22px 18px 18px;
-          }
-
-          .earlyHeader {
-            align-items: flex-start;
-          }
-
-          .mailIcon {
-            width: 58px;
-            height: 58px;
-          }
-
-          .earlyHeader h2 {
-            font-size: 23px;
-          }
-
-          .inputGroup {
-            grid-template-columns: 1fr;
-          }
-
-          .heroVisual {
-            height: 480px;
-          }
-
-          .gorki {
-            width: 91%;
-          }
-
-          .chartCard,
-          .revenueCard,
-          .stockCard {
-            display: none;
-          }
-
-          .planetGlow {
-            bottom: 38px;
-            height: 135px;
-          }
-
-          .gorkiBubble {
-            width: max-content;
-            max-width: 92%;
-            min-width: 0;
-            padding: 12px 17px;
-            font-size: 15px;
-          }
-
-          .features {
-            grid-template-columns: 1fr;
-          }
-
-          .featureCard {
-            min-height: 124px;
-          }
-
-          .storeButtons {
-            grid-template-columns: 1fr;
-          }
-
-          .storeButton {
-            height: 78px;
-          }
+        @media (max-width: 620px) {
+          .topLogo { width: 160px; }
+          h1 { letter-spacing: -6px; }
+          .leftStack, .rightStack { grid-template-columns: 1fr; }
+          .deviceStage { height: 275px; }
+          .laptop { height: 265px; }
+          .screenBody { grid-template-columns: 88px 1fr; }
+          .dashCards { grid-template-columns: 1fr; }
+          .dashCards .dashCard:nth-child(2), .dashCards .dashCard:nth-child(3) { display: none; }
+          .phone { width: 118px; height: 230px; right: -5px; }
+          .featureStrip { grid-template-columns: 1fr 1fr; }
+          .formRow { grid-template-columns: 1fr; }
+          .domainPill { height: 58px; font-size: 31px; padding: 0 24px; }
+          .bottomDomain p { font-size: 14px; }
         }
       `}</style>
     </main>
   );
 }
 
-function FeatureCard({ icon, title, text }: { icon: "customer" | "order" | "money" | "assistant"; title: string; text: string }) {
+function LaptopMockup() {
   return (
-    <article className="featureCard">
-      <div className="featureIcon">{getFeatureIcon(icon)}</div>
-      <div>
-        <h3>{title}</h3>
-        <p>{text}</p>
+    <div className="laptop">
+      <div className="screen">
+        <div className="screenTop">
+          <div className="screenBrand"><img src="/takipio-logo.png" alt="" /> takipio</div>
+          <div className="screenDots"><span /><span /><span /></div>
+        </div>
+        <div className="screenBody">
+          <div className="screenMenu"><span /><span /><span /><span /><span /></div>
+          <div className="screenContent">
+            <div className="dashCards">
+              <div className="dashCard"><small>Toplam Gelir</small><b>₺125.250</b></div>
+              <div className="dashCard"><small>Sipariş</small><b>128</b></div>
+              <div className="dashCard"><small>Müşteri</small><b>89</b></div>
+            </div>
+            <div className="graph">
+              <svg viewBox="0 0 480 150" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M0 124 C40 96 60 83 96 96 C140 113 142 55 190 72 C230 86 230 35 278 54 C330 75 330 18 382 34 C425 47 430 8 480 18" fill="none" stroke="#0b62ff" strokeWidth="6" strokeLinecap="round" />
+              </svg>
+            </div>
+          </div>
+        </div>
       </div>
-    </article>
+    </div>
   );
 }
 
-function getFeatureIcon(icon: "customer" | "order" | "money" | "assistant") {
-  if (icon === "customer") {
-    return (
-      <svg viewBox="0 0 64 64" aria-hidden="true">
-        <circle cx="25" cy="24" r="10" />
-        <path d="M9 53c3-11 10-16 20-16s17 5 20 16" />
-        <circle cx="45" cy="27" r="7" />
-        <path d="M42 39c6 1 10 5 12 12" />
-      </svg>
-    );
-  }
-
-  if (icon === "order") {
-    return (
-      <svg viewBox="0 0 64 64" aria-hidden="true">
-        <path d="M18 8h28l8 10v38H10V18l8-10z" />
-        <path d="M10 18h44" />
-        <path d="M22 29h20" />
-        <path d="M22 40h14" />
-      </svg>
-    );
-  }
-
-  if (icon === "money") {
-    return (
-      <svg viewBox="0 0 64 64" aria-hidden="true">
-        <rect x="9" y="16" width="46" height="32" rx="7" />
-        <circle cx="32" cy="32" r="8" />
-        <path d="M18 26v12" />
-        <path d="M46 26v12" />
-      </svg>
-    );
-  }
-
+function PhoneMockup() {
   return (
-    <svg viewBox="0 0 64 64" aria-hidden="true">
-      <rect x="14" y="21" width="36" height="28" rx="13" />
-      <path d="M32 21v-8" />
-      <circle cx="32" cy="11" r="4" />
-      <circle cx="25" cy="35" r="3" />
-      <circle cx="39" cy="35" r="3" />
-      <path d="M27 43h10" />
-      <path d="M14 35H8" />
-      <path d="M56 35h-6" />
-    </svg>
+    <div className="phone">
+      <div className="phoneScreen">
+        <div className="phoneLogo"><img src="/takipio-logo.png" alt="" /> takipio</div>
+        <div className="phoneGrid">
+          <div className="phoneCard"><small>Gelir</small><b>₺12k</b></div>
+          <div className="phoneCard"><small>Sipariş</small><b>128</b></div>
+          <div className="phoneCard"><small>Müşteri</small><b>89</b></div>
+          <div className="phoneCard"><small>Stok</small><b>Güncel</b></div>
+        </div>
+        <div className="phoneList"><span /><span /><span /></div>
+      </div>
+    </div>
   );
 }
 
-function StoreButton({ type, title }: { type: "apple" | "play"; title: string }) {
+function Sticker({ title, strong, className = "" }: { title: string; strong: string; className?: string }) {
+  return <div className={`sticker ${className}`}><p>{title}</p><strong>{strong}</strong></div>;
+}
+
+function MiniCard({ icon, title, strong, tilted = false }: { icon: React.ReactNode; title: string; strong: string; tilted?: boolean }) {
+  return <div className={`miniCard ${tilted ? "tilted" : ""}`}><span className="miniIcon">{icon}</span><div><p>{title}</p><strong>{strong}</strong></div></div>;
+}
+
+function BlackNote({ title, strong, icon }: { title: string; strong: string; icon: React.ReactNode }) {
+  return <div className="blackNote"><p>{title}</p><strong>{strong}</strong><div className="noteIcon">{icon}</div></div>;
+}
+
+function PriceTag() {
   return (
-    <a className="storeButton" href="#" aria-label={title}>
-      {type === "apple" ? <AppleLogo /> : <PlayLogo />}
-      <span>
-        <strong>{title}</strong>
-        <small>Yakında</small>
-      </span>
-    </a>
+    <div className="priceTag">
+      <div className="priceRibbon">AÇILIŞA ÖZEL</div>
+      <p>İLK AY SADECE</p>
+      <span className="oldPrice">₺99</span>
+      <span className="newPrice">₺89</span>
+    </div>
   );
 }
 
-function AppleLogo() {
-  return (
-    <svg viewBox="0 0 56 56" aria-hidden="true">
-      <path fill="white" d="M37.7 29.8c-.1-5.1 4.2-7.6 4.4-7.7-2.4-3.5-6-4-7.3-4.1-3.1-.3-6 1.8-7.6 1.8-1.6 0-4-1.7-6.6-1.7-3.4.1-6.6 2-8.3 5.1-3.6 6.2-.9 15.4 2.6 20.4 1.7 2.5 3.8 5.3 6.5 5.2 2.6-.1 3.6-1.7 6.8-1.7 3.1 0 4.1 1.7 6.8 1.6 2.8 0 4.6-2.5 6.3-5 2-2.9 2.8-5.7 2.8-5.8-.1-.1-5.4-2.1-5.4-8.1z" />
-      <path fill="white" d="M32.8 14.7c1.4-1.7 2.4-4.1 2.1-6.5-2.1.1-4.7 1.4-6.2 3.1-1.4 1.6-2.5 4-2.2 6.4 2.4.2 4.8-1.2 6.3-3z" />
-    </svg>
-  );
+function Feature({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) {
+  return <div className="featureItem"><span className="featureIcon">{icon}</span><h3>{title}</h3><p>{text}</p></div>;
 }
 
-function PlayLogo() {
-  return (
-    <svg viewBox="0 0 56 56" aria-hidden="true">
-      <defs>
-        <linearGradient id="playOne" x1="10" y1="7" x2="34" y2="31" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#00f0ff" />
-          <stop offset="1" stopColor="#00c853" />
-        </linearGradient>
-        <linearGradient id="playTwo" x1="34" y1="28" x2="48" y2="28" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#ffd54f" />
-          <stop offset="1" stopColor="#ff9100" />
-        </linearGradient>
-        <linearGradient id="playThree" x1="10" y1="49" x2="34" y2="25" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#448aff" />
-          <stop offset="1" stopColor="#7c4dff" />
-        </linearGradient>
-      </defs>
-      <path d="M11 8.5v39l23-19.5L11 8.5z" fill="url(#playOne)" />
-      <path d="M34 28l13 7.4c1.8-1.1 1.8-3.7 0-4.8L34 28z" fill="url(#playTwo)" />
-      <path d="M11 47.5L34 28 11 36.8v10.7z" fill="url(#playThree)" />
-    </svg>
-  );
-}
+function UserIcon() { return <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="4" /><path d="M2 22c1.2-5.3 4.2-8 8-8s6.8 2.7 8 8" /><path d="M17 11a4 4 0 1 0-1.5-7.7" /><path d="M18 14c2.4.7 3.8 2.9 4.5 6" /></svg>; }
+function CubeIcon() { return <svg viewBox="0 0 24 24"><path d="M12 2l9 5-9 5-9-5 9-5z" /><path d="M3 7v10l9 5 9-5V7" /><path d="M12 12v10" /></svg>; }
+function WalletIcon() { return <svg viewBox="0 0 24 24"><path d="M3 7h18v12H3z" /><path d="M16 12h5v4h-5a2 2 0 0 1 0-4z" /><path d="M3 7l3-4h12l3 4" /></svg>; }
+function BoltIcon() { return <svg viewBox="0 0 24 24"><path d="M13 2L3 14h8l-1 8 11-14h-8l0-6z" /></svg>; }
+function ShieldIcon() { return <svg viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6l8-4z" /><path d="M8.5 12l2.3 2.3 4.8-5" /></svg>; }
+function CloudIcon() { return <svg viewBox="0 0 24 24"><path d="M17.5 19H8a5 5 0 1 1 1-9.9A7 7 0 0 1 22 12.5 4.5 4.5 0 0 1 17.5 19z" /><path d="M12 15V8" /><path d="M9 11l3-3 3 3" /></svg>; }
+function HeadsetIcon() { return <svg viewBox="0 0 24 24"><path d="M4 13v-1a8 8 0 0 1 16 0v1" /><path d="M4 13h4v6H4z" /><path d="M16 13h4v6h-4z" /><path d="M16 21h-4" /></svg>; }
+function GlobeIcon() { return <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path d="M2 12h20" /><path d="M12 2a15 15 0 0 1 0 20" /><path d="M12 2a15 15 0 0 0 0 20" /></svg>; }
