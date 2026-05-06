@@ -68,7 +68,7 @@ export default function Page() {
 
     setLoading(true);
 
-    const { error } = await supabase.from("waitlist_signups").insert([
+    const { error } = await supabase.from("waitlist").insert([
       {
         email: cleanEmail,
         coupon_code: "TAKIPIO10",
