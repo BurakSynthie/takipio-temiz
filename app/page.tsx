@@ -49,6 +49,7 @@ export default function Page() {
   const [errorText, setErrorText] = useState("");
   const [successOpen, setSuccessOpen] = useState(false);
   const [ready, setReady] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
   const userTouched = useRef(false);
 
   useEffect(() => {
@@ -136,7 +137,7 @@ export default function Page() {
 
   return (
     <main
-      className="takipioV8"
+      className={`takipioV8 ${darkMode ? "darkMode" : "lightMode"}`}
       style={{
         opacity: ready ? 1 : 0,
         visibility: ready ? "visible" : "hidden",
@@ -161,6 +162,15 @@ export default function Page() {
           <a href="#gain">Kazanç</a>
           <a href="#contact">İletişim</a>
         </nav>
+
+        <button
+          type="button"
+          className="themeToggle"
+          onClick={() => setDarkMode((current) => !current)}
+          aria-label={darkMode ? "Aydınlık moda geç" : "Karanlık moda geç"}
+        >
+          {darkMode ? "☀️ Aydınlık" : "🌙 Karanlık"}
+        </button>
 
         <a className="navCta" href="#waitlist">
           Listeye katıl
@@ -1504,6 +1514,200 @@ svg {
   mask-image: radial-gradient(circle at 50% 36%, black 0%, transparent 74%);
 }
 
+
+/* ---------- light/dark theme system ---------- */
+
+.takipioV8.lightMode {
+  --bg: #f5f9ff;
+  --ink: #06101f;
+  --muted: rgba(52, 64, 84, .78);
+  --muted2: rgba(71, 84, 103, .62);
+  --line: rgba(11, 99, 255, .14);
+  --line2: rgba(6, 16, 31, .08);
+  --card: rgba(255,255,255,.78);
+  --card2: rgba(255,255,255,.92);
+  color: #06101f;
+  background:
+    radial-gradient(circle at 18% 16%, rgba(11,99,255,.12), transparent 28%),
+    radial-gradient(circle at 84% 18%, rgba(34,211,238,.12), transparent 30%),
+    linear-gradient(180deg, #f8fbff 0%, #eef6ff 58%, #f8fbff 100%);
+}
+
+.takipioV8.lightMode .meshA { background: rgba(11,99,255,.12); }
+.takipioV8.lightMode .meshB { background: rgba(34,211,238,.14); }
+.takipioV8.lightMode .meshC { background: rgba(139,92,246,.08); }
+
+.takipioV8.lightMode .gridLayer {
+  opacity: .55;
+  background-image:
+    linear-gradient(rgba(11,99,255,.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(11,99,255,.045) 1px, transparent 1px);
+}
+
+.takipioV8.lightMode .topNav,
+.takipioV8.lightMode .integrationRail,
+.takipioV8.lightMode .waitlistCard,
+.takipioV8.lightMode .studio,
+.takipioV8.lightMode .featureCard,
+.takipioV8.lightMode .analysisBoard,
+.takipioV8.lightMode .profitSimulator,
+.takipioV8.lightMode .footerShell {
+  background:
+    radial-gradient(circle at 0% 0%, rgba(11,99,255,.065), transparent 34%),
+    rgba(255,255,255,.82);
+  border-color: rgba(11,99,255,.13);
+  box-shadow: 0 24px 70px rgba(16, 24, 40, .09), inset 0 1px 0 rgba(255,255,255,.8);
+}
+
+.takipioV8.lightMode .topNav {
+  background: rgba(255,255,255,.78);
+}
+
+.takipioV8.lightMode .brand {
+  background: rgba(255,255,255,.92);
+  border-color: rgba(11,99,255,.12);
+}
+
+.takipioV8.lightMode .desktopNav,
+.takipioV8.lightMode .trustLine span,
+.takipioV8.lightMode .integrationRail p,
+.takipioV8.lightMode .heroText,
+.takipioV8.lightMode .featureCard span,
+.takipioV8.lightMode .analysisBar p,
+.takipioV8.lightMode .miniComparison span,
+.takipioV8.lightMode .waitlistMeta,
+.takipioV8.lightMode .gorkiPanel p,
+.takipioV8.lightMode .gorkiPanel span,
+.takipioV8.lightMode .couponMini em {
+  color: rgba(71, 84, 103, .78);
+}
+
+.takipioV8.lightMode .hero h1,
+.takipioV8.lightMode .railHeader b,
+.takipioV8.lightMode .waitlistHeader b,
+.takipioV8.lightMode .featureCard b,
+.takipioV8.lightMode .analysisTop h3,
+.takipioV8.lightMode .profitSimulator h3,
+.takipioV8.lightMode .analysisMetric b,
+.takipioV8.lightMode .profitChart strong,
+.takipioV8.lightMode .miniComparison strong,
+.takipioV8.lightMode .gorkiPanel b,
+.takipioV8.lightMode .couponMini b,
+.takipioV8.lightMode .successModal h3 {
+  color: #06101f;
+}
+
+.takipioV8.lightMode .statusPill,
+.takipioV8.lightMode .scrollCue,
+.takipioV8.lightMode .railHeader span,
+.takipioV8.lightMode .couponBadge,
+.takipioV8.lightMode .modalPill,
+.takipioV8.lightMode .simEyebrow,
+.takipioV8.lightMode .liveLabel {
+  color: #075985;
+  background: rgba(224,242,254,.82);
+  border-color: rgba(14,165,233,.18);
+}
+
+.takipioV8.lightMode .inputShell {
+  background: rgba(255,255,255,.92);
+  border-color: rgba(11,99,255,.15);
+}
+
+.takipioV8.lightMode .inputShell input {
+  color: #06101f;
+}
+
+.takipioV8.lightMode .inputShell input::placeholder {
+  color: rgba(71,84,103,.46);
+}
+
+.takipioV8.lightMode .floatingMetric,
+.takipioV8.lightMode .gorkiPanel,
+.takipioV8.lightMode .couponMini,
+.takipioV8.lightMode .mobileDock {
+  background: rgba(255,255,255,.84);
+  border-color: rgba(11,99,255,.13);
+  box-shadow: 0 24px 54px rgba(16,24,40,.11);
+}
+
+.takipioV8.lightMode .floatingMetric b,
+.takipioV8.lightMode .modalList span,
+.takipioV8.lightMode .healthScore b,
+.takipioV8.lightMode .analysisMetric b,
+.takipioV8.lightMode .barInfo b,
+.takipioV8.lightMode .profitChart b,
+.takipioV8.lightMode .successModal p {
+  color: #06101f;
+}
+
+.takipioV8.lightMode .floatingMetric span,
+.takipioV8.lightMode .barInfo span,
+.takipioV8.lightMode .analysisMetric em,
+.takipioV8.lightMode .profitChart span,
+.takipioV8.lightMode .healthScore span,
+.takipioV8.lightMode .miniComparison small {
+  color: rgba(71,84,103,.68);
+}
+
+.takipioV8.lightMode .analysisMetric,
+.takipioV8.lightMode .analysisBar,
+.takipioV8.lightMode .profitChart div,
+.takipioV8.lightMode .miniComparison div,
+.takipioV8.lightMode .modalList span {
+  background: rgba(255,255,255,.72);
+  border-color: rgba(11,99,255,.11);
+}
+
+.takipioV8.lightMode .successModal {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(34,211,238,.16), transparent 42%),
+    rgba(255,255,255,.96);
+  border-color: rgba(11,99,255,.14);
+}
+
+.takipioV8.lightMode .modalClose {
+  background: rgba(6,16,31,.05);
+  color: #06101f;
+  border-color: rgba(6,16,31,.08);
+}
+
+.takipioV8.lightMode .mobileDock a {
+  color: rgba(52,64,84,.78);
+  background: rgba(255,255,255,.72);
+}
+
+.takipioV8.lightMode .mobileDock a:last-child {
+  color: white;
+  background: linear-gradient(135deg, var(--blue), var(--cyan));
+}
+
+.themeToggle {
+  height: 46px;
+  border: 1px solid rgba(147,197,253,.16);
+  border-radius: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  color: var(--ink);
+  background: rgba(255,255,255,.08);
+  font-size: 13px;
+  font-weight: 900;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+}
+
+.takipioV8.lightMode .themeToggle {
+  color: #06101f;
+  background: rgba(255,255,255,.82);
+  border-color: rgba(11,99,255,.13);
+}
+
+.takipioV8.darkMode .themeToggle {
+  color: white;
+}
+
+
 .topNav {
   width: min(1500px, calc(100% - 48px));
   height: 74px;
@@ -1513,7 +1717,7 @@ svg {
   transform: translateX(-50%);
   z-index: 50;
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto 1fr auto auto;
   align-items: center;
   gap: 24px;
   padding: 8px;
@@ -3693,6 +3897,12 @@ svg {
     padding: 0 16px;
   }
 
+  .themeToggle {
+    height: 46px;
+    padding: 0 12px;
+    font-size: 12px;
+  }
+
   .mobileDock {
     position: fixed;
     left: 12px;
@@ -3821,7 +4031,7 @@ svg {
 
   .topNav {
     display: flex;
-    justify-content: center;
+    justify-content: space-between;
   }
 
   .hero h1 {
