@@ -992,6 +992,8 @@ function ScrollSections() {
         </div>
       </section>
 
+      <LiveAnalyticsSection />
+
       <section className="flowSection">
         <div className="sectionIntro compact">
           <span>Nasıl kolaylık sağlar?</span>
@@ -1019,6 +1021,222 @@ function ScrollSections() {
     </>
   );
 }
+
+function CountUp({
+  end,
+  prefix = "",
+  suffix = "",
+  duration = 1500,
+  decimals = 0,
+  active,
+}: {
+  end: number;
+  prefix?: string;
+  suffix?: string;
+  duration?: number;
+  decimals?: number;
+  active: boolean;
+}) {
+  const [value, setValue] = useState(0);
+
+  useEffect(() => {
+    if (!active) return;
+
+    let frame = 0;
+    const totalFrames = Math.max(36, Math.round(duration / 16));
+    let raf = 0;
+
+    const tick = () => {
+      frame += 1;
+      const progress = Math.min(frame / totalFrames, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+
+      setValue(end * eased);
+
+      if (progress < 1) {
+        raf = window.requestAnimationFrame(tick);
+      }
+    };
+
+    setValue(0);
+    raf = window.requestAnimationFrame(tick);
+
+    return () => window.cancelAnimationFrame(raf);
+  }, [active, decimals, duration, end]);
+
+  return (
+    <>
+      {prefix}
+      {value.toLocaleString("tr-TR", {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
+      })}
+      {suffix}
+    </>
+  );
+}
+
+function LiveAnalyticsSection() {
+  const sectionRef = useRef<HTMLElement | null>(null);
+  const [active, setActive] = useState(false);
+
+  useEffect(() => {
+    const node = sectionRef.current;
+    if (!node) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setActive(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.28 }
+    );
+
+    observer.observe(node);
+
+    return () => observer.disconnect();
+  }, []);
+
+  const bars = [
+    {
+      label: "Sipariş yanıt hızı",
+      before: "Manuel takip",
+      after: "Takipio ile",
+      value: 78,
+      note: "Geciken siparişleri daha erken fark etme hedefi.",
+    },
+    {
+      label: "Stok görünürlüğü",
+      before: "Dağınık kontrol",
+      after: "Canlı uyarı",
+      value: 86,
+      note: "Kritik stokları günlük akışta öne çıkarır.",
+    },
+    {
+      label: "Ödeme takibi",
+      before: "Geç hatırlama",
+      after: "Öncelikli liste",
+      value: 69,
+      note: "Bekleyen ödemeleri daha okunabilir hale getirir.",
+    },
+  ];
+
+  const insightRows = [
+    { label: "Bugün bekleyen aksiyon", value: "12", trend: "4 kritik" },
+    { label: "Pazaryeri hareketi", value: "+%18", trend: "sipariş artışı" },
+    { label: "Tahmini zaman kazancı", value: "2.4 sa", trend: "günlük operasyon" },
+  ];
+
+  return (
+    <section
+      ref={sectionRef}
+      className={`analyticsSection ${active ? "isVisible" : ""}`}
+      id="analytics"
+    >
+      <div className="sectionIntro compact">
+        <span>Canlı analiz hissi</span>
+        <h2>Takipio, veriyi sadece göstermez; neye bakman gerektiğini öne çıkarır.</h2>
+        <p>
+          Aşağıdaki panel örnek bir işletme senaryosudur. Amaç; sipariş, stok, ödeme ve pazaryeri
+          hareketlerini tek bakışta anlaşılır hale getirmek.
+        </p>
+      </div>
+
+      <div className="analyticsShell">
+        <div className="analysisBoard">
+          <div className="analysisTop">
+            <div>
+              <span className="liveLabel"><i /> Güncel analiz simülasyonu</span>
+              <h3>Operasyon sağlığı</h3>
+            </div>
+            <div className="healthScore">
+              <b>
+                <CountUp end={87} suffix="%" active={active} />
+              </b>
+              <span>kontrol skoru</span>
+            </div>
+          </div>
+
+          <div className="analysisGrid">
+            {insightRows.map((row) => (
+              <div className="analysisMetric" key={row.label}>
+                <span>{row.label}</span>
+                <b>{row.value}</b>
+                <em>{row.trend}</em>
+              </div>
+            ))}
+          </div>
+
+          <div className="barStack">
+            {bars.map((bar, index) => (
+              <div
+                className="analysisBar"
+                key={bar.label}
+                style={
+                  {
+                    "--bar-value": `${bar.value}%`,
+                    "--bar-delay": `${index * 140}ms`,
+                  } as React.CSSProperties
+                }
+              >
+                <div className="barInfo">
+                  <b>{bar.label}</b>
+                  <span>{bar.before} → {bar.after}</span>
+                </div>
+                <div className="barTrack">
+                  <i />
+                </div>
+                <p>{bar.note}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="profitSimulator">
+          <span className="simEyebrow">Kazanım simülasyonu</span>
+          <h3>Dağınık takip yerine ölçülebilir operasyon</h3>
+
+          <div className="profitChart">
+            <div>
+              <b>
+                <CountUp end={12} suffix="%" active={active} />
+              </b>
+              <span>net takip görünürlüğü</span>
+            </div>
+            <div>
+              <b>
+                <CountUp end={18} suffix="%" active={active} />
+              </b>
+              <span>daha hızlı aksiyon</span>
+            </div>
+            <div>
+              <b>
+                <CountUp end={2.4} suffix=" sa" decimals={1} active={active} />
+              </b>
+              <span>günlük zaman kazanımı</span>
+            </div>
+          </div>
+
+          <div className="miniComparison">
+            <div>
+              <small>Takipio yokken</small>
+              <strong>Panel panel kontrol</strong>
+              <span>Geciken ödeme, stok açığı ve sipariş karmaşası daha geç fark edilir.</span>
+            </div>
+            <div>
+              <small>Takipio ile</small>
+              <strong>Öncelikli aksiyon listesi</strong>
+              <span>Gorki AI, günün kritik noktalarını kısa özetlerle öne çıkarır.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 
 function FooterSection() {
   return (
@@ -3897,4 +4115,432 @@ svg {
   .macbookScene { top: 252px; }
   .macbook { height: 300px; }
 }
+
+/* ---------- V8 canlı analiz paneli ---------- */
+
+.analyticsSection {
+  width: min(1500px, 100%);
+  margin: 24px auto 0;
+  position: relative;
+  z-index: 2;
+}
+
+.analyticsShell {
+  display: grid;
+  grid-template-columns: 1.1fr .9fr;
+  gap: 16px;
+  align-items: stretch;
+}
+
+.analysisBoard,
+.profitSimulator {
+  border-radius: 34px;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(34,211,238,.12), transparent 34%),
+    rgba(255,255,255,.062);
+  border: 1px solid rgba(255,255,255,.09);
+  box-shadow: 0 24px 70px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.055);
+  backdrop-filter: blur(18px);
+}
+
+.analysisBoard {
+  padding: 24px;
+}
+
+.analysisTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.analysisTop h3,
+.profitSimulator h3 {
+  margin: 12px 0 0;
+  color: white;
+  font-size: 28px;
+  line-height: 1.05;
+  letter-spacing: -1px;
+}
+
+.healthScore {
+  min-width: 132px;
+  min-height: 104px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  border-radius: 26px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(52,211,153,.18), transparent 58%),
+    rgba(255,255,255,.07);
+  border: 1px solid rgba(52,211,153,.18);
+}
+
+.healthScore b {
+  color: white;
+  font-size: 42px;
+  line-height: 1;
+  letter-spacing: -2px;
+}
+
+.healthScore span {
+  color: var(--muted2);
+  font-size: 11px;
+  font-weight: 850;
+  margin-top: -16px;
+}
+
+.analysisGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 11px;
+  margin-bottom: 18px;
+}
+
+.analysisMetric {
+  min-height: 112px;
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  padding: 15px;
+  border-radius: 22px;
+  background: rgba(255,255,255,.055);
+  border: 1px solid rgba(255,255,255,.075);
+}
+
+.analysisMetric span {
+  color: #8fd7ff;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.analysisMetric b {
+  color: white;
+  font-size: 30px;
+  line-height: 1;
+  letter-spacing: -1.4px;
+}
+
+.analysisMetric em {
+  color: var(--muted2);
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 820;
+}
+
+.barStack {
+  display: grid;
+  gap: 13px;
+}
+
+.analysisBar {
+  padding: 15px;
+  border-radius: 22px;
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.075);
+  transform: translateY(12px);
+  opacity: 0;
+}
+
+.analyticsSection.isVisible .analysisBar {
+  animation: revealUp .55s cubic-bezier(.22,1,.36,1) forwards;
+  animation-delay: var(--bar-delay);
+}
+
+.barInfo {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.barInfo b {
+  color: white;
+  font-size: 14px;
+}
+
+.barInfo span {
+  color: var(--muted2);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.barTrack {
+  height: 13px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.07);
+}
+
+.barTrack i {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--blue), var(--cyan), #8b5cf6);
+  box-shadow: 0 0 28px rgba(34,211,238,.35);
+}
+
+.analyticsSection.isVisible .barTrack i {
+  animation: fillBar 1.35s cubic-bezier(.22,1,.36,1) forwards;
+  animation-delay: calc(var(--bar-delay) + 180ms);
+}
+
+.analysisBar p {
+  margin: 9px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.profitSimulator {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+}
+
+.simEyebrow {
+  width: max-content;
+  min-height: 31px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 11px;
+  border-radius: 999px;
+  color: #baf6fe;
+  background: rgba(34,211,238,.1);
+  border: 1px solid rgba(34,211,238,.2);
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+}
+
+.profitChart {
+  display: grid;
+  gap: 11px;
+  margin: 20px 0;
+}
+
+.profitChart div {
+  min-height: 92px;
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  padding: 15px;
+  border-radius: 22px;
+  background: rgba(255,255,255,.055);
+  border: 1px solid rgba(255,255,255,.075);
+  position: relative;
+  overflow: hidden;
+}
+
+.profitChart div:after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--blue), var(--cyan));
+  opacity: .9;
+}
+
+.profitChart b {
+  color: transparent;
+  background: linear-gradient(135deg, #fff, #8fd7ff, var(--blue));
+  -webkit-background-clip: text;
+  background-clip: text;
+  font-size: 34px;
+  line-height: 1;
+  letter-spacing: -1.6px;
+}
+
+.profitChart span {
+  color: var(--muted2);
+  font-size: 12px;
+  font-weight: 820;
+}
+
+.miniComparison {
+  margin-top: auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 11px;
+}
+
+.miniComparison div {
+  padding: 15px;
+  border-radius: 22px;
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.075);
+}
+
+.miniComparison small {
+  display: block;
+  color: #8fd7ff;
+  font-size: 10px;
+  font-weight: 950;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.miniComparison strong {
+  display: block;
+  color: white;
+  font-size: 15px;
+  margin-bottom: 7px;
+}
+
+.miniComparison span {
+  display: block;
+  color: var(--muted);
+  line-height: 1.52;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+@keyframes fillBar {
+  to { width: var(--bar-value); }
+}
+
+@keyframes revealUp {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------- mobile polish overrides ---------- */
+
+@media (max-width: 1100px) {
+  .analyticsShell {
+    grid-template-columns: 1fr;
+  }
+
+  .analysisGrid {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+@media (max-width: 780px) {
+  .analyticsSection {
+    margin-top: 18px;
+  }
+
+  .analysisBoard,
+  .profitSimulator {
+    border-radius: 28px;
+    padding: 18px;
+  }
+
+  .analysisTop {
+    flex-direction: column;
+  }
+
+  .healthScore {
+    width: 100%;
+    min-height: 88px;
+    grid-template-columns: auto 1fr;
+    justify-content: start;
+    text-align: left;
+    padding: 16px;
+  }
+
+  .healthScore span {
+    margin-top: 0;
+  }
+
+  .analysisGrid,
+  .miniComparison {
+    grid-template-columns: 1fr;
+  }
+
+  .analysisMetric {
+    min-height: 92px;
+  }
+
+  .barInfo {
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .profitChart div {
+    min-height: 82px;
+  }
+
+  .mobileDock {
+    height: 64px;
+    padding: 8px;
+    border-radius: 26px;
+  }
+
+  .mobileDock a {
+    gap: 4px;
+    font-size: 11px;
+    background:
+      radial-gradient(circle at 50% 0%, rgba(34,211,238,.08), transparent 60%),
+      rgba(255,255,255,.065);
+  }
+
+  .mobileDock a:last-child {
+    box-shadow: 0 12px 26px rgba(11,99,255,.24);
+  }
+
+  .heroRight {
+    min-height: 670px;
+  }
+
+  .studio {
+    min-height: 640px;
+  }
+
+  .macbookScene {
+    top: 270px;
+  }
+
+  .macbook {
+    height: 300px;
+  }
+
+  .iphone {
+    width: 122px;
+    height: 250px;
+    right: -12px;
+    bottom: -28px;
+  }
+
+  .gorkiPanel {
+    bottom: 106px;
+  }
+}
+
+@media (max-width: 460px) {
+  .analysisTop h3,
+  .profitSimulator h3 {
+    font-size: 23px;
+  }
+
+  .healthScore b {
+    font-size: 34px;
+  }
+
+  .profitChart b {
+    font-size: 30px;
+  }
+
+  .heroRight {
+    min-height: 610px;
+  }
+
+  .studio {
+    min-height: 590px;
+  }
+
+  .macbookScene {
+    top: 252px;
+  }
+
+  .macbook {
+    height: 286px;
+  }
+}
+
 `;
