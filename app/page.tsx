@@ -5,77 +5,31 @@ import { supabase } from "../lib/supabase";
 
 type DemoTab = "overview" | "orders" | "marketplaces" | "gorki";
 
-const demoTabs: {
-  key: DemoTab;
-  label: string;
-  value: string;
-  helper: string;
-}[] = [
-  {
-    key: "overview",
-    label: "Genel Bakış",
-    value: "₺125.250",
-    helper: "Haftalık ciro",
-  },
-  {
-    key: "orders",
-    label: "Siparişler",
-    value: "128",
-    helper: "Aktif sipariş",
-  },
-  {
-    key: "marketplaces",
-    label: "Pazaryerleri",
-    value: "4",
-    helper: "Bağlantı modu",
-  },
-  {
-    key: "gorki",
-    label: "Gorki AI",
-    value: "12",
-    helper: "Akıllı öneri",
-  },
+const demoTabs: { key: DemoTab; label: string; value: string; helper: string }[] = [
+  { key: "overview", label: "Genel Bakış", value: "₺125.250", helper: "Haftalık ciro" },
+  { key: "orders", label: "Siparişler", value: "128", helper: "Aktif sipariş" },
+  { key: "marketplaces", label: "Pazaryerleri", value: "4", helper: "Bağlantı modu" },
+  { key: "gorki", label: "Gorki AI", value: "12", helper: "Akıllı öneri" },
 ];
 
 const marketplaces = [
-  {
-    name: "Trendyol",
-    logo: "/trendyol.png",
-    accent: "#f27a1a",
-    value: "42 sipariş",
-  },
-  {
-    name: "Amazon",
-    logo: "/amazon.png",
-    accent: "#ffb000",
-    value: "18 sipariş",
-  },
-  {
-    name: "Hepsiburada",
-    logo: "/hepsiburada.png",
-    accent: "#ff6000",
-    value: "27 sipariş",
-  },
-  {
-    name: "Çiçeksepeti",
-    logo: "/ciceksepeti.png",
-    accent: "#36b86a",
-    value: "11 sipariş",
-  },
+  { name: "Trendyol", logo: "/trendyol.png", accent: "#f27a1a" },
+  { name: "Amazon", logo: "/amazon.png", accent: "#ffb000" },
+  { name: "Hepsiburada", logo: "/hepsiburada.png", accent: "#ff6000" },
+  { name: "Çiçeksepeti", logo: "/ciceksepeti.png", accent: "#36b86a" },
 ];
 
 const gorkiMessages = [
   "Bugün pazaryeri siparişlerinde %18 artış var.",
   "2 ürün kritik stok seviyesine yaklaşıyor.",
   "Bekleyen 4 ödeme için hatırlatma öneriyorum.",
-  "Trendyol ve Hepsiburada akışlarını tek özet altında topladım.",
+  "Tüm satış kanallarını tek özet altında topladım.",
 ];
 
 const activityRows = [
-  { source: "Trendyol", code: "#10248", status: "Hazırlanıyor", price: "₺1.250" },
-  { source: "Amazon", code: "#10247", status: "Kargoda", price: "₺890" },
-  { source: "Hepsiburada", code: "#10246", status: "Stok güncel", price: "₺2.140" },
-  { source: "Çiçeksepeti", code: "#10245", status: "Tamamlandı", price: "₺640" },
+  { source: "Trendyol", status: "Hazırlanıyor", price: "₺1.250" },
+  { source: "Amazon", status: "Kargoda", price: "₺890" },
+  { source: "Hepsiburada", status: "Stok güncel", price: "₺2.140" },
 ];
 
 export default function Page() {
@@ -97,8 +51,7 @@ export default function Page() {
     const tabTimer = window.setInterval(() => {
       setActiveTab((current) => {
         const index = demoTabs.findIndex((tab) => tab.key === current);
-        const next = demoTabs[(index + 1) % demoTabs.length];
-        return next.key;
+        return demoTabs[(index + 1) % demoTabs.length].key;
       });
     }, 4600);
 
@@ -125,7 +78,7 @@ export default function Page() {
       {
         email: cleanEmail,
         coupon_code: "TAKIPIO10",
-        source: "landing-v6",
+        source: "landing-v7",
       },
     ]);
 
@@ -144,9 +97,7 @@ export default function Page() {
     try {
       await fetch("/api/send-welcome", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: cleanEmail }),
       });
     } catch (mailError) {
@@ -160,74 +111,70 @@ export default function Page() {
 
   return (
     <main
-      className="takipioV6"
+      className="takipioV7"
       style={{
         opacity: ready ? 1 : 0,
         visibility: ready ? "visible" : "hidden",
       }}
     >
-      <div className="v6Backdrop">
-        <div className="orb orbOne" />
-        <div className="orb orbTwo" />
-        <div className="orb orbThree" />
-        <div className="v6Grid" />
-        <div className="v6Noise" />
+      <div className="pageBg">
+        <div className="bgOrb bgOrbOne" />
+        <div className="bgOrb bgOrbTwo" />
+        <div className="bgGrid" />
       </div>
 
-      <header className="v6Header">
-        <a className="v6Brand" href="#top" aria-label="Takipio">
+      <header className="topbar">
+        <a className="brand" href="#top" aria-label="Takipio">
           <img src="/takipio-logo.png" alt="Takipio" />
         </a>
 
-        <nav className="v6Nav">
+        <nav className="desktopNav">
           <a href="#product">Ürün</a>
           <a href="#integrations">Entegrasyon</a>
           <a href="#gorki">Gorki AI</a>
           <a href="#pricing">Fiyat</a>
         </nav>
 
-        <a className="v6HeaderCta" href="#waitlist">
-          Erken erişime katıl
-          <ArrowIcon />
+        <a className="topbarCta" href="#waitlist">
+          Erken erişim <ArrowIcon />
         </a>
       </header>
 
-      <nav className="mobileDock" aria-label="Mobil menü">
+      <nav className="mobileDock">
         <a href="#top">Ana Sayfa</a>
         <a href="#product">Ürün</a>
         <a href="#integrations">Pazaryeri</a>
         <a href="#waitlist">Kayıt</a>
       </nav>
 
-      <section className="v6Hero" id="top">
-        <div className="v6HeroCopy">
-          <div className="launchPill">
-            <span className="pulseDot" />
+      <section className="hero" id="top">
+        <div className="heroLeft">
+          <div className="statusPill">
+            <span />
             Takipio erken erişim açıldı
           </div>
 
           <h1>
-            İşletmeni
-            <span>tek panelden</span>
-            yönetmenin premium yolu.
+            İşletme akışını
+            <em>tek ekranda</em>
+            toparla.
           </h1>
 
-          <p className="heroLead">
-            Sipariş, müşteri, stok, ödeme ve pazaryeri akışlarını tek ekranda
-            topla. Gorki AI günlük işlerini özetlesin, sen sadece büyümeye
-            odaklan.
+          <p className="heroText">
+            Sipariş, müşteri, stok, ödeme ve pazaryeri hareketlerini Takipio’da
+            sadeleştir. Gorki AI günlük işlerini senin için özetlesin.
           </p>
 
-          <div className="integrationRail" id="integrations">
-            <div className="railTop">
-              <span>Pazaryeri entegrasyonları hazırlanıyor</span>
-              <b>Satış kanalların tek akışta.</b>
+          <div className="marketRail" id="integrations">
+            <div className="marketRailHeader">
+              <span>Pazaryeri entegrasyonları</span>
+              <b>Satış kanallarını tek panelde takip et.</b>
             </div>
 
-            <div className="railLogos">
+            <div className="marketLogos">
               {marketplaces.map((market) => (
                 <div
-                  className="railLogoCard"
+                  className="marketLogoCard"
                   key={market.name}
                   style={{ "--accent": market.accent } as React.CSSProperties}
                 >
@@ -235,17 +182,18 @@ export default function Page() {
                 </div>
               ))}
             </div>
-
-            <div className="railText">
-              Trendyol, Amazon, Hepsiburada ve Çiçeksepeti siparişlerini Takipio
-              içinde tek panelden takip etmek için altyapı hazırlanıyor.
-            </div>
           </div>
 
-          <form className="v6Waitlist" id="waitlist" onSubmit={handleSubmit}>
-            <div className="waitlistCopy">
-              <span>Erken erişim</span>
-              <b>Açılışa özel TAKIPIO10 kodunu kaçırma.</b>
+          <form className="waitlist" id="waitlist" onSubmit={handleSubmit}>
+            <div className="waitlistTop">
+              <div>
+                <span>Erken erişim</span>
+                <b>Açılışa özel TAKIPIO10 kodunu kaçırma.</b>
+              </div>
+              <div className="miniPrice" id="pricing">
+                <small>İlk ay</small>
+                <strong>₺89</strong>
+              </div>
             </div>
 
             <div className="waitlistRow">
@@ -262,12 +210,8 @@ export default function Page() {
               </button>
             </div>
 
-            {errorMessage && <div className="formFeedback error">{errorMessage}</div>}
-            {saved && (
-              <div className="formFeedback success">
-                Kaydın alındı. Hoş geldin maili gönderildi.
-              </div>
-            )}
+            {errorMessage && <div className="feedback error">{errorMessage}</div>}
+            {saved && <div className="feedback success">Kaydın alındı. Hoş geldin maili gönderildi.</div>}
           </form>
 
           <div className="trustLine">
@@ -277,60 +221,47 @@ export default function Page() {
           </div>
         </div>
 
-        <div className="v6ProductStage" id="product">
-          <div className="stageGlow" />
+        <div className="heroRight" id="product">
+          <div className="studioCard">
+            <div className="studioGlow" />
+            <DashboardDevice
+              activeTab={activeTab}
+              setActiveTab={setActiveTab}
+              message={gorkiMessages[messageIndex]}
+            />
 
-          <div className="floatingMetric metricOne">
-            <OrdersIcon />
-            <div>
-              <b>128</b>
-              <span>Aktif sipariş</span>
-            </div>
-            <em>+%18,6</em>
-          </div>
-
-          <div className="floatingMetric metricTwo">
-            <WalletIcon />
-            <div>
-              <b>₺125.250</b>
-              <span>Haftalık ciro</span>
-            </div>
-            <em>+%12,6</em>
-          </div>
-
-          <div className="floatingMetric metricThree">
-            <CubeIcon />
-            <div>
-              <b>Stok güncel</b>
-              <span>4 kanal izleniyor</span>
-            </div>
-            <em>Canlı</em>
-          </div>
-
-          <DashboardScene
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            gorkiMessage={gorkiMessages[messageIndex]}
-          />
-
-          <div className="priceGlass" id="pricing">
-            <div className="priceBadge">Açılışa özel</div>
-            <span>İlk ay sadece</span>
-            <del>₺99</del>
-            <strong>₺89</strong>
-            <p>Sonrasında ₺99 / ay</p>
-            <a href="#waitlist">Erken erişime katıl <ArrowIcon /></a>
-          </div>
-
-          <div className="gorkiMini" id="gorki">
-            <div className="gorkiMiniTop">
-              <img src="/gorki-hero.png" alt="Gorki AI" />
+            <div className="metricCard metricA">
+              <OrdersIcon />
               <div>
-                <b>Gorki AI</b>
-                <span>Akıllı asistanın</span>
+                <b>128</b>
+                <span>Aktif sipariş</span>
               </div>
             </div>
-            <p>“{gorkiMessages[messageIndex]}”</p>
+
+            <div className="metricCard metricB">
+              <WalletIcon />
+              <div>
+                <b>₺125.250</b>
+                <span>Haftalık ciro</span>
+              </div>
+            </div>
+
+            <div className="gorkiBubble" id="gorki">
+              <div className="gorkiHead">
+                <img src="/gorki-hero.png" alt="Gorki AI" />
+                <div>
+                  <b>Gorki AI</b>
+                  <span>Akıllı asistanın</span>
+                </div>
+              </div>
+              <p>“{gorkiMessages[messageIndex]}”</p>
+            </div>
+
+            <div className="couponFloat">
+              <span>Açılışa özel</span>
+              <b>₺89</b>
+              <small>ilk ay</small>
+            </div>
           </div>
         </div>
       </section>
@@ -353,29 +284,19 @@ export default function Page() {
         </article>
       </section>
 
-      <footer className="v6Footer">
-        <a href="https://takipio.com">takipio.com</a>
-        <span>© 2026 Takipio</span>
-        <a href="https://instagram.com/takipiocom" target="_blank" rel="noreferrer">
-          @takipiocom
-        </a>
-      </footer>
-
       <style jsx global>{`
         :root {
-          --ink: #f8fbff;
-          --muted: rgba(226, 237, 255, 0.68);
-          --muted2: rgba(226, 237, 255, 0.52);
+          --bg: #050914;
+          --panel: rgba(255, 255, 255, 0.08);
+          --panel2: rgba(255, 255, 255, 0.12);
           --line: rgba(147, 197, 253, 0.16);
-          --line2: rgba(255, 255, 255, 0.1);
+          --white: #ffffff;
+          --muted: rgba(226, 237, 255, 0.68);
+          --muted2: rgba(226, 237, 255, 0.48);
           --blue: #0b63ff;
-          --blue2: #10b8ff;
-          --cyan: #49d9ff;
+          --cyan: #22c5ff;
           --green: #24d18b;
-          --navy: #06101f;
-          --navy2: #0a1730;
-          --card: rgba(255, 255, 255, 0.08);
-          --card2: rgba(255, 255, 255, 0.12);
+          --dark: #06101f;
           --shadow: 0 34px 100px rgba(0, 0, 0, 0.38);
         }
 
@@ -386,15 +307,14 @@ export default function Page() {
         html {
           scroll-behavior: smooth;
           overflow-x: hidden;
-          background: #050914;
+          background: var(--bg);
         }
 
         body {
           margin: 0;
-          padding: 0;
           overflow-x: hidden;
-          background: #050914;
-          color: var(--ink);
+          color: var(--white);
+          background: var(--bg);
           font-family:
             Inter,
             ui-sans-serif,
@@ -436,80 +356,61 @@ export default function Page() {
           scroll-margin-top: 120px;
         }
 
-        .takipioV6 {
+        .takipioV7 {
           min-height: 100svh;
           position: relative;
           overflow: hidden;
           padding: 24px;
           background:
-            radial-gradient(circle at 18% 16%, rgba(11, 99, 255, 0.24), transparent 28%),
-            radial-gradient(circle at 82% 20%, rgba(73, 217, 255, 0.18), transparent 30%),
-            radial-gradient(circle at 50% 84%, rgba(11, 99, 255, 0.2), transparent 34%),
-            linear-gradient(180deg, #050914 0%, #071020 52%, #050914 100%);
+            radial-gradient(circle at 18% 16%, rgba(11, 99, 255, 0.22), transparent 28%),
+            radial-gradient(circle at 82% 18%, rgba(34, 197, 255, 0.16), transparent 30%),
+            linear-gradient(180deg, #050914 0%, #071020 56%, #050914 100%);
           transition: opacity 0.18s ease;
         }
 
-        .v6Backdrop {
+        .pageBg {
           position: absolute;
           inset: 0;
-          pointer-events: none;
           overflow: hidden;
+          pointer-events: none;
         }
 
-        .orb {
+        .bgOrb {
           position: absolute;
           border-radius: 999px;
-          filter: blur(52px);
-          opacity: 0.9;
+          filter: blur(56px);
         }
 
-        .orbOne {
+        .bgOrbOne {
           width: 520px;
           height: 520px;
           left: -220px;
-          top: 70px;
+          top: 110px;
           background: rgba(11, 99, 255, 0.2);
         }
 
-        .orbTwo {
-          width: 580px;
-          height: 580px;
+        .bgOrbTwo {
+          width: 560px;
+          height: 560px;
           right: -220px;
-          top: 110px;
-          background: rgba(16, 184, 255, 0.16);
+          top: 90px;
+          background: rgba(34, 197, 255, 0.14);
         }
 
-        .orbThree {
-          width: 420px;
-          height: 420px;
-          left: 42%;
-          bottom: -240px;
-          background: rgba(64, 104, 255, 0.18);
-        }
-
-        .v6Grid {
+        .bgGrid {
           position: absolute;
           inset: 0;
           background-image:
-            linear-gradient(rgba(147, 197, 253, 0.055) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(147, 197, 253, 0.055) 1px, transparent 1px);
-          background-size: 88px 88px;
-          mask-image: radial-gradient(circle at 50% 35%, black 0%, transparent 72%);
-          opacity: 0.5;
+            linear-gradient(rgba(147, 197, 253, 0.052) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(147, 197, 253, 0.052) 1px, transparent 1px);
+          background-size: 86px 86px;
+          mask-image: radial-gradient(circle at 50% 36%, black 0%, transparent 72%);
+          opacity: 0.62;
         }
 
-        .v6Noise {
-          position: absolute;
-          inset: 0;
-          opacity: 0.06;
-          background-image: radial-gradient(circle, rgba(255, 255, 255, 0.8) 0 1px, transparent 1.4px);
-          background-size: 120px 120px;
-        }
-
-        .v6Header {
-          width: min(1500px, calc(100% - 4px));
-          height: 72px;
-          margin: 0 auto;
+        .topbar {
+          width: min(1500px, calc(100% - 48px));
+          height: 74px;
           position: fixed;
           left: 50%;
           top: 18px;
@@ -518,138 +419,126 @@ export default function Page() {
           display: grid;
           grid-template-columns: auto 1fr auto;
           align-items: center;
-          gap: 22px;
+          gap: 24px;
           padding: 8px;
-          border-radius: 28px;
-          background: rgba(6, 16, 31, 0.72);
+          border-radius: 30px;
+          background: rgba(6, 16, 31, 0.76);
           border: 1px solid rgba(255, 255, 255, 0.1);
-          box-shadow:
-            0 18px 46px rgba(0, 0, 0, 0.28),
-            inset 0 1px 0 rgba(255, 255, 255, 0.08);
+          box-shadow: 0 18px 46px rgba(0, 0, 0, 0.3);
           backdrop-filter: blur(22px);
         }
 
-        .v6Brand {
+        .brand {
           width: 180px;
-          height: 56px;
+          height: 58px;
           display: grid;
           place-items: center;
-          border-radius: 22px;
+          border-radius: 23px;
           background:
             linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.03)),
             #050914;
           border: 1px solid rgba(255, 255, 255, 0.1);
-          box-shadow: inset 0 0 24px rgba(11, 99, 255, 0.08);
         }
 
-        .v6Brand img {
+        .brand img {
           width: 150px;
-          height: 40px;
+          height: 42px;
           object-fit: contain;
-          filter: drop-shadow(0 0 12px rgba(11, 99, 255, 0.28));
         }
 
-        .v6Nav {
+        .desktopNav {
           display: flex;
-          align-items: center;
           justify-content: center;
           gap: 34px;
-          color: rgba(226, 237, 255, 0.78);
+          color: var(--muted);
           font-size: 14px;
           font-weight: 850;
         }
 
-        .v6Nav a {
-          transition: 0.22s ease;
-        }
-
-        .v6Nav a:hover {
+        .desktopNav a:hover {
           color: white;
-          transform: translateY(-1px);
         }
 
-        .v6HeaderCta {
-          height: 54px;
+        .topbarCta {
+          height: 56px;
           display: inline-flex;
           align-items: center;
           gap: 10px;
-          justify-content: center;
           padding: 0 20px;
-          border-radius: 20px;
+          border-radius: 21px;
           color: white;
-          background: linear-gradient(135deg, #0b63ff, #10b8ff);
+          background: linear-gradient(135deg, var(--blue), var(--cyan));
           box-shadow: 0 18px 38px rgba(11, 99, 255, 0.28);
           font-size: 14px;
           font-weight: 950;
         }
 
-        .v6HeaderCta svg {
+        .topbarCta svg {
           width: 17px;
-          height: 17px;
         }
 
         .mobileDock {
           display: none;
         }
 
-        .v6Hero {
+        .hero {
           width: min(1500px, 100%);
+          min-height: 880px;
           margin: 0 auto;
-          min-height: 890px;
-          padding-top: 116px;
-          display: grid;
-          grid-template-columns: minmax(430px, 0.92fr) minmax(720px, 1.28fr);
-          gap: 44px;
-          align-items: center;
+          padding-top: 118px;
           position: relative;
           z-index: 2;
+          display: grid;
+          grid-template-columns: minmax(420px, 0.84fr) minmax(650px, 1.16fr);
+          gap: 48px;
+          align-items: center;
         }
 
-        .v6HeroCopy {
+        .heroLeft {
           position: relative;
           z-index: 4;
         }
 
-        .launchPill {
+        .statusPill {
           width: max-content;
           max-width: 100%;
+          min-height: 42px;
           display: inline-flex;
           align-items: center;
           gap: 10px;
-          min-height: 42px;
           padding: 0 15px;
           border-radius: 999px;
           color: #a8d8ff;
           background: rgba(255, 255, 255, 0.06);
-          border: 1px solid rgba(147, 197, 253, 0.16);
-          box-shadow: 0 16px 34px rgba(0, 0, 0, 0.16);
+          border: 1px solid var(--line);
           font-size: 12px;
           font-weight: 950;
-          letter-spacing: 1px;
+          letter-spacing: 0.9px;
           text-transform: uppercase;
           margin-bottom: 28px;
         }
 
-        .pulseDot {
+        .statusPill span {
           width: 9px;
           height: 9px;
           border-radius: 999px;
-          background: #24d18b;
+          background: var(--green);
           box-shadow: 0 0 0 8px rgba(36, 209, 139, 0.12);
         }
 
-        .v6Hero h1 {
-          max-width: 760px;
+        h1 {
+          max-width: 680px;
           margin: 0;
           color: white;
-          font-size: clamp(54px, 5.65vw, 96px);
-          line-height: 0.92;
-          letter-spacing: -5.8px;
+          font-size: clamp(54px, 5.15vw, 88px);
+          line-height: 0.94;
+          letter-spacing: -5px;
           font-weight: 950;
         }
 
-        .v6Hero h1 span {
+        h1 em {
           display: block;
+          font-style: normal;
           width: max-content;
           max-width: 100%;
           background: linear-gradient(135deg, #ffffff 0%, #8fd7ff 38%, #0b63ff 100%);
@@ -659,32 +548,32 @@ export default function Page() {
           text-shadow: 0 30px 80px rgba(11, 99, 255, 0.22);
         }
 
-        .heroLead {
-          max-width: 650px;
+        .heroText {
+          max-width: 620px;
           margin: 26px 0 0;
-          color: rgba(226, 237, 255, 0.72);
+          color: var(--muted);
           font-size: 18px;
-          line-height: 1.75;
-          letter-spacing: -0.25px;
+          line-height: 1.76;
+          letter-spacing: -0.2px;
           font-weight: 560;
         }
 
-        .integrationRail {
-          width: min(660px, 100%);
+        .marketRail {
+          width: min(640px, 100%);
           margin: 28px 0 0;
           padding: 18px;
           border-radius: 28px;
           background:
             linear-gradient(145deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.045)),
-            radial-gradient(circle at 0% 0%, rgba(11, 99, 255, 0.22), transparent 42%);
-          border: 1px solid rgba(147, 197, 253, 0.16);
+            radial-gradient(circle at 0% 0%, rgba(11, 99, 255, 0.2), transparent 42%);
+          border: 1px solid var(--line);
           box-shadow:
-            0 24px 70px rgba(0, 0, 0, 0.26),
+            0 24px 70px rgba(0, 0, 0, 0.22),
             inset 0 1px 0 rgba(255, 255, 255, 0.08);
           backdrop-filter: blur(18px);
         }
 
-        .railTop {
+        .marketRailHeader {
           display: flex;
           align-items: flex-start;
           justify-content: space-between;
@@ -692,7 +581,7 @@ export default function Page() {
           margin-bottom: 14px;
         }
 
-        .railTop span {
+        .marketRailHeader span {
           display: inline-flex;
           min-height: 31px;
           align-items: center;
@@ -707,37 +596,37 @@ export default function Page() {
           text-transform: uppercase;
         }
 
-        .railTop b {
-          max-width: 220px;
+        .marketRailHeader b {
+          max-width: 215px;
           color: white;
           text-align: right;
-          font-size: 16px;
-          line-height: 1.2;
-          letter-spacing: -0.3px;
+          font-size: 15px;
+          line-height: 1.25;
+          letter-spacing: -0.2px;
         }
 
-        .railLogos {
+        .marketLogos {
           display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
+          grid-template-columns: repeat(4, 1fr);
           gap: 10px;
         }
 
-        .railLogoCard {
+        .marketLogoCard {
           --accent: #0b63ff;
-          position: relative;
-          min-height: 74px;
+          min-height: 78px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 12px 14px;
           border-radius: 20px;
-          display: grid;
-          place-items: center;
-          padding: 12px;
-          background: rgba(255, 255, 255, 0.95);
+          background: rgba(255, 255, 255, 0.96);
           border: 1px solid rgba(255, 255, 255, 0.08);
           box-shadow: 0 16px 30px rgba(0, 0, 0, 0.14);
+          position: relative;
           overflow: hidden;
-          transition: 0.24s ease;
         }
 
-        .railLogoCard::after {
+        .marketLogoCard::after {
           content: "";
           position: absolute;
           left: 0;
@@ -747,66 +636,79 @@ export default function Page() {
           background: var(--accent);
         }
 
-        .railLogoCard:hover {
-          transform: translateY(-4px);
-          box-shadow: 0 22px 42px rgba(0, 0, 0, 0.2);
-        }
-
-        .railLogoCard img {
-          max-width: 128px;
-          max-height: 38px;
+        .marketLogoCard img {
+          display: block;
+          max-width: 122px;
+          max-height: 36px;
           width: auto;
           height: auto;
           object-fit: contain;
-          display: block;
         }
 
-        .railText {
-          margin-top: 14px;
-          color: rgba(226, 237, 255, 0.64);
-          font-size: 13px;
-          line-height: 1.62;
-          font-weight: 650;
-        }
-
-        .v6Waitlist {
-          width: min(660px, 100%);
+        .waitlist {
+          width: min(640px, 100%);
           margin-top: 22px;
           padding: 20px;
           border-radius: 28px;
           background: rgba(255, 255, 255, 0.08);
-          border: 1px solid rgba(147, 197, 253, 0.16);
+          border: 1px solid var(--line);
           box-shadow:
             0 24px 70px rgba(0, 0, 0, 0.24),
             inset 0 1px 0 rgba(255, 255, 255, 0.07);
           backdrop-filter: blur(20px);
         }
 
-        .waitlistCopy {
+        .waitlistTop {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          gap: 14px;
+          gap: 16px;
           margin-bottom: 14px;
         }
 
-        .waitlistCopy span {
+        .waitlistTop span {
+          display: block;
           color: #8fd7ff;
           font-size: 12px;
           font-weight: 950;
           letter-spacing: 1px;
           text-transform: uppercase;
+          margin-bottom: 6px;
         }
 
-        .waitlistCopy b {
+        .waitlistTop b {
+          display: block;
           color: white;
           font-size: 16px;
           letter-spacing: -0.2px;
         }
 
+        .miniPrice {
+          min-width: 92px;
+          min-height: 58px;
+          display: grid;
+          place-items: center;
+          padding: 8px 12px;
+          border-radius: 18px;
+          color: white;
+          background: linear-gradient(135deg, rgba(11, 99, 255, 0.95), rgba(34, 197, 255, 0.78));
+          box-shadow: 0 16px 30px rgba(11, 99, 255, 0.24);
+        }
+
+        .miniPrice small {
+          font-size: 10px;
+          font-weight: 900;
+          opacity: 0.86;
+        }
+
+        .miniPrice strong {
+          font-size: 24px;
+          line-height: 1;
+        }
+
         .waitlistRow {
           display: grid;
-          grid-template-columns: 1fr 168px;
+          grid-template-columns: 1fr 156px;
           gap: 10px;
         }
 
@@ -841,24 +743,17 @@ export default function Page() {
           justify-content: center;
           gap: 9px;
           color: white;
-          background: linear-gradient(135deg, #0b63ff, #10b8ff);
+          background: linear-gradient(135deg, var(--blue), var(--cyan));
           box-shadow: 0 18px 34px rgba(11, 99, 255, 0.28);
           font-size: 15px;
           font-weight: 950;
-          transition: 0.22s ease;
-        }
-
-        .waitlistRow button:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 24px 44px rgba(11, 99, 255, 0.36);
         }
 
         .waitlistRow button svg {
           width: 16px;
-          height: 16px;
         }
 
-        .formFeedback {
+        .feedback {
           margin-top: 12px;
           padding: 12px 14px;
           border-radius: 15px;
@@ -866,20 +761,20 @@ export default function Page() {
           font-weight: 800;
         }
 
-        .formFeedback.error {
+        .feedback.error {
           color: #fecaca;
           background: rgba(220, 38, 38, 0.15);
           border: 1px solid rgba(248, 113, 113, 0.18);
         }
 
-        .formFeedback.success {
+        .feedback.success {
           color: #bbf7d0;
           background: rgba(34, 197, 94, 0.13);
           border: 1px solid rgba(74, 222, 128, 0.18);
         }
 
         .trustLine {
-          width: min(660px, 100%);
+          width: min(640px, 100%);
           display: flex;
           flex-wrap: wrap;
           gap: 10px;
@@ -890,7 +785,7 @@ export default function Page() {
           display: inline-flex;
           align-items: center;
           gap: 7px;
-          color: rgba(226, 237, 255, 0.66);
+          color: var(--muted);
           font-size: 13px;
           font-weight: 750;
         }
@@ -901,54 +796,75 @@ export default function Page() {
           color: var(--green);
         }
 
-        .v6ProductStage {
-          min-height: 760px;
+        .heroRight {
+          min-height: 720px;
           position: relative;
-          perspective: 1600px;
         }
 
-        .stageGlow {
+        .studioCard {
+          position: relative;
+          width: 100%;
+          min-height: 700px;
+          border-radius: 44px;
+          background:
+            radial-gradient(circle at 50% 0%, rgba(34, 197, 255, 0.16), transparent 36%),
+            linear-gradient(145deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.035));
+          border: 1px solid var(--line);
+          box-shadow:
+            0 34px 100px rgba(0, 0, 0, 0.32),
+            inset 0 1px 0 rgba(255, 255, 255, 0.08);
+          backdrop-filter: blur(18px);
+          overflow: hidden;
+        }
+
+        .studioGlow {
           position: absolute;
-          width: 780px;
-          height: 520px;
+          width: 680px;
+          height: 440px;
           left: 50%;
           top: 48%;
           transform: translate(-50%, -50%) rotate(-8deg);
           border-radius: 50%;
-          background: radial-gradient(ellipse at center, rgba(16, 184, 255, 0.22), transparent 66%);
-          filter: blur(6px);
+          background: radial-gradient(ellipse at center, rgba(16, 184, 255, 0.24), transparent 66%);
+          filter: blur(4px);
         }
 
-        .dashboardScene {
+        .deviceScene {
           position: absolute;
-          left: 5%;
-          right: 16%;
+          left: 7%;
+          right: 7%;
           top: 50%;
-          transform: translateY(-50%) rotateX(7deg) rotateY(-13deg) rotateZ(-1deg);
-          transform-style: preserve-3d;
+          transform: translateY(-50%);
+          perspective: 1600px;
           z-index: 4;
         }
 
-        .laptopFrame {
+        .laptop {
           position: relative;
-          height: 510px;
-          border-radius: 38px 38px 28px 28px;
-          padding: 18px 18px 34px;
-          background:
-            linear-gradient(135deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.05) 44%, rgba(255, 255, 255, 0.26)),
-            linear-gradient(180deg, #303c52, #121827 62%, #070b12);
-          box-shadow:
-            0 70px 140px rgba(0, 0, 0, 0.52),
-            inset 0 1px 0 rgba(255, 255, 255, 0.38);
-          border: 1px solid rgba(255, 255, 255, 0.16);
+          height: 445px;
+          transform: rotateX(7deg) rotateY(-10deg) rotateZ(-1deg);
+          transform-style: preserve-3d;
         }
 
-        .laptopFrame::before {
+        .laptopLid {
+          height: 100%;
+          border-radius: 34px 34px 24px 24px;
+          padding: 16px 16px 30px;
+          background:
+            linear-gradient(135deg, rgba(255,255,255,.34), rgba(255,255,255,.06) 45%, rgba(255,255,255,.22)),
+            linear-gradient(180deg, #2f3a50, #111827 64%, #070b12);
+          border: 1px solid rgba(255, 255, 255, 0.16);
+          box-shadow:
+            0 64px 120px rgba(0, 0, 0, 0.48),
+            inset 0 1px 0 rgba(255, 255, 255, 0.32);
+        }
+
+        .laptopLid::before {
           content: "";
           position: absolute;
           left: 50%;
-          top: 9px;
-          width: 88px;
+          top: 8px;
+          width: 82px;
           height: 12px;
           transform: translateX(-50%);
           border-radius: 0 0 12px 12px;
@@ -956,22 +872,21 @@ export default function Page() {
           z-index: 3;
         }
 
-        .laptopFrame::after {
-          content: "";
+        .laptopBase {
           position: absolute;
           left: 8%;
           right: 8%;
-          bottom: -24px;
-          height: 32px;
-          border-radius: 0 0 44px 44px;
-          background: linear-gradient(180deg, #cdd8e8, #6b768a 80%);
-          box-shadow: 0 24px 50px rgba(0, 0, 0, 0.32);
+          bottom: -25px;
+          height: 34px;
+          border-radius: 0 0 46px 46px;
+          background: linear-gradient(180deg, #d3deee, #69768b 80%);
+          box-shadow: 0 24px 50px rgba(0, 0, 0, 0.34);
         }
 
-        .dashboardScreen {
+        .screen {
           height: 100%;
           overflow: hidden;
-          border-radius: 26px;
+          border-radius: 24px;
           background:
             radial-gradient(circle at 76% 14%, rgba(11, 99, 255, 0.18), transparent 34%),
             linear-gradient(180deg, #081225, #020817);
@@ -981,172 +896,166 @@ export default function Page() {
             inset 0 1px 0 rgba(255, 255, 255, 0.06);
         }
 
-        .screenTopbar {
-          height: 64px;
+        .screenTop {
+          height: 58px;
           display: flex;
-          align-items: center;
           justify-content: space-between;
-          gap: 18px;
-          padding: 0 20px;
+          align-items: center;
+          padding: 0 18px;
           border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         }
 
         .screenBrand {
           display: flex;
           align-items: center;
-          gap: 10px;
+          gap: 9px;
           color: white;
-          font-size: 17px;
+          font-size: 15px;
           font-weight: 950;
         }
 
         .screenBrand img {
-          width: 26px;
-          height: 26px;
+          width: 24px;
+          height: 24px;
           object-fit: contain;
         }
 
-        .screenTopActions {
+        .screenDots {
           display: flex;
-          align-items: center;
           gap: 8px;
         }
 
-        .screenTopActions span {
-          width: 9px;
-          height: 9px;
+        .screenDots span {
+          width: 8px;
+          height: 8px;
           border-radius: 999px;
-          background: rgba(255, 255, 255, 0.28);
+          background: rgba(255, 255, 255, 0.26);
         }
 
-        .screenLayout {
-          height: calc(100% - 64px);
+        .screenBody {
+          height: calc(100% - 58px);
           display: grid;
-          grid-template-columns: 190px 1fr;
+          grid-template-columns: 168px 1fr;
         }
 
-        .screenSidebar {
-          padding: 18px 14px;
+        .sidebar {
+          padding: 16px 12px;
           border-right: 1px solid rgba(255, 255, 255, 0.08);
           background: rgba(0, 0, 0, 0.16);
         }
 
-        .screenSidebar button {
+        .sidebar button {
           width: 100%;
-          min-height: 42px;
+          min-height: 39px;
           border: 0;
-          border-radius: 14px;
-          margin-bottom: 10px;
+          border-radius: 13px;
+          margin-bottom: 9px;
           color: rgba(226, 237, 255, 0.64);
           background: rgba(255, 255, 255, 0.06);
+          font-size: 12px;
           font-weight: 900;
-          transition: 0.2s ease;
         }
 
-        .screenSidebar button.active,
-        .screenSidebar button:hover {
+        .sidebar button.active {
           color: white;
-          background: linear-gradient(135deg, #0b63ff, #10b8ff);
+          background: linear-gradient(135deg, var(--blue), var(--cyan));
           box-shadow: 0 16px 30px rgba(11, 99, 255, 0.22);
         }
 
-        .sidebarAi {
-          margin-top: 18px;
-          padding: 14px;
-          border-radius: 18px;
+        .sideNote {
+          margin-top: 16px;
+          padding: 12px;
+          border-radius: 17px;
           background: rgba(255, 255, 255, 0.06);
           border: 1px solid rgba(255, 255, 255, 0.07);
         }
 
-        .sidebarAi b {
+        .sideNote b {
           display: block;
           color: white;
+          font-size: 13px;
           margin-bottom: 5px;
         }
 
-        .sidebarAi span {
+        .sideNote span {
           display: block;
-          color: rgba(226, 237, 255, 0.52);
-          font-size: 12px;
-          line-height: 1.5;
+          color: var(--muted2);
+          font-size: 11px;
+          line-height: 1.45;
           font-weight: 650;
         }
 
-        .screenMain {
-          padding: 18px;
+        .mainDash {
+          padding: 16px;
         }
 
-        .screenHeader {
+        .dashHeader {
           display: flex;
-          align-items: flex-start;
           justify-content: space-between;
-          gap: 14px;
-          margin-bottom: 16px;
-        }
-
-        .screenHeader h3 {
-          margin: 0;
-          color: white;
-          font-size: 24px;
-          letter-spacing: -0.8px;
-        }
-
-        .screenHeader span {
-          color: #8fd7ff;
-          font-size: 12px;
-          font-weight: 900;
-        }
-
-        .screenStats {
-          display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 12px;
           margin-bottom: 14px;
         }
 
-        .screenStat {
-          min-height: 104px;
-          border-radius: 20px;
-          padding: 14px;
-          background: rgba(255, 255, 255, 0.06);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
-        }
-
-        .screenStat small {
-          display: block;
-          color: #8fd7ff;
-          font-size: 11px;
-          font-weight: 850;
-          margin-bottom: 10px;
-        }
-
-        .screenStat b {
-          display: block;
+        .dashHeader h3 {
+          margin: 0;
           color: white;
           font-size: 22px;
-          letter-spacing: -0.5px;
+          letter-spacing: -0.7px;
         }
 
-        .screenStat em {
+        .dashHeader span {
+          color: #8fd7ff;
+          font-size: 11px;
+          font-weight: 900;
+        }
+
+        .dashStats {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 10px;
+          margin-bottom: 12px;
+        }
+
+        .dashStat {
+          min-height: 94px;
+          padding: 12px;
+          border-radius: 18px;
+          background: rgba(255, 255, 255, 0.06);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .dashStat small {
+          display: block;
+          color: #8fd7ff;
+          font-size: 10px;
+          font-weight: 850;
+          margin-bottom: 9px;
+        }
+
+        .dashStat b {
+          display: block;
+          color: white;
+          font-size: 20px;
+        }
+
+        .dashStat em {
           display: block;
           color: var(--green);
-          font-size: 11px;
+          font-size: 10px;
           font-style: normal;
           font-weight: 950;
-          margin-top: 8px;
+          margin-top: 7px;
         }
 
-        .screenLower {
+        .dashLower {
           display: grid;
-          grid-template-columns: 1.3fr 0.9fr;
-          gap: 14px;
+          grid-template-columns: 1.25fr 0.92fr;
+          gap: 12px;
         }
 
         .chartPanel,
         .activityPanel {
-          height: 210px;
-          border-radius: 24px;
+          height: 188px;
+          border-radius: 22px;
           background: rgba(255, 255, 255, 0.055);
           border: 1px solid rgba(255, 255, 255, 0.08);
           overflow: hidden;
@@ -1156,73 +1065,72 @@ export default function Page() {
         .chartPanel::before {
           content: "Satış grafiği";
           position: absolute;
-          left: 16px;
-          top: 14px;
+          left: 14px;
+          top: 12px;
           color: white;
-          font-size: 13px;
+          font-size: 12px;
           font-weight: 950;
         }
 
         .chartPanel svg {
           width: 100%;
           height: 100%;
-          padding-top: 36px;
+          padding-top: 34px;
         }
 
         .activityPanel {
-          padding: 14px;
+          padding: 13px;
         }
 
         .activityPanel h4 {
-          margin: 0 0 12px;
+          margin: 0 0 10px;
           color: white;
-          font-size: 14px;
+          font-size: 13px;
         }
 
         .activityRow {
-          min-height: 38px;
+          min-height: 34px;
           display: grid;
           grid-template-columns: 1fr auto;
           align-items: center;
-          gap: 8px;
-          padding: 0 10px;
+          gap: 7px;
+          padding: 0 9px;
           margin-bottom: 8px;
-          border-radius: 13px;
+          border-radius: 12px;
           background: rgba(255, 255, 255, 0.055);
-          color: rgba(226, 237, 255, 0.66);
-          font-size: 11px;
+          color: var(--muted);
+          font-size: 10px;
           font-weight: 780;
         }
 
         .activityRow b {
           color: white;
-          font-size: 11px;
+          font-size: 10px;
         }
 
-        .phone3d {
+        .phone {
           position: absolute;
-          right: -64px;
-          bottom: -38px;
-          width: 210px;
-          height: 430px;
-          padding: 11px;
-          border-radius: 44px;
+          right: -42px;
+          bottom: -34px;
+          width: 186px;
+          height: 382px;
+          padding: 10px;
+          border-radius: 40px;
           background:
             linear-gradient(135deg, rgba(255,255,255,.32), rgba(255,255,255,.06) 38%, rgba(255,255,255,.2)),
             #070b12;
           border: 1px solid rgba(255, 255, 255, 0.16);
           box-shadow: 0 46px 90px rgba(0, 0, 0, 0.48);
-          transform: translateZ(130px) rotateZ(2deg);
           z-index: 9;
         }
 
-        .phone3d::before {
+        .phone::before {
           content: "";
           position: absolute;
-          top: 11px;
+          top: 10px;
           left: 50%;
-          width: 72px;
-          height: 18px;
+          width: 68px;
+          height: 17px;
           transform: translateX(-50%);
           border-radius: 0 0 999px 999px;
           background: #050914;
@@ -1231,77 +1139,77 @@ export default function Page() {
 
         .phoneScreen {
           height: 100%;
-          border-radius: 34px;
+          overflow: hidden;
+          border-radius: 31px;
+          padding: 26px 11px 12px;
           background:
             radial-gradient(circle at 70% 0%, rgba(11, 99, 255, 0.22), transparent 42%),
             linear-gradient(180deg, #091429, #040814);
           border: 1px solid rgba(255, 255, 255, 0.08);
-          padding: 28px 13px 14px;
-          overflow: hidden;
         }
 
         .phoneTop {
           display: flex;
-          align-items: center;
           justify-content: space-between;
-          gap: 8px;
           color: white;
-          font-size: 12px;
+          font-size: 11px;
           font-weight: 950;
-          margin-bottom: 16px;
+          margin-bottom: 13px;
         }
 
         .phoneTop img {
-          width: 22px;
-          height: 22px;
+          width: 20px;
+          height: 20px;
           object-fit: contain;
+          vertical-align: middle;
+          margin-right: 5px;
         }
 
         .phoneGreeting b {
           display: block;
           color: white;
-          font-size: 15px;
+          font-size: 13px;
           margin-bottom: 4px;
         }
 
         .phoneGreeting span {
           color: #8fd7ff;
-          font-size: 11px;
+          font-size: 10px;
           font-weight: 780;
         }
 
         .phoneTabs {
           display: grid;
           grid-template-columns: repeat(2, 1fr);
-          gap: 7px;
-          margin: 14px 0;
+          gap: 6px;
+          margin: 12px 0;
         }
 
         .phoneTabs button {
-          height: 30px;
+          height: 28px;
           border: 0;
-          border-radius: 11px;
-          color: rgba(226, 237, 255, 0.62);
+          border-radius: 10px;
+          color: var(--muted);
           background: rgba(255, 255, 255, 0.07);
-          font-size: 10px;
+          font-size: 9px;
           font-weight: 900;
         }
 
         .phoneTabs button.active {
           color: white;
-          background: linear-gradient(135deg, #0b63ff, #10b8ff);
+          background: linear-gradient(135deg, var(--blue), var(--cyan));
         }
 
         .phoneCards {
           display: grid;
           grid-template-columns: 1fr 1fr;
-          gap: 8px;
+          gap: 7px;
         }
 
         .phoneCard {
-          min-height: 76px;
-          padding: 10px;
-          border-radius: 16px;
+          min-height: 70px;
+          padding: 9px;
+          border-radius: 15px;
           background: rgba(255, 255, 255, 0.07);
           border: 1px solid rgba(255, 255, 255, 0.07);
         }
@@ -1309,15 +1217,15 @@ export default function Page() {
         .phoneCard small {
           display: block;
           color: #8fd7ff;
-          font-size: 10px;
-          margin-bottom: 7px;
+          font-size: 9px;
+          margin-bottom: 6px;
           font-weight: 750;
         }
 
         .phoneCard b {
           display: block;
           color: white;
-          font-size: 15px;
+          font-size: 13px;
         }
 
         .phoneCard em {
@@ -1325,235 +1233,162 @@ export default function Page() {
           color: var(--green);
           margin-top: 5px;
           font-style: normal;
-          font-size: 10px;
+          font-size: 9px;
           font-weight: 950;
         }
 
-        .phoneAiBubble {
-          margin-top: 12px;
-          padding: 12px;
-          border-radius: 16px;
+        .phoneAi {
+          margin-top: 11px;
+          padding: 11px;
+          border-radius: 15px;
           background: rgba(255, 255, 255, 0.08);
           border: 1px solid rgba(255, 255, 255, 0.08);
-          color: rgba(226, 237, 255, 0.72);
-          font-size: 11px;
-          line-height: 1.48;
+          color: var(--muted);
+          font-size: 10px;
+          line-height: 1.45;
           font-weight: 760;
         }
 
-        .floatingMetric {
+        .metricCard {
           position: absolute;
           z-index: 12;
-          min-width: 194px;
-          min-height: 74px;
+          min-width: 178px;
+          min-height: 68px;
           display: grid;
-          grid-template-columns: auto 1fr auto;
+          grid-template-columns: auto 1fr;
           align-items: center;
-          gap: 12px;
-          padding: 13px 15px;
-          border-radius: 22px;
+          gap: 11px;
+          padding: 12px 14px;
+          border-radius: 20px;
           background: rgba(255, 255, 255, 0.1);
-          border: 1px solid rgba(147, 197, 253, 0.16);
+          border: 1px solid var(--line);
           box-shadow: 0 24px 54px rgba(0, 0, 0, 0.28);
           backdrop-filter: blur(18px);
         }
 
-        .floatingMetric svg {
-          width: 28px;
-          height: 28px;
+        .metricCard svg {
+          width: 27px;
+          height: 27px;
           color: #8fd7ff;
         }
 
-        .floatingMetric b {
+        .metricCard b {
           display: block;
           color: white;
-          font-size: 16px;
-          line-height: 1.1;
+          font-size: 15px;
         }
 
-        .floatingMetric span {
+        .metricCard span {
           display: block;
-          color: rgba(226, 237, 255, 0.58);
-          font-size: 12px;
-          font-weight: 760;
-          margin-top: 4px;
-        }
-
-        .floatingMetric em {
-          color: var(--green);
-          font-style: normal;
-          font-size: 11px;
-          font-weight: 950;
-        }
-
-        .metricOne {
-          top: 42px;
-          left: 34px;
-        }
-
-        .metricTwo {
-          top: 78px;
-          right: 52px;
-        }
-
-        .metricThree {
-          bottom: 62px;
-          left: 20px;
-        }
-
-        .priceGlass {
-          position: absolute;
-          right: 0;
-          top: 210px;
-          width: 245px;
-          min-height: 330px;
-          z-index: 14;
-          padding: 20px;
-          border-radius: 34px;
-          color: white;
-          background:
-            radial-gradient(circle at 50% 0%, rgba(73, 217, 255, 0.28), transparent 36%),
-            linear-gradient(180deg, rgba(6, 16, 31, 0.98), rgba(5, 9, 20, 0.96));
-          border: 1px solid rgba(147, 197, 253, 0.18);
-          box-shadow:
-            0 38px 90px rgba(0, 0, 0, 0.46),
-            inset 0 1px 0 rgba(255, 255, 255, 0.08);
-          backdrop-filter: blur(18px);
-        }
-
-        .priceBadge {
-          width: max-content;
-          margin: 0 auto 20px;
-          min-height: 42px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          padding: 0 14px;
-          border-radius: 15px;
-          background: linear-gradient(135deg, #0b63ff, #10b8ff);
-          box-shadow: 0 14px 28px rgba(11, 99, 255, 0.28);
-          font-size: 13px;
-          font-weight: 950;
-          text-transform: uppercase;
-        }
-
-        .priceGlass span {
-          display: block;
-          text-align: center;
-          color: rgba(226, 237, 255, 0.74);
-          font-size: 13px;
-          font-weight: 950;
-          text-transform: uppercase;
-        }
-
-        .priceGlass del {
-          display: block;
-          margin-top: 8px;
-          text-align: center;
-          color: rgba(255, 255, 255, 0.34);
-          font-size: 36px;
-          font-weight: 950;
-          text-decoration-color: #0b63ff;
-          text-decoration-thickness: 5px;
-        }
-
-        .priceGlass strong {
-          display: block;
-          margin-top: -4px;
-          text-align: center;
-          color: white;
-          font-size: 78px;
-          line-height: 0.94;
-          letter-spacing: -4px;
-          text-shadow: 0 0 32px rgba(11, 99, 255, 0.85);
-        }
-
-        .priceGlass p {
-          margin: 10px 0 18px;
-          text-align: center;
-          color: rgba(226, 237, 255, 0.58);
-          font-size: 13px;
-          font-weight: 760;
-        }
-
-        .priceGlass a {
-          width: 100%;
-          height: 48px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-          border-radius: 16px;
-          color: white;
-          background: rgba(255, 255, 255, 0.1);
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          font-size: 13px;
-          font-weight: 950;
-          transition: 0.22s ease;
-        }
-
-        .priceGlass a:hover {
-          background: linear-gradient(135deg, #0b63ff, #10b8ff);
-        }
-
-        .priceGlass a svg {
-          width: 15px;
-          height: 15px;
-        }
-
-        .gorkiMini {
-          position: absolute;
-          right: 8px;
-          bottom: 46px;
-          width: 275px;
-          z-index: 16;
-          padding: 16px;
-          border-radius: 28px;
-          background: rgba(255, 255, 255, 0.1);
-          border: 1px solid rgba(147, 197, 253, 0.16);
-          box-shadow: 0 28px 64px rgba(0, 0, 0, 0.34);
-          backdrop-filter: blur(18px);
-        }
-
-        .gorkiMiniTop {
-          display: flex;
-          align-items: center;
-          gap: 11px;
-          margin-bottom: 12px;
-        }
-
-        .gorkiMiniTop img {
-          width: 52px;
-          height: 52px;
-          object-fit: contain;
-          border-radius: 16px;
-          background: rgba(255,255,255,.08);
-        }
-
-        .gorkiMiniTop b {
-          display: block;
-          color: white;
-          font-size: 16px;
-        }
-
-        .gorkiMiniTop span {
-          display: block;
-          color: rgba(226, 237, 255, 0.58);
+          color: var(--muted2);
           font-size: 12px;
           font-weight: 760;
           margin-top: 3px;
         }
 
-        .gorkiMini p {
+        .metricA {
+          top: 72px;
+          left: 34px;
+        }
+
+        .metricB {
+          top: 76px;
+          right: 34px;
+        }
+
+        .gorkiBubble {
+          position: absolute;
+          left: 38px;
+          bottom: 34px;
+          width: 265px;
+          z-index: 13;
+          padding: 14px;
+          border-radius: 24px;
+          background: rgba(255, 255, 255, 0.1);
+          border: 1px solid var(--line);
+          box-shadow: 0 26px 56px rgba(0, 0, 0, 0.3);
+          backdrop-filter: blur(18px);
+        }
+
+        .gorkiHead {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin-bottom: 11px;
+        }
+
+        .gorkiHead img {
+          width: 48px;
+          height: 48px;
+          object-fit: contain;
+          border-radius: 15px;
+          background: rgba(255, 255, 255, 0.08);
+        }
+
+        .gorkiHead b {
+          display: block;
+          color: white;
+          font-size: 15px;
+        }
+
+        .gorkiHead span {
+          display: block;
+          color: var(--muted2);
+          font-size: 12px;
+          font-weight: 760;
+          margin-top: 3px;
+        }
+
+        .gorkiBubble p {
           margin: 0;
-          padding: 13px;
-          border-radius: 18px;
-          color: rgba(226, 237, 255, 0.74);
+          padding: 12px;
+          border-radius: 16px;
+          color: var(--muted);
           background: rgba(255, 255, 255, 0.07);
           border: 1px solid rgba(255, 255, 255, 0.08);
-          font-size: 13px;
-          line-height: 1.52;
+          font-size: 12px;
+          line-height: 1.48;
           font-weight: 760;
+        }
+
+        .couponFloat {
+          position: absolute;
+          right: 34px;
+          bottom: 36px;
+          z-index: 14;
+          width: 140px;
+          min-height: 116px;
+          padding: 14px;
+          border-radius: 24px;
+          text-align: center;
+          color: white;
+          background:
+            radial-gradient(circle at 50% 0%, rgba(34, 197, 255, 0.22), transparent 50%),
+            rgba(6, 16, 31, 0.84);
+          border: 1px solid var(--line);
+          box-shadow: 0 26px 56px rgba(0, 0, 0, 0.34);
+          backdrop-filter: blur(18px);
+        }
+
+        .couponFloat span {
+          display: block;
+          color: #8fd7ff;
+          font-size: 10px;
+          font-weight: 950;
+          text-transform: uppercase;
+        }
+
+        .couponFloat b {
+          display: block;
+          font-size: 42px;
+          line-height: 1;
+          margin: 8px 0 4px;
+          letter-spacing: -2px;
+        }
+
+        .couponFloat small {
+          color: var(--muted2);
+          font-weight: 850;
         }
 
         .valueSection {
@@ -1567,11 +1402,11 @@ export default function Page() {
         }
 
         .valueSection article {
-          min-height: 168px;
+          min-height: 158px;
           padding: 24px;
           border-radius: 30px;
-          background: rgba(255, 255, 255, 0.075);
-          border: 1px solid rgba(147, 197, 253, 0.14);
+          background: var(--panel);
+          border: 1px solid var(--line);
           box-shadow:
             0 24px 70px rgba(0, 0, 0, 0.22),
             inset 0 1px 0 rgba(255, 255, 255, 0.06);
@@ -1579,98 +1414,72 @@ export default function Page() {
         }
 
         .valueSection svg {
-          width: 34px;
-          height: 34px;
+          width: 32px;
+          height: 32px;
           color: #8fd7ff;
-          margin-bottom: 18px;
+          margin-bottom: 16px;
         }
 
         .valueSection b {
           display: block;
           color: white;
-          font-size: 20px;
-          letter-spacing: -0.5px;
-          margin-bottom: 9px;
+          font-size: 19px;
+          letter-spacing: -0.4px;
+          margin-bottom: 8px;
         }
 
         .valueSection span {
           display: block;
-          color: rgba(226, 237, 255, 0.62);
-          line-height: 1.62;
+          color: var(--muted);
+          line-height: 1.6;
           font-size: 14px;
           font-weight: 650;
         }
 
-        .v6Footer {
-          width: min(1500px, 100%);
-          min-height: 92px;
-          margin: 18px auto 0;
-          padding: 0 4px;
-          position: relative;
-          z-index: 2;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 18px;
-          color: rgba(226, 237, 255, 0.48);
-          font-size: 14px;
-          font-weight: 780;
-        }
-
-        .v6Footer a:hover {
-          color: white;
-        }
-
         @media (max-width: 1460px) {
-          .v6Hero {
+          .hero {
             grid-template-columns: 1fr;
             gap: 26px;
           }
 
-          .v6ProductStage {
-            min-height: 780px;
+          .heroRight {
+            min-height: 760px;
           }
 
-          .dashboardScene {
-            left: 0;
-            right: 16%;
+          .studioCard {
+            min-height: 740px;
           }
 
-          .priceGlass {
-            right: 2%;
-          }
-
-          .gorkiMini {
-            right: 2%;
+          .heroLeft {
+            max-width: 820px;
           }
         }
 
         @media (max-width: 1100px) {
-          .takipioV6 {
+          .takipioV7 {
             padding: 18px 14px 92px;
           }
 
-          .v6Header {
-            position: fixed;
+          .topbar {
             top: 12px;
             width: calc(100% - 24px);
             grid-template-columns: 1fr auto;
           }
 
-          .v6Nav {
+          .desktopNav {
             display: none;
           }
 
-          .v6Brand {
+          .brand {
             width: 166px;
             height: 54px;
           }
 
-          .v6Brand img {
+          .brand img {
             width: 138px;
           }
 
-          .v6HeaderCta {
+          .topbarCta {
             height: 52px;
             padding: 0 16px;
           }
@@ -1688,7 +1497,7 @@ export default function Page() {
             padding: 7px;
             border-radius: 24px;
             background: rgba(6, 16, 31, 0.86);
-            border: 1px solid rgba(147, 197, 253, 0.14);
+            border: 1px solid var(--line);
             box-shadow: 0 20px 44px rgba(0, 0, 0, 0.34);
             backdrop-filter: blur(18px);
           }
@@ -1697,7 +1506,7 @@ export default function Page() {
             display: grid;
             place-items: center;
             border-radius: 17px;
-            color: rgba(226, 237, 255, 0.7);
+            color: var(--muted);
             background: rgba(255, 255, 255, 0.06);
             font-size: 12px;
             font-weight: 900;
@@ -1705,91 +1514,54 @@ export default function Page() {
 
           .mobileDock a:last-child {
             color: white;
-            background: linear-gradient(135deg, #0b63ff, #10b8ff);
+            background: linear-gradient(135deg, var(--blue), var(--cyan));
           }
 
-          .v6Hero {
+          .hero {
             padding-top: 112px;
             min-height: auto;
           }
 
-          .v6Hero h1 {
-            letter-spacing: -3.8px;
+          h1 {
+            letter-spacing: -3.6px;
           }
 
-          .railLogos {
+          .marketLogos {
             grid-template-columns: repeat(2, 1fr);
           }
 
-          .v6ProductStage {
-            min-height: 980px;
+          .studioCard {
+            min-height: 700px;
           }
 
-          .dashboardScene {
-            left: 0;
-            right: 0;
-            top: 390px;
+          .deviceScene {
+            left: 5%;
+            right: 5%;
+            top: 330px;
           }
 
-          .laptopFrame {
-            height: 470px;
+          .laptop {
+            height: 420px;
           }
 
-          .priceGlass {
-            position: relative;
-            top: auto;
-            right: auto;
-            width: 100%;
-            min-height: auto;
-            margin-bottom: 18px;
-            display: grid;
-            grid-template-columns: auto 1fr auto;
-            align-items: center;
-            gap: 14px;
+          .metricA {
+            left: 24px;
+            top: 42px;
           }
 
-          .priceBadge {
-            margin: 0;
+          .metricB {
+            right: 24px;
+            top: 42px;
           }
 
-          .priceGlass span,
-          .priceGlass del,
-          .priceGlass strong,
-          .priceGlass p {
-            text-align: left;
-            margin: 0;
+          .gorkiBubble {
+            left: 24px;
+            bottom: 24px;
           }
 
-          .priceGlass strong {
-            font-size: 56px;
-          }
-
-          .priceGlass a {
-            width: auto;
-            padding: 0 18px;
-          }
-
-          .gorkiMini {
-            position: relative;
-            right: auto;
-            bottom: auto;
-            width: 100%;
-            margin-top: 18px;
-          }
-
-          .metricOne {
-            top: 108px;
-            left: 0;
-          }
-
-          .metricTwo {
-            top: 108px;
-            right: 0;
-          }
-
-          .metricThree {
-            left: 0;
-            bottom: 36px;
+          .couponFloat {
+            right: 24px;
+            bottom: 26px;
           }
 
           .valueSection {
@@ -1798,33 +1570,33 @@ export default function Page() {
         }
 
         @media (max-width: 780px) {
-          .v6HeaderCta {
+          .topbarCta {
             display: none;
           }
 
-          .v6Header {
+          .topbar {
             display: flex;
             justify-content: center;
           }
 
-          .v6Hero h1 {
-            font-size: clamp(44px, 13vw, 64px);
-            line-height: 0.96;
-            letter-spacing: -2.8px;
+          h1 {
+            font-size: clamp(42px, 13vw, 62px);
+            line-height: 0.98;
+            letter-spacing: -2.6px;
           }
 
-          .heroLead {
+          .heroText {
             font-size: 16px;
             line-height: 1.72;
           }
 
-          .railTop,
-          .waitlistCopy {
+          .marketRailHeader,
+          .waitlistTop {
             flex-direction: column;
             align-items: flex-start;
           }
 
-          .railTop b {
+          .marketRailHeader b {
             text-align: left;
             max-width: none;
           }
@@ -1837,50 +1609,58 @@ export default function Page() {
             flex-direction: column;
           }
 
-          .v6ProductStage {
-            min-height: 820px;
-            overflow: visible;
+          .heroRight {
+            min-height: 690px;
           }
 
-          .floatingMetric {
+          .studioCard {
+            min-height: 660px;
+            border-radius: 32px;
+          }
+
+          .metricCard {
             display: none;
           }
 
-          .dashboardScene {
-            top: 340px;
-            transform: translateY(-50%) rotateX(0deg) rotateY(0deg) rotateZ(0deg);
+          .deviceScene {
+            left: 14px;
+            right: 14px;
+            top: 310px;
           }
 
-          .laptopFrame {
-            height: 390px;
-            border-radius: 28px 28px 20px 20px;
-            padding: 12px 12px 24px;
+          .laptop {
+            height: 350px;
+            transform: none;
           }
 
-          .screenTopbar {
-            height: 52px;
-            padding: 0 14px;
+          .laptopLid {
+            border-radius: 26px 26px 18px 18px;
+            padding: 11px 11px 22px;
+          }
+
+          .screenTop {
+            height: 48px;
+            padding: 0 12px;
           }
 
           .screenBrand {
-            font-size: 13px;
+            font-size: 12px;
           }
 
-          .screenLayout {
-            grid-template-columns: 92px 1fr;
+          .screenBody {
+            grid-template-columns: 82px 1fr;
           }
 
-          .screenSidebar {
-            padding: 10px 8px;
+          .sidebar {
+            padding: 9px 7px;
           }
 
-          .screenSidebar button {
-            min-height: 32px;
+          .sidebar button {
+            min-height: 29px;
             font-size: 0;
-            margin-bottom: 8px;
           }
 
-          .screenSidebar button::after {
+          .sidebar button::after {
             content: "";
             display: block;
             width: 70%;
@@ -1891,57 +1671,57 @@ export default function Page() {
             opacity: 0.72;
           }
 
-          .sidebarAi {
+          .sideNote {
             display: none;
           }
 
-          .screenMain {
-            padding: 10px;
+          .mainDash {
+            padding: 9px;
           }
 
-          .screenHeader h3 {
-            font-size: 16px;
+          .dashHeader h3 {
+            font-size: 15px;
           }
 
-          .screenHeader span {
-            font-size: 10px;
+          .dashHeader span {
+            font-size: 9px;
           }
 
-          .screenStats {
+          .dashStats {
             grid-template-columns: 1fr;
           }
 
-          .screenStats .screenStat:nth-child(n + 2) {
+          .dashStats .dashStat:nth-child(n + 2) {
             display: none;
           }
 
-          .screenStat {
-            min-height: 72px;
+          .dashStat {
+            min-height: 62px;
           }
 
-          .screenLower {
+          .dashLower {
             grid-template-columns: 1fr;
           }
 
           .chartPanel {
-            height: 132px;
+            height: 124px;
           }
 
           .activityPanel {
             display: none;
           }
 
-          .phone3d {
-            width: 150px;
-            height: 306px;
+          .phone {
+            width: 132px;
+            height: 270px;
             right: -4px;
-            bottom: -32px;
-            border-radius: 34px;
+            bottom: -30px;
+            border-radius: 32px;
           }
 
           .phoneScreen {
-            border-radius: 26px;
-            padding: 24px 9px 10px;
+            border-radius: 24px;
+            padding: 23px 8px 9px;
           }
 
           .phoneGreeting {
@@ -1950,7 +1730,7 @@ export default function Page() {
 
           .phoneTabs {
             grid-template-columns: 1fr 1fr;
-            gap: 6px;
+            gap: 5px;
           }
 
           .phoneCards {
@@ -1961,93 +1741,95 @@ export default function Page() {
             display: none;
           }
 
-          .phoneAiBubble {
-            font-size: 10px;
+          .phoneAi {
+            font-size: 9px;
           }
 
-          .priceGlass {
-            grid-template-columns: 1fr;
-            text-align: center;
+          .gorkiBubble {
+            width: calc(100% - 48px);
+            left: 24px;
+            right: 24px;
+            bottom: 130px;
           }
 
-          .priceGlass span,
-          .priceGlass del,
-          .priceGlass strong,
-          .priceGlass p {
-            text-align: center;
+          .couponFloat {
+            width: 132px;
+            right: 24px;
+            bottom: 20px;
+            min-height: 96px;
           }
 
-          .priceGlass a {
-            width: 100%;
-          }
-
-          .v6Footer {
-            flex-direction: column;
-            justify-content: center;
-            min-height: 140px;
-            padding-bottom: 40px;
+          .couponFloat b {
+            font-size: 34px;
           }
         }
 
         @media (max-width: 460px) {
-          .takipioV6 {
+          .takipioV7 {
             padding: 16px 12px 92px;
           }
 
-          .v6Brand {
+          .brand {
             width: 156px;
           }
 
-          .v6Brand img {
+          .brand img {
             width: 130px;
           }
 
-          .launchPill {
+          .statusPill {
             font-size: 11px;
             line-height: 1.25;
             white-space: normal;
           }
 
-          .v6Hero h1 {
-            font-size: 43px;
-            letter-spacing: -2.4px;
+          h1 {
+            font-size: 42px;
           }
 
-          .integrationRail,
-          .v6Waitlist {
+          .marketRail,
+          .waitlist {
             padding: 16px;
             border-radius: 24px;
           }
 
-          .railLogoCard {
-            min-height: 66px;
+          .marketLogoCard {
+            min-height: 68px;
           }
 
-          .railLogoCard img {
-            max-width: 116px;
+          .marketLogoCard img {
+            max-width: 112px;
             max-height: 34px;
           }
 
-          .v6ProductStage {
-            min-height: 760px;
+          .heroRight {
+            min-height: 640px;
           }
 
-          .laptopFrame {
-            height: 350px;
+          .studioCard {
+            min-height: 620px;
           }
 
-          .phone3d {
+          .deviceScene {
+            top: 282px;
+          }
+
+          .laptop {
+            height: 316px;
+          }
+
+          .phone {
             scale: 0.9;
-            right: -20px;
-            bottom: -34px;
+            right: -18px;
+            bottom: -32px;
           }
 
-          .priceGlass strong {
-            font-size: 54px;
+          .gorkiBubble {
+            bottom: 118px;
           }
 
-          .valueSection article {
-            min-height: 150px;
+          .couponFloat {
+            right: 16px;
           }
         }
       `}</style>
@@ -2055,134 +1837,7 @@ export default function Page() {
   );
 }
 
-function DashboardScene({
-  activeTab,
-  setActiveTab,
-  gorkiMessage,
-}: {
-  activeTab: DemoTab;
-  setActiveTab: (tab: DemoTab) => void;
-  gorkiMessage: string;
-}) {
-  const active = useMemo(
-    () => demoTabs.find((tab) => tab.key === activeTab) ?? demoTabs[0],
-    [activeTab]
-  );
-
-  return (
-    <div className="dashboardScene">
-      <div className="laptopFrame">
-        <div className="dashboardScreen">
-          <div className="screenTopbar">
-            <div className="screenBrand">
-              <img src="/takipio-logo.png" alt="" />
-              takipio
-            </div>
-            <div className="screenTopActions">
-              <span />
-              <span />
-              <span />
-            </div>
-          </div>
-
-          <div className="screenLayout">
-            <aside className="screenSidebar">
-              {demoTabs.map((tab) => (
-                <button
-                  key={tab.key}
-                  type="button"
-                  className={activeTab === tab.key ? "active" : ""}
-                  onClick={() => setActiveTab(tab.key)}
-                >
-                  {tab.label}
-                </button>
-              ))}
-
-              <div className="sidebarAi">
-                <b>Gorki AI</b>
-                <span>Bugünkü işler ve pazaryeri akışın özetleniyor.</span>
-              </div>
-            </aside>
-
-            <div className="screenMain">
-              <div className="screenHeader">
-                <div>
-                  <h3>{active.label}</h3>
-                  <span>Canlı demo modu</span>
-                </div>
-              </div>
-
-              <div className="screenStats">
-                <div className="screenStat">
-                  <small>{active.helper}</small>
-                  <b>{active.value}</b>
-                  <em>+%18,6</em>
-                </div>
-                <div className="screenStat">
-                  <small>Aktif işlem</small>
-                  <b>{activeTab === "orders" ? "24" : activeTab === "marketplaces" ? "4" : "12"}</b>
-                  <em>Bugün</em>
-                </div>
-                <div className="screenStat">
-                  <small>Müşteri</small>
-                  <b>89</b>
-                  <em>+%5,7</em>
-                </div>
-                <div className="screenStat">
-                  <small>Durum</small>
-                  <b>{activeTab === "gorki" ? "Özetlendi" : "Güncel"}</b>
-                  <em>Aktif</em>
-                </div>
-              </div>
-
-              <div className="screenLower">
-                <div className="chartPanel">
-                  <svg viewBox="0 0 520 190" preserveAspectRatio="none" aria-hidden="true">
-                    <defs>
-                      <linearGradient id="takipioLine" x1="0" x2="1" y1="0" y2="0">
-                        <stop offset="0%" stopColor="#0b63ff" />
-                        <stop offset="100%" stopColor="#49d9ff" />
-                      </linearGradient>
-                      <linearGradient id="takipioFill" x1="0" x2="0" y1="0" y2="1">
-                        <stop offset="0%" stopColor="rgba(11,99,255,.32)" />
-                        <stop offset="100%" stopColor="rgba(11,99,255,0)" />
-                      </linearGradient>
-                    </defs>
-                    <path
-                      d="M0 160 C42 126 68 118 106 128 C150 140 165 62 212 84 C252 103 264 42 313 61 C362 84 376 25 422 40 C464 54 476 18 520 32 L520 190 L0 190 Z"
-                      fill="url(#takipioFill)"
-                    />
-                    <path
-                      d="M0 160 C42 126 68 118 106 128 C150 140 165 62 212 84 C252 103 264 42 313 61 C362 84 376 25 422 40 C464 54 476 18 520 32"
-                      fill="none"
-                      stroke="url(#takipioLine)"
-                      strokeWidth="7"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                </div>
-
-                <div className="activityPanel">
-                  <h4>Canlı akış</h4>
-                  {activityRows.map((row) => (
-                    <div className="activityRow" key={row.code}>
-                      <span>{row.source} · {row.status}</span>
-                      <b>{row.price}</b>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <PhoneMockup activeTab={activeTab} setActiveTab={setActiveTab} message={gorkiMessage} />
-      </div>
-    </div>
-  );
-}
-
-function PhoneMockup({
+function DashboardDevice({
   activeTab,
   setActiveTab,
   message,
@@ -2197,11 +1852,143 @@ function PhoneMockup({
   );
 
   return (
-    <div className="phone3d">
+    <div className="deviceScene">
+      <div className="laptop">
+        <div className="laptopLid">
+          <div className="screen">
+            <div className="screenTop">
+              <div className="screenBrand">
+                <img src="/takipio-logo.png" alt="" />
+                takipio
+              </div>
+              <div className="screenDots">
+                <span />
+                <span />
+                <span />
+              </div>
+            </div>
+
+            <div className="screenBody">
+              <aside className="sidebar">
+                {demoTabs.map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    className={activeTab === tab.key ? "active" : ""}
+                    onClick={() => setActiveTab(tab.key)}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+
+                <div className="sideNote">
+                  <b>Gorki AI</b>
+                  <span>Bugünkü işler ve pazaryeri akışın özetleniyor.</span>
+                </div>
+              </aside>
+
+              <div className="mainDash">
+                <div className="dashHeader">
+                  <div>
+                    <h3>{active.label}</h3>
+                    <span>Canlı demo modu</span>
+                  </div>
+                </div>
+
+                <div className="dashStats">
+                  <div className="dashStat">
+                    <small>{active.helper}</small>
+                    <b>{active.value}</b>
+                    <em>+%18,6</em>
+                  </div>
+                  <div className="dashStat">
+                    <small>Aktif işlem</small>
+                    <b>{activeTab === "orders" ? "24" : activeTab === "marketplaces" ? "4" : "12"}</b>
+                    <em>Bugün</em>
+                  </div>
+                  <div className="dashStat">
+                    <small>Müşteri</small>
+                    <b>89</b>
+                    <em>+%5,7</em>
+                  </div>
+                  <div className="dashStat">
+                    <small>Durum</small>
+                    <b>{activeTab === "gorki" ? "Özetlendi" : "Güncel"}</b>
+                    <em>Aktif</em>
+                  </div>
+                </div>
+
+                <div className="dashLower">
+                  <div className="chartPanel">
+                    <svg viewBox="0 0 520 190" preserveAspectRatio="none" aria-hidden="true">
+                      <defs>
+                        <linearGradient id="lineV7" x1="0" x2="1" y1="0" y2="0">
+                          <stop offset="0%" stopColor="#0b63ff" />
+                          <stop offset="100%" stopColor="#49d9ff" />
+                        </linearGradient>
+                        <linearGradient id="fillV7" x1="0" x2="0" y1="0" y2="1">
+                          <stop offset="0%" stopColor="rgba(11,99,255,.32)" />
+                          <stop offset="100%" stopColor="rgba(11,99,255,0)" />
+                        </linearGradient>
+                      </defs>
+                      <path
+                        d="M0 160 C42 126 68 118 106 128 C150 140 165 62 212 84 C252 103 264 42 313 61 C362 84 376 25 422 40 C464 54 476 18 520 32 L520 190 L0 190 Z"
+                        fill="url(#fillV7)"
+                      />
+                      <path
+                        d="M0 160 C42 126 68 118 106 128 C150 140 165 62 212 84 C252 103 264 42 313 61 C362 84 376 25 422 40 C464 54 476 18 520 32"
+                        fill="none"
+                        stroke="url(#lineV7)"
+                        strokeWidth="7"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  </div>
+
+                  <div className="activityPanel">
+                    <h4>Canlı akış</h4>
+                    {activityRows.map((row) => (
+                      <div className="activityRow" key={`${row.source}-${row.price}`}>
+                        <span>{row.source} · {row.status}</span>
+                        <b>{row.price}</b>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="laptopBase" />
+
+        <PhoneDevice activeTab={activeTab} setActiveTab={setActiveTab} message={message} />
+      </div>
+    </div>
+  );
+}
+
+function PhoneDevice({
+  activeTab,
+  setActiveTab,
+  message,
+}: {
+  activeTab: DemoTab;
+  setActiveTab: (tab: DemoTab) => void;
+  message: string;
+}) {
+  const active = useMemo(
+    () => demoTabs.find((tab) => tab.key === activeTab) ?? demoTabs[0],
+    [activeTab]
+  );
+
+  return (
+    <div className="phone">
       <div className="phoneScreen">
         <div className="phoneTop">
           <span>
-            <img src="/takipio-logo.png" alt="" /> takipio
+            <img src="/takipio-logo.png" alt="" />
+            takipio
           </span>
           <b>9:41</b>
         </div>
@@ -2247,7 +2034,7 @@ function PhoneMockup({
           </div>
         </div>
 
-        <div className="phoneAiBubble">“{message}”</div>
+        <div className="phoneAi">“{message}”</div>
       </div>
     </div>
   );
@@ -2287,16 +2074,6 @@ function WalletIcon() {
       <path d="M3 7h18v12H3z" />
       <path d="M16 12h5v4h-5a2 2 0 0 1 0-4z" />
       <path d="M3 7l3-4h12l3 4" />
-    </svg>
-  );
-}
-
-function CubeIcon() {
-  return (
-    <svg viewBox="0 0 24 24">
-      <path d="M12 2l9 5-9 5-9-5 9-5z" />
-      <path d="M3 7v10l9 5 9-5V7" />
-      <path d="M12 12v10" />
     </svg>
   );
 }
