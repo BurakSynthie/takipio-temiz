@@ -49,7 +49,7 @@ export default function Page() {
   const [errorText, setErrorText] = useState("");
   const [successOpen, setSuccessOpen] = useState(false);
   const [ready, setReady] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState(true);
   const userTouched = useRef(false);
 
   useEffect(() => {
@@ -96,7 +96,7 @@ export default function Page() {
       const { error } = await supabase.from("waitlist").insert({
         email: cleanEmail,
         coupon_code: "TAKIPIO10",
-        source: "landing-v8-1-live",
+        source: "landing-v8-dark-default",
       });
 
       if (error) {
