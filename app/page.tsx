@@ -95,7 +95,7 @@ export default function Page() {
       const { error } = await supabase.from("waitlist").insert({
         email: cleanEmail,
         coupon_code: "TAKIPIO10",
-        source: "landing-v8",
+        source: "landing-v8-1-live",
       });
 
       if (error) {
@@ -250,6 +250,11 @@ export default function Page() {
             <span><CheckIcon /> Gorki AI dahil</span>
             <span><CheckIcon /> Pazaryeri altyapısı hazırlanıyor</span>
           </div>
+
+          <a className="scrollCue" href="#analytics">
+            Aşağı kaydır, canlı analiz panelini gör
+            <ArrowIcon />
+          </a>
         </div>
 
         <div className="heroRight" id="product">
@@ -260,6 +265,8 @@ export default function Page() {
           />
         </div>
       </section>
+
+      <LiveAnalyticsSection />
 
       <section className="featureBand">
         <FeatureCard
@@ -991,8 +998,6 @@ function ScrollSections() {
           ))}
         </div>
       </section>
-
-      <LiveAnalyticsSection />
 
       <section className="flowSection">
         <div className="sectionIntro compact">
@@ -1898,6 +1903,30 @@ svg {
   width: 16px;
   height: 16px;
   color: var(--green);
+}
+
+.scrollCue {
+  width: max-content;
+  max-width: 100%;
+  min-height: 40px;
+  margin-top: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 14px;
+  border-radius: 999px;
+  color: #baf6fe;
+  background: rgba(34,211,238,.08);
+  border: 1px solid rgba(34,211,238,.2);
+  font-size: 12px;
+  font-weight: 900;
+  box-shadow: 0 14px 28px rgba(0,0,0,.16);
+}
+
+.scrollCue svg {
+  width: 15px;
+  height: 15px;
+  transform: rotate(90deg);
 }
 
 .heroRight {
@@ -4120,7 +4149,7 @@ svg {
 
 .analyticsSection {
   width: min(1500px, 100%);
-  margin: 24px auto 0;
+  margin: 34px auto 0;
   position: relative;
   z-index: 2;
 }
