@@ -28,7 +28,7 @@ export async function POST(request: Request) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "Takipio <noreply@takipio.com>",
+        from: "Takipio <noreply@send.takipio.com>",
         to: [email],
         subject: "Takipio erken erişim listesine hoş geldin 🚀",
         html: `
