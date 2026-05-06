@@ -254,9 +254,7 @@ export default function Page() {
 
       {showSuccess && <SuccessModal onClose={() => setShowSuccess(false)} />}
 
-      <style jsx global>{`
-        ${GLOBAL_CSS}
-      `}</style>
+      <style dangerouslySetInnerHTML={{ __html: GLOBAL_CSS }} />
     </main>
   );
 }
