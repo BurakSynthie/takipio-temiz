@@ -3,49 +3,34 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 
-type DemoTab = "overview" | "orders" | "customers" | "payments";
+type DemoTab = "overview" | "orders" | "marketplaces" | "gorki";
 
-const demoTabs: {
-  key: DemoTab;
+type Marketplace = {
+  name: string;
+  logo: string;
+  accent: string;
   label: string;
-  short: string;
-  value: string;
-  helper: string;
-}[] = [
-  { key: "overview", label: "Genel Bakış", short: "Özet", value: "₺125.250", helper: "Haftalık ciro" },
-  { key: "orders", label: "Siparişler", short: "İşler", value: "128", helper: "Aktif sipariş" },
-  { key: "customers", label: "Müşteriler", short: "CRM", value: "89", helper: "Kayıtlı müşteri" },
-  { key: "payments", label: "Ödemeler", short: "Kasa", value: "₺18.900", helper: "Bekleyen ödeme" },
+};
+
+const demoTabs: { key: DemoTab; label: string; value: string; helper: string }[] = [
+  { key: "overview", label: "Genel Bakış", value: "₺125.250", helper: "Haftalık ciro" },
+  { key: "orders", label: "Siparişler", value: "128", helper: "Aktif sipariş" },
+  { key: "marketplaces", label: "Pazaryerleri", value: "4 kanal", helper: "Hazırlanan bağlantı" },
+  { key: "gorki", label: "Gorki AI", value: "3 özet", helper: "Bugünkü öneriler" },
+];
+
+const marketplaces: Marketplace[] = [
+  { name: "Trendyol", logo: "/trendyol.png", accent: "#f27a1a", label: "Sipariş" },
+  { name: "Amazon", logo: "/amazon.png", accent: "#ffb000", label: "Satış" },
+  { name: "Hepsiburada", logo: "/hepsiburada.png", accent: "#ff6000", label: "Stok" },
+  { name: "Çiçeksepeti", logo: "/ciceksepeti.png", accent: "#35b86b", label: "Mağaza" },
 ];
 
 const gorkiMessages = [
-  "Bu hafta gelirin %12 yükseldi.",
-  "3 sipariş teslimata yaklaşıyor.",
-  "2 ödeme için hatırlatma gönderebilirsin.",
-  "Stokta azalan ürünleri senin için işaretledim.",
-];
-
-const marketplaces = [
-  {
-    name: "Trendyol",
-    logo: "/trendyol.png",
-    accent: "#f27a1a",
-  },
-  {
-    name: "Amazon",
-    logo: "/amazon.png",
-    accent: "#ffb000",
-  },
-  {
-    name: "Hepsiburada",
-    logo: "/hepsiburada.png",
-    accent: "#ff6000",
-  },
-  {
-    name: "Çiçeksepeti",
-    logo: "/ciceksepeti.png",
-    accent: "#36b86a",
-  },
+  "Bugünkü sipariş ve ödeme akışını senin için özetledim.",
+  "Pazaryeri verilerini tek ekranda takip etmeye hazırlanıyoruz.",
+  "Stokta azalan ürünleri ve açık işleri senin için işaretledim.",
+  "Haftalık gelir hareketinde yükseliş sinyali var.",
 ];
 
 export default function Page() {
@@ -58,34 +43,34 @@ export default function Page() {
   const [pageReady, setPageReady] = useState(false);
 
   useEffect(() => {
-    setPageReady(true);
+    const readyTimer = window.setTimeout(() => setPageReady(true), 80);
+
+    const tabTimer = window.setInterval(() => {
+      setActiveTab((current) => {
+        const index = demoTabs.findIndex((tab) => tab.key === current);
+        return demoTabs[(index + 1) % demoTabs.length].key;
+      });
+    }, 4200);
 
     const messageTimer = window.setInterval(() => {
       setMessageIndex((current) => (current + 1) % gorkiMessages.length);
     }, 3600);
 
-    const tabTimer = window.setInterval(() => {
-      setActiveTab((current) => {
-        const index = demoTabs.findIndex((tab) => tab.key === current);
-        const next = demoTabs[(index + 1) % demoTabs.length];
-        return next.key;
-      });
-    }, 4200);
-
     return () => {
-      window.clearInterval(messageTimer);
+      window.clearTimeout(readyTimer);
       window.clearInterval(tabTimer);
+      window.clearInterval(messageTimer);
     };
   }, []);
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     setErrorMessage("");
 
     const cleanEmail = email.trim().toLowerCase();
 
-    if (!cleanEmail) {
-      setErrorMessage("Lütfen e-posta adresini yaz.");
+    if (!cleanEmail || !cleanEmail.includes("@")) {
+      setErrorMessage("Lütfen geçerli bir e-posta adresi yaz.");
       return;
     }
 
@@ -94,13 +79,14 @@ export default function Page() {
     const { error } = await supabase.from("waitlist").insert([
       {
         email: cleanEmail,
+        source: "landing",
         coupon_code: "TAKIPIO10",
       },
     ]);
 
-    setLoading(false);
-
     if (error) {
+      setLoading(false);
+
       if (error.code === "23505") {
         setErrorMessage("Bu e-posta zaten bekleme listesinde.");
         return;
@@ -111,133 +97,86 @@ export default function Page() {
     }
 
     try {
-  await fetch("/api/send-welcome", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ email: cleanEmail }),
-  });
-} catch (mailError) {
-  console.error("Welcome email could not be sent:", mailError);
-}
+      await fetch("/api/send-welcome", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: cleanEmail }),
+      });
+    } catch (mailError) {
+      console.error("Welcome email could not be sent:", mailError);
+    }
 
-setSaved(true);
-setEmail("");
-window.setTimeout(() => setSaved(false), 3200);
+    setLoading(false);
+    setSaved(true);
+    setEmail("");
+    window.setTimeout(() => setSaved(false), 3600);
   }
 
   return (
     <main
-  className="takipioPremium"
-  style={{
-    opacity: pageReady ? 1 : 0,
-    visibility: pageReady ? "visible" : "hidden",
-    transition: "opacity 180ms ease",
-  }}
->
-      <div className="mesh meshOne" />
-      <div className="mesh meshTwo" />
-      <div className="mesh meshThree" />
-      <div className="softGrid" />
-      <div className="noise" />
+      className="takipioV5"
+      style={{
+        opacity: pageReady ? 1 : 0,
+        visibility: pageReady ? "visible" : "hidden",
+        transition: "opacity 180ms ease",
+      }}
+    >
+      <div className="v5BgOrb orbA" />
+      <div className="v5BgOrb orbB" />
+      <div className="v5Grid" />
 
-      <header className="navBar">
-        <a className="brandCapsule" href="#top" aria-label="Takipio">
+      <header className="v5Header">
+        <a className="v5Brand" href="#top" aria-label="Takipio ana sayfa">
           <img src="/takipio-logo.png" alt="Takipio" />
         </a>
 
-        <nav className="navLinks">
-          <a href="#features">Özellikler</a>
+        <nav className="v5Nav">
           <a href="#product">Ürün</a>
-          <a href="#assistant">Gorki AI</a>
+          <a href="#integrations">Entegrasyon</a>
+          <a href="#gorki">Gorki AI</a>
           <a href="#pricing">Fiyat</a>
-          <a href="https://instagram.com/takipiocom" target="_blank" rel="noreferrer" className="instagramNav">
-            <InstagramIcon /> @takipiocom
-          </a>
-          <a className="navCta" href="#waitlist">
-            Açılışa Özel Başla <ArrowIcon />
-          </a>
         </nav>
+
+        <a className="v5HeaderCta" href="#waitlist">
+          Erken erişim
+          <ArrowIcon />
+        </a>
       </header>
 
-      <nav className="mobileNav" aria-label="Mobil menü">
+      <nav className="v5MobileNav" aria-label="Mobil menü">
         <a href="#top">Ana Sayfa</a>
         <a href="#product">Ürün</a>
-        <a href="#features">Özellikler</a>
-        <a href="#waitlist">Kayıt Ol</a>
+        <a href="#integrations">Pazaryeri</a>
+        <a href="#waitlist">Kayıt</a>
       </nav>
 
-      <section className="hero" id="top">
-        <div className="heroCopy">
-          <div className="statusPill"><span /> Çok yakında yayında</div>
+      <section className="v5Hero" id="top">
+        <div className="v5HeroCopy">
+          <div className="v5StatusPill">
+            <span /> Takipio erken erişim açıldı
+          </div>
 
           <h1>
-            İşini <mark>kontrol</mark> etmeden büyütemezsin.
+            İşletme takibini
+            <br />
+            <mark>tek panelde</mark> sadeleştir.
           </h1>
 
-          <p className="heroText">
-            Sipariş, müşteri, stok ve ödemelerini tek panelde yönet. Takipio,
-            işletmeni büyütürken kontrolü elinde tutman için tasarlandı.
+          <p className="v5HeroText">
+            Sipariş, müşteri, stok, ödeme ve pazaryeri akışlarını Takipio’da topla.
+            Gorki AI günlük işlerini senin için özetlesin.
           </p>
 
-          <div className="marketplaceHeroBox cleanMarketplaceBox">
-            <div className="marketplaceCleanTop">
+          <form className="v5Waitlist" id="waitlist" onSubmit={handleSubmit}>
+            <div className="v5WaitlistTop">
               <div>
-                <span className="marketplaceMiniLabel">Yeni entegrasyon altyapısı</span>
-                <strong>Pazaryeri satışlarını tek panelde toplamaya hazırlanıyoruz.</strong>
+                <span>Erken erişim</span>
+                <b>Açılışa özel TAKIPIO10 kodunu kaçırma.</b>
               </div>
-              <div className="marketplaceLiveBadge"><span /> Yakında</div>
+              <em>İlk ay ₺89</em>
             </div>
 
-            <div className="marketplaceCleanLogos" aria-label="Pazaryeri entegrasyonları">
-              {marketplaces.map((market) => (
-                <div
-                  className="marketplaceCleanLogoCard"
-                  key={market.name}
-                  style={{ "--market-accent": market.accent } as React.CSSProperties}
-                >
-                  <img src={market.logo} alt={market.name} />
-                </div>
-              ))}
-            </div>
-
-            <div className="marketplaceCleanFlow">
-              <div>
-                <small>01</small>
-                <b>Pazaryeri</b>
-                <span>Sipariş ve stok verisi</span>
-              </div>
-              <i />
-              <div className="active">
-                <small>02</small>
-                <b>Takipio</b>
-                <span>Tek panel</span>
-              </div>
-              <i />
-              <div>
-                <small>03</small>
-                <b>Gorki AI</b>
-                <span>Akıllı özet</span>
-              </div>
-            </div>
-
-            <p className="marketplaceCleanText">
-              Trendyol, Amazon, Hepsiburada ve Çiçeksepeti siparişlerini tek ekranda takip etmek için
-              altyapımızı genişletiyoruz. Amaç: farklı paneller arasında kaybolmadan tüm satış akışını
-              Takipio’da görmek.
-            </p>
-          </div>
-          <form className="waitlistCard" id="waitlist" onSubmit={handleSubmit}>
-            <div className="waitlistHeader">
-              <div className="mailIcon"><MailIcon /></div>
-              <div>
-                <h2>Erken erişim listesine katıl</h2>
-                <p>Açılışta özel <b>TAKIPIO10</b> indirim kodu ilk kayıt olanlara gönderilecek.</p>
-              </div>
-            </div>
-
-            <div className="formRow">
+            <div className="v5FormRow">
               <input
                 type="email"
                 placeholder="E-posta adresiniz"
@@ -245,290 +184,478 @@ window.setTimeout(() => setSaved(false), 3200);
                 onChange={(event) => setEmail(event.target.value)}
                 required
               />
-              <button type="submit">
-                {loading ? "Kaydediliyor..." : saved ? "Kaydedildi ✓" : "Kayıt Ol"}
+              <button type="submit" disabled={loading}>
+                {loading ? "Kaydediliyor" : saved ? "Kaydedildi ✓" : "Erken erişime katıl"}
                 {!loading && !saved && <ArrowIcon />}
               </button>
             </div>
 
-            {errorMessage && <div className="formMessage error">{errorMessage}</div>}
-            {saved && <div className="formMessage success">Kaydın alındı. Hoş geldin maili gönderildi.</div>}
-
-            <div className="formMeta">
-              <span><CheckIcon /> İlk ay indirim</span>
-              <span><CheckIcon /> Gorki asistan dahil</span>
-              <span><CheckIcon /> Spam yok</span>
-            </div>
+            {errorMessage && <div className="v5FormMessage error">{errorMessage}</div>}
+            {saved && <div className="v5FormMessage success">Kaydın alındı. Hoş geldin maili gönderildi.</div>}
           </form>
 
-          <div className="proofBar">
-            <div><strong>15</strong><span>müşteriye kadar ücretsiz</span></div>
-            <div><strong>7/24</strong><span>her yerden erişim</span></div>
-            <div><strong>AI</strong><span>Gorki iş özetleri</span></div>
+          <div className="v5MarketplaceStrip" id="integrations">
+            <div className="v5StripHeader">
+              <span>Pazaryeri entegrasyonları hazırlanıyor</span>
+              <b>Satış kanallarını tek merkeze bağla.</b>
+            </div>
+
+            <div className="v5LogoStrip">
+              {marketplaces.map((market) => (
+                <div
+                  className="v5LogoPill"
+                  key={market.name}
+                  style={{ "--accent": market.accent } as React.CSSProperties}
+                >
+                  <img src={market.logo} alt={market.name} />
+                  <small>{market.label}</small>
+                </div>
+              ))}
+            </div>
+
+            <div className="v5FlowLine">
+              <div>
+                <small>01</small>
+                <b>Pazaryeri</b>
+              </div>
+              <span />
+              <div className="active">
+                <small>02</small>
+                <b>Takipio</b>
+              </div>
+              <span />
+              <div>
+                <small>03</small>
+                <b>Gorki AI</b>
+              </div>
+            </div>
+          </div>
+
+          <div className="v5TrustBar">
+            <div>
+              <b>15</b>
+              <span>müşteriye kadar ücretsiz</span>
+            </div>
+            <div>
+              <b>Gorki</b>
+              <span>AI özetleri dahil</span>
+            </div>
+            <div>
+              <b>7/24</b>
+              <span>web panel erişimi</span>
+            </div>
           </div>
         </div>
 
-        <div className="heroShowcase" id="product">
-          <div className="demoArea">
-            <div className="ambientGlow" />
-            <LaptopMockup activeTab={activeTab} setActiveTab={setActiveTab} />
-            <PhoneMockup activeTab={activeTab} setActiveTab={setActiveTab} />
+        <div className="v5HeroVisual" id="product">
+          <FloatingMetric className="metricOrders" icon={<OrdersIcon />} title="Siparişler" value="128" helper="Kontrol altında" />
+          <FloatingMetric className="metricRevenue" icon={<WalletIcon />} title="Bugünkü gelir" value="₺12.450" helper="+%12,6" />
 
-            <FloatingInfoCard className="floatOrders" icon={<OrdersIcon />} title="Siparişler" text="Kontrol altında" metric="+24 işlem" />
-            <FloatingInfoCard className="floatRevenue" icon={<WalletIcon />} title="Bugünkü gelir" text="₺12.450" metric="+%12,6" />
-            <FloatingInfoCard className="floatStock" icon={<CubeIcon />} title="Stok durumu" text="Güncel" metric="128 ürün yeterli" />
+          <div className="v5Scene">
+            <DashboardMockup activeTab={activeTab} setActiveTab={setActiveTab} />
+            <PhoneMockup activeTab={activeTab} setActiveTab={setActiveTab} />
           </div>
 
-          <aside className="sideStack">
-            <PricePanel />
-            <GorkiPanel message={gorkiMessages[messageIndex]} />
+          <aside className="v5RightRail">
+            <PriceCard />
+            <GorkiCard message={gorkiMessages[messageIndex]} />
           </aside>
         </div>
       </section>
 
-      <a href="#top" className="floatingTopButton" aria-label="Yukarı çık">↑</a>
-
-      <section className="featureGrid" id="features">
-        <FeatureCard icon={<PanelIcon />} title="Tek panelde yönetim" text="Sipariş, müşteri, stok ve ödeme takibini tek merkezde topla." />
-        <FeatureCard icon={<ChartIcon />} title="Akıllı raporlar" text="Günlük performansı, gelirleri ve açık işleri net şekilde gör." />
-        <FeatureCard icon={<CubeIcon />} title="Stok kontrolü" text="Azalan ürünleri ve güncel stok durumunu kolayca takip et." />
-        <FeatureCard icon={<LinkIcon />} title="Kolay entegrasyon" text="Kargo, ödeme ve pazaryeri bağlantılarına hazır altyapı." />
-        <FeatureCard icon={<HeadsetIcon />} title="7/24 destek" text="İşletmeni yönetirken yanında olacak sade destek yapısı." />
+      <section className="v5ValueGrid">
+        <ValueCard icon={<PanelIcon />} title="Tek panel" text="Sipariş, müşteri, stok ve ödeme akışını tek yerden yönet." />
+        <ValueCard icon={<LinkIcon />} title="Pazaryeri altyapısı" text="Trendyol, Amazon, Hepsiburada ve Çiçeksepeti için hazırlanan akış." />
+        <ValueCard icon={<RobotIcon />} title="Gorki AI" text="Günlük durumunu, açık işlerini ve önemli uyarıları özetler." />
       </section>
 
-      <section className="bottomBand">
-        <a className="domainCard" href="https://takipio.com">
-          <GlobeIcon />
-          <div><h3>takipio.com</h3><p>Canlı bekleme listesi aktif.</p></div>
+      <footer className="v5Footer">
+        <a href="https://instagram.com/takipiocom" target="_blank" rel="noreferrer">
+          <InstagramIcon /> @takipiocom
         </a>
-
-        <a className="instagramCard" href="https://instagram.com/takipiocom" target="_blank" rel="noreferrer">
-          <InstagramIcon />
-          <div><h3>@takipiocom</h3><p>Lansman duyurularını Instagram’dan takip et.</p></div>
-        </a>
-
-        <div className="trustCard">
-          <div><ShieldIcon /><span>Güvenli altyapı</span></div>
-          <div><BoltIcon /><span>Hızlı kullanım</span></div>
-          <div><HeadsetIcon /><span>Destek hazır</span></div>
-        </div>
-      </section>
-
+        <span>Takipio © 2026 — İşletme takip asistanı</span>
+      </footer>
 
       <style jsx global>{`
         :root {
-          --bg: #f8fbff;
-          --white: #ffffff;
           --ink: #06101f;
           --muted: #667085;
           --blue: #0b63ff;
           --blue2: #00a8ff;
-          --cyan: #49d9ff;
+          --cyan: #52d8ff;
           --green: #12b76a;
-          --orange: #f79009;
-          --line: rgba(11, 99, 255, 0.14);
-          --shadow: 0 28px 70px rgba(15, 32, 64, 0.12);
+          --line: rgba(11, 99, 255, 0.13);
+          --shadow: 0 28px 80px rgba(7, 20, 47, 0.12);
         }
 
         * { box-sizing: border-box; }
 
         html {
-          background: var(--bg);
           scroll-behavior: smooth;
           overflow-x: hidden;
+          background: #f7fbff;
         }
 
         body {
           margin: 0;
           padding: 0;
-          background: var(--bg);
+          overflow-x: hidden;
           color: var(--ink);
-          overflow-x: hidden;
-          font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          background: #f7fbff;
+          font-family: Inter, Geist, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         }
 
-        #top, #features, #product, #assistant, #pricing, #waitlist { scroll-margin-top: 124px; }
         a { color: inherit; text-decoration: none; }
-        button, input { font-family: inherit; }
+        button, input { font: inherit; }
         button { cursor: pointer; }
-        svg { fill: none; stroke: currentColor; stroke-width: 2.35; stroke-linecap: round; stroke-linejoin: round; }
+        svg { fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 
-        .takipioPremium {
+        #top, #product, #integrations, #gorki, #pricing, #waitlist { scroll-margin-top: 110px; }
+
+        .takipioV5 {
           min-height: 100svh;
-          width: 100%;
-          position: relative;
-          overflow-x: hidden;
-          overflow-y: initial;
-          padding: 28px 34px 38px;
-          background:
-            radial-gradient(circle at 20% 18%, rgba(11, 99, 255, 0.085), transparent 30%),
-            radial-gradient(circle at 80% 22%, rgba(73, 217, 255, 0.16), transparent 30%),
-            radial-gradient(circle at 58% 82%, rgba(11, 99, 255, 0.07), transparent 34%),
-            linear-gradient(180deg, #ffffff 0%, #f6faff 53%, #ffffff 100%);
-        }
-
-        .takipioPremium.pageReady {
-          opacity: 1;
-          visibility: visible;
-          transition: opacity 0.18s ease;
-        }
-
-        .softGrid { position: absolute; inset: 0; pointer-events: none; opacity: 0.26; background-image: linear-gradient(rgba(11,99,255,.052) 1px, transparent 1px), linear-gradient(90deg, rgba(11,99,255,.052) 1px, transparent 1px); background-size: 86px 86px; mask-image: radial-gradient(circle at 58% 38%, black 0%, transparent 72%); z-index: 0; }
-        .noise { position: absolute; inset: 0; pointer-events: none; opacity: 0.07; background-image: radial-gradient(circle, rgba(11,99,255,.5) 0 1px, transparent 1.4px); background-size: 120px 120px; z-index: 0; }
-        .mesh { position: absolute; pointer-events: none; border-radius: 999px; z-index: 0; opacity: .72; }
-        .meshOne { width: 440px; height: 440px; left: 110px; top: 100px; background: rgba(11,99,255,.055); }
-        .meshTwo { width: 460px; height: 460px; right: 110px; top: 90px; background: rgba(73,217,255,.12); }
-        .meshThree { width: 360px; height: 360px; right: 36%; bottom: -80px; background: rgba(11,99,255,.06); }
-
-        .navBar { max-width: 1500px; width: calc(100% - 68px); height: 74px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; position: fixed; left: 50%; top: 18px; transform: translateX(-50%); z-index: 999; padding: 8px 10px; border-radius: 30px; background: rgba(255,255,255,.94); border: 1px solid rgba(11,99,255,.1); box-shadow: 0 12px 30px rgba(15,32,64,.06); }
-        .brandCapsule { width: 190px; height: 58px; display: flex; align-items: center; justify-content: center; padding: 9px 17px; border-radius: 22px; background: linear-gradient(180deg, rgba(7,15,32,.96), rgba(5,9,20,.96)), #050914; border: 1px solid rgba(255,255,255,.14); box-shadow: 0 18px 38px rgba(6,16,31,.22), inset 0 0 22px rgba(11,99,255,.1); }
-        .brandCapsule img { width: 154px; height: 42px; object-fit: contain; filter: drop-shadow(0 0 12px rgba(11,99,255,.3)); }
-        .navLinks { display: flex; align-items: center; gap: 27px; color: #1d2939; font-size: 15px; font-weight: 850; }
-        .navLinks a { transition: .24s ease; }
-        .navLinks a:hover { color: var(--blue); transform: translateY(-1px); }
-        .instagramNav { display: inline-flex; align-items: center; gap: 7px; padding: 10px 12px; border: 1px solid rgba(11,99,255,.12); border-radius: 999px; background: rgba(255,255,255,.72); box-shadow: 0 12px 26px rgba(15,32,64,.06); }
-        .instagramNav svg { width: 18px; height: 18px; color: #e1306c; }
-        .navCta { display: inline-flex; align-items: center; gap: 10px; padding: 14px 18px; border-radius: 999px; color: white !important; background: linear-gradient(135deg, var(--blue), var(--blue2)); box-shadow: 0 18px 32px rgba(11,99,255,.24); }
-        .navCta svg { width: 17px; height: 17px; }
-        .mobileNav { display: none; }
-
-        .hero { max-width: 1500px; min-height: 805px; margin: 0 auto; padding-top: 92px; display: grid; grid-template-columns: minmax(470px,.86fr) minmax(820px,1.42fr); gap: 58px; align-items: center; position: relative; z-index: 2; }
-        .heroCopy { position: relative; z-index: 8; padding-top: 10px; }
-        .statusPill { width: max-content; max-width: 100%; display: inline-flex; align-items: center; gap: 10px; padding: 11px 16px; border-radius: 999px; color: var(--blue); background: rgba(255,255,255,.76); border: 1px solid var(--line); box-shadow: 0 14px 30px rgba(11,99,255,.08); font-size: 14px; font-weight: 920; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 26px; }
-        .statusPill span { width: 9px; height: 9px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 0 rgba(34,197,94,.55); animation: pulse 1.8s ease-in-out infinite; }
-        h1 { max-width: 780px; font-size: clamp(56px,5.4vw,92px); line-height: .96; letter-spacing: -5px; font-weight: 950; color: var(--ink); margin: 0 0 23px; }
-        h1 mark { color: var(--blue); background: transparent; text-shadow: 0 12px 30px rgba(11,99,255,.16); }
-        .heroText { max-width: 650px; color: var(--muted); font-size: 21px; line-height: 1.58; letter-spacing: -.4px; margin: 0 0 28px; }
-
-        .marketplaceHeroBox {
-          width: min(690px, 100%);
-          margin: 0 0 26px;
-          padding: 22px;
-          border-radius: 32px;
-          background:
-            radial-gradient(circle at 100% 0%, rgba(73, 217, 255, 0.18), transparent 32%),
-            linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(244, 249, 255, 0.92));
-          border: 1px solid rgba(11, 99, 255, 0.15);
-          box-shadow:
-            0 26px 70px rgba(7, 20, 47, 0.1),
-            inset 0 1px 0 rgba(255, 255, 255, 0.95);
           position: relative;
           overflow: hidden;
+          padding: 26px 30px 42px;
+          background:
+            radial-gradient(circle at 16% 10%, rgba(11, 99, 255, 0.08), transparent 30%),
+            radial-gradient(circle at 86% 8%, rgba(82, 216, 255, 0.16), transparent 32%),
+            linear-gradient(180deg, #ffffff 0%, #f4f9ff 56%, #ffffff 100%);
         }
 
-        .cleanMarketplaceBox::before {
-          content: "";
+        .v5BgOrb {
+          position: absolute;
+          pointer-events: none;
+          border-radius: 999px;
+          filter: blur(52px);
+          opacity: 0.75;
+        }
+
+        .orbA { width: 460px; height: 460px; left: -160px; top: 140px; background: rgba(11, 99, 255, 0.09); }
+        .orbB { width: 520px; height: 520px; right: -170px; top: 120px; background: rgba(82, 216, 255, 0.16); }
+
+        .v5Grid {
           position: absolute;
           inset: 0;
-          background: linear-gradient(90deg, rgba(11,99,255,.06), transparent 38%, rgba(73,217,255,.08));
           pointer-events: none;
+          opacity: 0.22;
+          background-image:
+            linear-gradient(rgba(11, 99, 255, 0.055) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(11, 99, 255, 0.055) 1px, transparent 1px);
+          background-size: 92px 92px;
+          mask-image: radial-gradient(circle at 55% 34%, black 0%, transparent 72%);
         }
 
-        .marketplaceCleanTop {
-          position: relative;
-          z-index: 2;
+        .v5Header {
+          width: min(1460px, 100%);
+          min-height: 76px;
+          margin: 0 auto;
+          padding: 10px 12px;
+          position: sticky;
+          top: 18px;
+          z-index: 50;
           display: flex;
-          align-items: flex-start;
+          align-items: center;
           justify-content: space-between;
           gap: 18px;
-          margin-bottom: 16px;
+          border-radius: 30px;
+          background: rgba(255, 255, 255, 0.82);
+          border: 1px solid rgba(11, 99, 255, 0.1);
+          box-shadow: 0 16px 36px rgba(7, 20, 47, 0.07);
+          backdrop-filter: blur(18px);
         }
 
-        .marketplaceCleanTop > div:first-child {
-          display: grid;
-          gap: 8px;
-        }
-
-        .marketplaceMiniLabel {
-          width: max-content;
-          display: inline-flex;
-          align-items: center;
-          min-height: 32px;
-          padding: 0 12px;
-          border-radius: 999px;
-          background: rgba(11, 99, 255, 0.08);
-          color: #0b63ff;
-          font-size: 11px;
-          font-weight: 950;
-          letter-spacing: 0.9px;
-          text-transform: uppercase;
-        }
-
-        .marketplaceCleanTop strong {
-          max-width: 470px;
-          color: #06101f;
-          font-size: 25px;
-          line-height: 1.08;
-          letter-spacing: -1px;
-        }
-
-        .marketplaceLiveBadge {
-          flex: 0 0 auto;
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          min-height: 36px;
-          padding: 0 13px;
-          border-radius: 999px;
-          color: #075985;
-          background: rgba(224, 242, 254, 0.92);
-          border: 1px solid rgba(14, 165, 233, 0.18);
-          font-size: 12px;
-          font-weight: 950;
-          box-shadow: 0 12px 24px rgba(14, 165, 233, 0.1);
-        }
-
-        .marketplaceLiveBadge span {
-          width: 8px;
-          height: 8px;
-          border-radius: 999px;
-          background: #12b76a;
-          box-shadow: 0 0 0 5px rgba(18, 183, 106, 0.12);
-        }
-
-        .marketplaceCleanLogos {
-          position: relative;
-          z-index: 2;
-          display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 10px;
-          margin-bottom: 14px;
-        }
-
-        .marketplaceCleanLogoCard {
-          --market-accent: #0b63ff;
-          min-height: 82px;
+        .v5Brand {
+          width: 178px;
+          height: 56px;
           display: flex;
           align-items: center;
           justify-content: center;
           border-radius: 22px;
-          background: rgba(255,255,255,.96);
-          border: 1px solid rgba(7, 20, 47, 0.07);
-          box-shadow: 0 16px 34px rgba(7, 20, 47, 0.06);
+          background: #06101f;
+          border: 1px solid rgba(255,255,255,.14);
+          box-shadow: 0 18px 38px rgba(6,16,31,.18), inset 0 0 22px rgba(11,99,255,.11);
+        }
+
+        .v5Brand img { width: 144px; height: 40px; object-fit: contain; filter: drop-shadow(0 0 12px rgba(11,99,255,.26)); }
+
+        .v5Nav {
+          display: flex;
+          align-items: center;
+          gap: 30px;
+          color: #344054;
+          font-size: 15px;
+          font-weight: 800;
+        }
+
+        .v5Nav a { transition: .2s ease; }
+        .v5Nav a:hover { color: var(--blue); transform: translateY(-1px); }
+
+        .v5HeaderCta {
+          display: inline-flex;
+          align-items: center;
+          gap: 9px;
+          min-height: 50px;
+          padding: 0 18px;
+          border-radius: 999px;
+          color: white;
+          font-weight: 900;
+          background: linear-gradient(135deg, var(--blue), var(--blue2));
+          box-shadow: 0 18px 34px rgba(11,99,255,.24);
+        }
+
+        .v5HeaderCta svg { width: 16px; height: 16px; }
+
+        .v5MobileNav { display: none; }
+
+        .v5Hero {
+          width: min(1460px, 100%);
+          margin: 0 auto;
+          padding: 88px 0 40px;
           position: relative;
+          z-index: 2;
+          display: grid;
+          grid-template-columns: minmax(450px, 0.83fr) minmax(760px, 1.2fr);
+          gap: 50px;
+          align-items: center;
+        }
+
+        .v5HeroCopy {
+          position: relative;
+          z-index: 4;
+        }
+
+        .v5StatusPill {
+          width: max-content;
+          max-width: 100%;
+          min-height: 40px;
+          display: inline-flex;
+          align-items: center;
+          gap: 10px;
+          padding: 0 14px;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.86);
+          border: 1px solid var(--line);
+          color: var(--blue);
+          box-shadow: 0 12px 28px rgba(11, 99, 255, 0.08);
+          font-size: 13px;
+          font-weight: 900;
+          letter-spacing: .8px;
+          text-transform: uppercase;
+          margin-bottom: 24px;
+        }
+
+        .v5StatusPill span {
+          width: 8px;
+          height: 8px;
+          border-radius: 999px;
+          background: var(--green);
+          box-shadow: 0 0 0 6px rgba(18,183,106,.14);
+        }
+
+        .v5Hero h1 {
+          margin: 0;
+          color: #06101f;
+          font-size: clamp(54px, 5.7vw, 90px);
+          line-height: .96;
+          letter-spacing: -0.065em;
+          font-weight: 950;
+        }
+
+        .v5Hero h1 mark {
+          background: linear-gradient(135deg, #0b63ff 0%, #0a8bff 55%, #52d8ff 100%);
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+          text-shadow: 0 18px 50px rgba(11, 99, 255, 0.16);
+        }
+
+        .v5HeroText {
+          max-width: 640px;
+          margin: 24px 0 0;
+          color: #5e6b80;
+          font-size: 19px;
+          line-height: 1.72;
+          letter-spacing: -0.25px;
+          font-weight: 560;
+        }
+
+        .v5Waitlist {
+          width: min(650px, 100%);
+          margin-top: 26px;
+          padding: 20px;
+          border-radius: 28px;
+          background: rgba(255, 255, 255, 0.86);
+          border: 1px solid rgba(11, 99, 255, 0.14);
+          box-shadow: var(--shadow);
+          backdrop-filter: blur(14px);
+        }
+
+        .v5WaitlistTop {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 14px;
+          margin-bottom: 14px;
+        }
+
+        .v5WaitlistTop span {
+          display: block;
+          color: var(--blue);
+          font-size: 12px;
+          font-weight: 950;
+          letter-spacing: .8px;
+          text-transform: uppercase;
+          margin-bottom: 6px;
+        }
+
+        .v5WaitlistTop b {
+          display: block;
+          color: #06101f;
+          font-size: 17px;
+          line-height: 1.24;
+          letter-spacing: -0.4px;
+        }
+
+        .v5WaitlistTop em {
+          flex: 0 0 auto;
+          min-height: 34px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          padding: 0 12px;
+          border-radius: 999px;
+          color: white;
+          background: #06101f;
+          font-size: 12px;
+          font-style: normal;
+          font-weight: 900;
+        }
+
+        .v5FormRow {
+          display: grid;
+          grid-template-columns: 1fr 210px;
+          gap: 10px;
+        }
+
+        .v5FormRow input {
+          height: 60px;
+          border: 1px solid rgba(11, 99, 255, 0.16);
+          border-radius: 18px;
+          outline: none;
+          padding: 0 18px;
+          color: #06101f;
+          background: rgba(247, 251, 255, 0.92);
+          font-size: 16px;
+          font-weight: 650;
+          transition: .2s ease;
+        }
+
+        .v5FormRow input:focus {
+          background: white;
+          border-color: rgba(11, 99, 255, 0.42);
+          box-shadow: 0 0 0 5px rgba(11, 99, 255, 0.08);
+        }
+
+        .v5FormRow button {
+          height: 60px;
+          border: 0;
+          border-radius: 18px;
+          color: white;
+          background: linear-gradient(135deg, var(--blue), var(--blue2));
+          font-size: 15px;
+          font-weight: 950;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          box-shadow: 0 18px 34px rgba(11, 99, 255, 0.24);
+          transition: .2s ease;
+        }
+
+        .v5FormRow button:hover { transform: translateY(-2px); box-shadow: 0 24px 44px rgba(11, 99, 255, 0.3); }
+        .v5FormRow button:disabled { opacity: .72; cursor: wait; transform: none; }
+        .v5FormRow button svg { width: 16px; height: 16px; }
+
+        .v5FormMessage {
+          margin-top: 12px;
+          padding: 12px 14px;
+          border-radius: 14px;
+          font-size: 13px;
+          font-weight: 820;
+        }
+
+        .v5FormMessage.error { color: #b42318; background: #fff1f0; border: 1px solid #ffdad6; }
+        .v5FormMessage.success { color: #067647; background: #ecfdf3; border: 1px solid #abefc6; }
+
+        .v5MarketplaceStrip {
+          width: min(650px, 100%);
+          margin-top: 16px;
+          padding: 18px;
+          border-radius: 28px;
+          background: linear-gradient(145deg, rgba(255,255,255,.9), rgba(243,248,255,.86));
+          border: 1px solid rgba(11, 99, 255, 0.13);
+          box-shadow: 0 18px 44px rgba(7, 20, 47, 0.075);
+          backdrop-filter: blur(14px);
+        }
+
+        .v5StripHeader {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 16px;
+          margin-bottom: 14px;
+        }
+
+        .v5StripHeader span {
+          color: var(--blue);
+          font-size: 12px;
+          font-weight: 950;
+          letter-spacing: .8px;
+          text-transform: uppercase;
+        }
+
+        .v5StripHeader b {
+          max-width: 285px;
+          color: #06101f;
+          font-size: 18px;
+          line-height: 1.12;
+          text-align: right;
+          letter-spacing: -0.5px;
+        }
+
+        .v5LogoStrip {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 10px;
+        }
+
+        .v5LogoPill {
+          --accent: #0b63ff;
+          min-height: 82px;
+          position: relative;
+          display: grid;
+          place-items: center;
+          padding: 12px;
+          border-radius: 20px;
+          background: #ffffff;
+          border: 1px solid rgba(11, 99, 255, 0.09);
+          box-shadow: 0 12px 26px rgba(7,20,47,.055);
           overflow: hidden;
-          padding: 14px;
-          transition: .24s ease;
         }
 
-        .marketplaceCleanLogoCard:hover {
-          transform: translateY(-4px);
-          box-shadow: 0 24px 44px rgba(7, 20, 47, 0.1);
-          border-color: color-mix(in srgb, var(--market-accent) 28%, rgba(7,20,47,.07));
-        }
-
-        .marketplaceCleanLogoCard::after {
+        .v5LogoPill::after {
           content: "";
           position: absolute;
           left: 0;
           right: 0;
           bottom: 0;
           height: 4px;
-          background: var(--market-accent);
+          background: var(--accent);
         }
 
-        .marketplaceCleanLogoCard img {
-          max-width: 118px;
+        .v5LogoPill img {
+          max-width: 120px;
           max-height: 38px;
           width: auto;
           height: auto;
@@ -536,377 +663,577 @@ window.setTimeout(() => setSaved(false), 3200);
           display: block;
         }
 
-        .marketplaceCleanFlow {
-          position: relative;
-          z-index: 2;
-          display: grid;
-          grid-template-columns: 1fr 28px 1fr 28px 1fr;
-          align-items: center;
-          gap: 8px;
-          margin: 12px 0 12px;
-        }
-
-        .marketplaceCleanFlow div {
-          min-height: 76px;
-          padding: 12px;
-          border-radius: 20px;
-          background: rgba(247, 251, 255, 0.92);
-          border: 1px solid rgba(11,99,255,.09);
-        }
-
-        .marketplaceCleanFlow div.active {
-          background: linear-gradient(135deg, #06101f, #0b2b68 76%);
-          color: #fff;
-          box-shadow: 0 18px 34px rgba(6, 16, 31, 0.16);
-        }
-
-        .marketplaceCleanFlow small {
-          display: block;
-          margin-bottom: 6px;
-          color: #0b63ff;
-          font-size: 10px;
-          font-weight: 950;
-        }
-
-        .marketplaceCleanFlow div.active small {
-          color: #49d9ff;
-        }
-
-        .marketplaceCleanFlow b {
-          display: block;
-          color: inherit;
-          font-size: 14px;
-          line-height: 1.1;
-        }
-
-        .marketplaceCleanFlow span {
-          display: block;
-          margin-top: 5px;
+        .v5LogoPill small {
+          margin-top: 4px;
           color: #667085;
           font-size: 11px;
-          font-weight: 800;
-          line-height: 1.3;
+          font-weight: 850;
         }
 
-        .marketplaceCleanFlow div.active span {
-          color: rgba(255,255,255,.72);
+        .v5FlowLine {
+          margin-top: 14px;
+          display: grid;
+          grid-template-columns: 1fr 32px 1fr 32px 1fr;
+          align-items: center;
+          gap: 8px;
         }
 
-        .marketplaceCleanFlow i {
-          width: 100%;
-          height: 2px;
-          border-radius: 999px;
-          background: linear-gradient(90deg, rgba(11,99,255,.14), rgba(11,99,255,.48));
+        .v5FlowLine div {
+          min-height: 58px;
+          border-radius: 17px;
+          padding: 10px 12px;
+          background: rgba(255,255,255,.66);
+          border: 1px solid rgba(11,99,255,.09);
+        }
+
+        .v5FlowLine div.active {
+          background: linear-gradient(135deg, #06101f, #0b2a64);
+          color: white;
+          box-shadow: 0 16px 30px rgba(6, 16, 31, 0.14);
+        }
+
+        .v5FlowLine small {
+          display: block;
+          color: var(--blue);
+          font-size: 10px;
+          font-weight: 950;
+          margin-bottom: 5px;
+        }
+
+        .v5FlowLine div.active small { color: var(--cyan); }
+        .v5FlowLine b { display: block; font-size: 13px; letter-spacing: -.2px; }
+        .v5FlowLine > span { height: 2px; border-radius: 999px; background: linear-gradient(90deg, rgba(11,99,255,.22), rgba(11,99,255,.58)); }
+
+        .v5TrustBar {
+          width: min(650px, 100%);
+          margin-top: 14px;
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 10px;
+        }
+
+        .v5TrustBar div {
+          min-height: 78px;
+          padding: 14px;
+          border-radius: 20px;
+          background: rgba(255,255,255,.7);
+          border: 1px solid rgba(11,99,255,.1);
+          box-shadow: 0 14px 32px rgba(7,20,47,.055);
+        }
+
+        .v5TrustBar b { display: block; color: var(--blue); font-size: 20px; line-height: 1; margin-bottom: 7px; }
+        .v5TrustBar span { display: block; color: #667085; font-size: 12px; line-height: 1.32; font-weight: 760; }
+
+        .v5HeroVisual {
+          min-height: 720px;
           position: relative;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) 246px;
+          gap: 24px;
+          align-items: center;
         }
 
-        .marketplaceCleanFlow i::after {
+        .v5Scene {
+          min-height: 620px;
+          position: relative;
+          display: grid;
+          place-items: center;
+          perspective: 1300px;
+        }
+
+        .v5Scene::before {
           content: "";
           position: absolute;
-          top: 50%;
-          right: 0;
-          width: 8px;
-          height: 8px;
-          border-top: 2px solid rgba(11,99,255,.5);
-          border-right: 2px solid rgba(11,99,255,.5);
-          transform: translateY(-50%) rotate(45deg);
+          width: 690px;
+          height: 430px;
+          border-radius: 999px;
+          background: radial-gradient(ellipse, rgba(11,99,255,.12), transparent 62%);
+          transform: rotate(-8deg);
         }
 
-        .marketplaceCleanText {
+        .v5Dashboard {
+          width: min(690px, 96%);
+          height: 438px;
           position: relative;
-          z-index: 2;
-          margin: 0;
-          padding: 14px 15px;
+          z-index: 3;
+          padding: 15px 15px 28px;
+          border-radius: 34px 34px 22px 22px;
+          background: linear-gradient(135deg, #d7e2ef, #ffffff 48%, #8c99aa);
+          box-shadow: 0 42px 100px rgba(7,20,47,.24);
+          transform: rotateX(4deg) rotateY(-8deg) rotateZ(-1deg);
+        }
+
+        .v5Dashboard::after {
+          content: "";
+          position: absolute;
+          left: 7%;
+          right: 7%;
+          bottom: -18px;
+          height: 26px;
+          border-radius: 0 0 36px 36px;
+          background: linear-gradient(180deg,#e8eef6,#7d8796);
+          box-shadow: 0 18px 30px rgba(7,20,47,.16);
+        }
+
+        .v5Screen {
+          width: 100%;
+          height: 100%;
+          overflow: hidden;
+          border-radius: 24px;
+          background: #041020;
+          border: 1px solid rgba(255,255,255,.12);
+          box-shadow: inset 0 0 42px rgba(0,168,255,.09);
+        }
+
+        .v5ScreenTop {
+          height: 58px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 20px;
+          color: white;
+          border-bottom: 1px solid rgba(255,255,255,.08);
+        }
+
+        .v5ScreenBrand { display: flex; align-items: center; gap: 9px; font-weight: 950; }
+        .v5ScreenBrand img { width: 25px; height: 25px; object-fit: contain; }
+        .v5Dots { display: flex; gap: 7px; }
+        .v5Dots span { width: 8px; height: 8px; border-radius: 999px; background: rgba(255,255,255,.25); }
+
+        .v5ScreenBody {
+          height: calc(100% - 58px);
+          display: grid;
+          grid-template-columns: 160px 1fr;
+        }
+
+        .v5SideMenu {
+          padding: 16px 12px;
+          display: grid;
+          align-content: start;
+          gap: 10px;
+          border-right: 1px solid rgba(255,255,255,.08);
+          background: rgba(0,0,0,.12);
+        }
+
+        .v5SideMenu button {
+          min-height: 36px;
+          border: 0;
+          border-radius: 12px;
+          color: rgba(255,255,255,.68);
+          background: rgba(255,255,255,.07);
+          font-size: 11px;
+          font-weight: 850;
+        }
+
+        .v5SideMenu button.active {
+          color: white;
+          background: linear-gradient(135deg,var(--blue),var(--blue2));
+          box-shadow: 0 12px 24px rgba(11,99,255,.22);
+        }
+
+        .v5MiniGorki {
+          margin-top: 12px;
+          padding: 12px;
+          border-radius: 16px;
+          color: white;
+          background: rgba(255,255,255,.06);
+          border: 1px solid rgba(255,255,255,.08);
+        }
+
+        .v5MiniGorki b { display: block; font-size: 12px; margin-bottom: 5px; }
+        .v5MiniGorki span { display: block; color: rgba(255,255,255,.58); font-size: 10px; line-height: 1.35; }
+
+        .v5DashContent { padding: 16px; color: white; }
+        .v5DashHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .v5DashHeader h3 { margin: 0; font-size: 18px; }
+        .v5DashHeader span { color: #8fb7ff; font-size: 11px; font-weight: 900; }
+
+        .v5DashCards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; }
+        .v5DashCard { min-height: 82px; padding: 12px; border-radius: 16px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08); }
+        .v5DashCard small { display: block; color: #8fb7ff; font-size: 10px; margin-bottom: 8px; }
+        .v5DashCard b { display: block; font-size: 18px; letter-spacing: -.4px; }
+        .v5DashCard em { display: block; margin-top: 4px; color: var(--green); font-size: 10px; font-style: normal; font-weight: 950; }
+
+        .v5DashLower { display: grid; grid-template-columns: 1.35fr 1fr; gap: 12px; }
+        .v5Graph { height: 178px; border-radius: 18px; background: linear-gradient(180deg, rgba(11,99,255,.22), rgba(11,99,255,.03)); border: 1px solid rgba(255,255,255,.08); position: relative; overflow: hidden; }
+        .v5Graph::before { content: "Satış Grafiği"; position: absolute; left: 14px; top: 12px; color: white; font-size: 12px; font-weight: 950; z-index: 2; }
+        .v5Graph svg { width: 100%; height: 100%; padding-top: 28px; }
+        .v5Activity { height: 178px; border-radius: 18px; padding: 12px; background: rgba(255,255,255,.055); border: 1px solid rgba(255,255,255,.08); overflow: hidden; }
+        .v5Activity h4 { margin: 0 0 10px; font-size: 12px; }
+        .v5Activity div { min-height: 32px; display: flex; align-items: center; justify-content: space-between; padding: 0 9px; border-radius: 11px; margin-bottom: 8px; background: rgba(255,255,255,.055); color: rgba(255,255,255,.72); font-size: 10px; }
+        .v5Activity b { color: var(--green); }
+
+        .v5Phone {
+          width: 182px;
+          height: 360px;
+          position: absolute;
+          right: 12px;
+          bottom: 40px;
+          z-index: 6;
+          border-radius: 40px;
+          padding: 10px;
+          background: linear-gradient(135deg,#1c2533,#050b15);
+          border: 3px solid #101827;
+          box-shadow: 0 30px 60px rgba(7,20,47,.26);
+          transform: rotate(3deg);
+        }
+
+        .v5PhoneScreen {
+          height: 100%;
+          border-radius: 30px;
+          overflow: hidden;
+          background: #041020;
+          color: white;
+          padding: 15px 10px;
+        }
+
+        .v5PhoneHead { display: flex; justify-content: space-between; align-items: center; margin-bottom: 13px; font-size: 12px; font-weight: 950; }
+        .v5PhoneHead span { display: flex; align-items: center; gap: 6px; }
+        .v5PhoneHead img { width: 20px; height: 20px; object-fit: contain; }
+        .v5PhoneGreeting { margin-bottom: 12px; }
+        .v5PhoneGreeting b { display: block; font-size: 13px; margin-bottom: 3px; }
+        .v5PhoneGreeting span { color: #8fb7ff; font-size: 10px; font-weight: 800; }
+        .v5PhoneTabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
+        .v5PhoneTabs button { height: 27px; border: 0; border-radius: 9px; background: rgba(255,255,255,.07); color: rgba(255,255,255,.62); font-size: 9px; font-weight: 850; }
+        .v5PhoneTabs button.active { color: white; background: var(--blue); }
+        .v5PhoneGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+        .v5PhoneCard { min-height: 64px; border-radius: 13px; padding: 9px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.08); }
+        .v5PhoneCard small { display: block; color: #8fb7ff; font-size: 9px; margin-bottom: 6px; }
+        .v5PhoneCard b { display: block; font-size: 14px; }
+        .v5PhoneCard em { display: block; margin-top: 4px; color: var(--green); font-style: normal; font-size: 9px; font-weight: 950; }
+
+        .v5RightRail { display: grid; gap: 18px; align-content: center; position: relative; z-index: 8; }
+
+        .v5PriceCard {
+          min-height: 292px;
+          padding: 22px;
+          border-radius: 34px;
+          color: white;
+          background: radial-gradient(circle at 50% 0%, rgba(73,217,255,.28), transparent 38%), linear-gradient(180deg,#071026 0%,#050914 100%);
+          border: 1px solid rgba(255,255,255,.13);
+          box-shadow: 0 32px 74px rgba(7,20,47,.26);
+          overflow: hidden;
+          position: relative;
+        }
+
+        .v5PriceLabel { width: max-content; margin: 0 auto 18px; padding: 10px 13px; border-radius: 14px; background: linear-gradient(135deg,var(--blue),var(--blue2)); font-size: 14px; font-weight: 950; box-shadow: 0 14px 25px rgba(11,99,255,.32); }
+        .v5PriceCard p { margin: 0; text-align: center; color: rgba(255,255,255,.82); font-size: 14px; font-weight: 950; text-transform: uppercase; }
+        .v5PriceNumbers { text-align: center; margin: 6px 0 10px; }
+        .v5PriceNumbers del { display: block; color: rgba(255,255,255,.34); font-size: 40px; line-height: 1; font-weight: 950; text-decoration-color: var(--blue); text-decoration-thickness: 5px; }
+        .v5PriceNumbers strong { display: block; color: white; font-size: 72px; line-height: .95; text-shadow: 0 0 24px rgba(11,99,255,.85); }
+        .v5PriceCard small { display: block; text-align: center; color: rgba(255,255,255,.62); font-size: 13px; font-weight: 760; margin-bottom: 14px; }
+        .v5PriceList { display: grid; gap: 8px; margin-bottom: 14px; }
+        .v5PriceList span { display: flex; align-items: center; gap: 7px; color: rgba(255,255,255,.76); font-size: 12px; font-weight: 820; }
+        .v5PriceList svg { width: 15px; height: 15px; color: var(--cyan); }
+        .v5PriceCard a { height: 44px; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 15px; color: white; font-size: 13px; font-weight: 950; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.16); }
+        .v5PriceCard a svg { width: 15px; height: 15px; }
+
+        .v5GorkiCard {
+          min-height: 292px;
+          padding: 18px;
+          border-radius: 34px;
+          background: rgba(255,255,255,.86);
+          border: 1px solid rgba(11,99,255,.14);
+          box-shadow: var(--shadow);
+          overflow: hidden;
+          position: relative;
+        }
+
+        .v5GorkiTop { display: flex; align-items: center; gap: 11px; position: relative; z-index: 2; }
+        .v5GorkiAvatar { width: 45px; height: 45px; border-radius: 16px; display: grid; place-items: center; background: #050914; box-shadow: 0 16px 28px rgba(7,20,47,.16); }
+        .v5GorkiAvatar img { width: 38px; height: 38px; object-fit: contain; }
+        .v5GorkiTop b { display: block; font-size: 18px; color: var(--ink); }
+        .v5GorkiTop span { display: block; color: var(--muted); font-size: 13px; font-weight: 760; }
+        .v5GorkiImage { height: 128px; display: flex; align-items: center; justify-content: center; }
+        .v5GorkiImage img { width: 128px; height: 128px; object-fit: contain; filter: drop-shadow(0 16px 18px rgba(7,20,47,.14)); animation: gorkiFloat 5.2s ease-in-out infinite; }
+        .v5GorkiBubble { padding: 13px; border-radius: 17px; color: #1d2939; background: #f7fbff; border: 1px solid rgba(11,99,255,.1); font-size: 13px; line-height: 1.45; font-weight: 830; }
+
+        .v5Metric {
+          min-width: 186px;
+          position: absolute;
+          z-index: 10;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 14px 16px;
+          border-radius: 22px;
+          background: rgba(255,255,255,.86);
+          border: 1px solid rgba(11,99,255,.16);
+          box-shadow: 0 24px 42px rgba(7,20,47,.13);
+          backdrop-filter: blur(14px);
+        }
+
+        .metricOrders { left: 6px; top: 66px; animation: floaty 5.2s ease-in-out infinite; }
+        .metricRevenue { right: 278px; top: 56px; animation: floaty 5.8s ease-in-out infinite .3s; }
+        .v5Metric svg { width: 28px; height: 28px; color: var(--blue); flex: 0 0 auto; }
+        .v5Metric b { display: block; font-size: 15px; color: #06101f; }
+        .v5Metric span { display: block; color: var(--muted); font-size: 12px; font-weight: 760; margin-top: 3px; }
+        .v5Metric em { display: block; margin-top: 4px; color: var(--green); font-size: 11px; font-style: normal; font-weight: 950; }
+
+        .v5ValueGrid {
+          width: min(1460px, 100%);
+          margin: 8px auto 0;
+          position: relative;
+          z-index: 3;
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 16px;
+        }
+
+        .v5ValueCard {
+          min-height: 152px;
+          padding: 22px;
+          border-radius: 30px;
+          background: rgba(255,255,255,.82);
+          border: 1px solid rgba(11,99,255,.13);
+          box-shadow: 0 20px 44px rgba(7,20,47,.08);
+          display: flex;
+          align-items: center;
+          gap: 16px;
+        }
+
+        .v5ValueIcon {
+          width: 54px;
+          height: 54px;
+          flex: 0 0 auto;
+          display: grid;
+          place-items: center;
           border-radius: 18px;
-          color: #5f6f89;
-          background: rgba(255,255,255,.72);
-          border: 1px solid rgba(11,99,255,.09);
-          line-height: 1.58;
-          font-size: 13px;
+          color: white;
+          background: linear-gradient(135deg,var(--blue),var(--blue2));
+          box-shadow: 0 16px 28px rgba(11,99,255,.22);
+        }
+
+        .v5ValueIcon svg { width: 27px; height: 27px; }
+        .v5ValueCard h3 { margin: 0 0 8px; font-size: 20px; letter-spacing: -.55px; }
+        .v5ValueCard p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.48; font-weight: 650; }
+
+        .v5Footer {
+          width: min(1460px, 100%);
+          margin: 18px auto 0;
+          position: relative;
+          z-index: 3;
+          min-height: 84px;
+          padding: 0 22px;
+          border-radius: 28px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          background: white;
+          border: 1px solid rgba(11,99,255,.12);
+          box-shadow: 0 18px 38px rgba(7,20,47,.06);
+          color: #475467;
           font-weight: 760;
         }
 
-        .waitlistCard { width: min(690px,100%); border-radius: 30px; padding: 24px; background: rgba(255,255,255,.82); border: 1px solid rgba(11,99,255,.16); box-shadow: var(--shadow); transition: .32s ease; }
-        .waitlistCard:hover { transform: translateY(-4px); box-shadow: 0 38px 90px rgba(15,32,64,.16), 0 0 0 6px rgba(11,99,255,.035); }
-        .waitlistHeader { display: flex; align-items: center; gap: 16px; margin-bottom: 18px; }
-        .mailIcon { width: 56px; height: 56px; flex: 0 0 auto; border-radius: 19px; display: grid; place-items: center; color: white; background: linear-gradient(135deg,var(--blue),var(--blue2)); box-shadow: 0 16px 30px rgba(11,99,255,.24); }
-        .mailIcon svg { width: 28px; height: 28px; }
-        .waitlistHeader h2 { font-size: 25px; line-height: 1.1; letter-spacing: -.9px; margin: 0 0 6px; }
-        .waitlistHeader p { color: var(--muted); font-size: 15px; line-height: 1.45; margin: 0; }
-        .waitlistHeader b { color: var(--blue); }
-        .formRow { display: grid; grid-template-columns: 1fr 172px; gap: 12px; margin-bottom: 12px; }
-        .formRow input { height: 59px; border: 1px solid rgba(11,99,255,.18); border-radius: 18px; outline: none; background: #f7fbff; color: var(--ink); padding: 0 18px; font-size: 16px; transition: .25s ease; }
-        .formRow input:focus { border-color: rgba(11,99,255,.48); box-shadow: 0 0 0 5px rgba(11,99,255,.08); background: white; }
-        .formRow button { height: 59px; border: 0; border-radius: 18px; background: linear-gradient(135deg,var(--blue),var(--blue2)); color: white; font-size: 17px; font-weight: 950; box-shadow: 0 16px 28px rgba(11,99,255,.24); transition: .25s ease; display: flex; align-items: center; justify-content: center; gap: 9px; }
-        .formRow button:hover { transform: translateY(-2px); box-shadow: 0 22px 38px rgba(11,99,255,.3); }
-        .formRow button svg { width: 17px; height: 17px; }
-        .formMessage { margin: 0 0 12px; padding: 12px 14px; border-radius: 14px; font-size: 14px; font-weight: 760; }
-        .formMessage.error { color: #b42318; background: #fff1f0; border: 1px solid #ffdad6; }
-        .formMessage.success { color: #067647; background: #ecfdf3; border: 1px solid #abefc6; }
-        .formMeta { display: flex; flex-wrap: wrap; gap: 10px; }
-        .formMeta span { display: inline-flex; align-items: center; gap: 6px; color: #344054; font-size: 13px; font-weight: 800; }
-        .formMeta svg { width: 16px; height: 16px; color: #12b76a; }
-        .proofBar { width: min(690px,100%); display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-top: 17px; }
-        .proofBar div { min-height: 82px; border-radius: 24px; padding: 15px; background: rgba(255,255,255,.68); border: 1px solid rgba(11,99,255,.12); box-shadow: 0 16px 35px rgba(7,20,47,.06); transition: .25s ease; }
-        .proofBar div:hover { transform: translateY(-4px); border-color: rgba(11,99,255,.3); background: white; }
-        .proofBar strong { display: block; color: var(--blue); font-size: 24px; line-height: 1; margin-bottom: 7px; }
-        .proofBar span { display: block; color: #475467; font-size: 13px; line-height: 1.35; font-weight: 760; }
+        .v5Footer a { display: flex; align-items: center; gap: 8px; color: #e1306c; font-weight: 900; }
+        .v5Footer svg { width: 20px; height: 20px; }
 
-        .heroShowcase { min-height: 745px; position: relative; display: grid; grid-template-columns: minmax(570px,1fr) 252px; gap: 28px; align-items: center; }
-        .demoArea { position: relative; min-height: 640px; display: flex; align-items: center; justify-content: center; perspective: 1250px; }
-        .ambientGlow { position: absolute; width: 690px; height: 420px; border-radius: 50%; background: radial-gradient(ellipse at center, rgba(11,99,255,.12), transparent 64%); transform: rotate(-8deg); }
-        .laptopMock { width: min(670px,94%); height: 405px; position: relative; border-radius: 32px 32px 20px 20px; padding: 17px 17px 31px; background: linear-gradient(135deg,#c4cfdd,#fff 48%,#8d99aa); box-shadow: 0 42px 98px rgba(7,20,47,.22); transform: rotateX(4deg) rotateY(-8deg) rotateZ(-1deg); transition: .35s ease; z-index: 3; }
-        .demoArea:hover .laptopMock { transform: rotateX(2deg) rotateY(-4deg) rotateZ(0deg) translateY(-8px); }
-        .laptopMock::before { content: ""; position: absolute; left: 50%; top: 8px; width: 76px; height: 12px; border-radius: 0 0 10px 10px; background: #050914; transform: translateX(-50%); z-index: 4; }
-        .laptopMock::after { content: ""; position: absolute; left: 7%; right: 7%; bottom: -18px; height: 26px; border-radius: 0 0 36px 36px; background: linear-gradient(180deg,#e6ecf4,#7d8796); box-shadow: 0 18px 30px rgba(7,20,47,.16); }
-        .laptopScreen { width: 100%; height: 100%; overflow: hidden; border-radius: 22px; background: #041020; border: 1px solid rgba(255,255,255,.12); box-shadow: inset 0 0 42px rgba(0,168,255,.09); text-align: left; }
-        .screenTop { height: 56px; display: flex; align-items: center; justify-content: space-between; padding: 0 18px; color: white; border-bottom: 1px solid rgba(255,255,255,.08); }
-        .screenBrand { display: flex; align-items: center; gap: 9px; font-weight: 950; }
-        .screenBrand img { width: 25px; height: 25px; object-fit: contain; }
-        .screenActions { display: flex; gap: 7px; }
-        .screenActions span { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.3); }
-        .screenBody { height: calc(100% - 56px); display: grid; grid-template-columns: 156px 1fr; }
-        .mockMenu { padding: 16px 12px; border-right: 1px solid rgba(255,255,255,.08); display: grid; align-content: start; gap: 10px; background: rgba(0,0,0,.1); }
-        .mockMenu button { min-height: 34px; border: 0; border-radius: 10px; background: rgba(255,255,255,.07); color: rgba(255,255,255,.66); font-size: 11px; font-weight: 800; transition: .22s ease; }
-        .mockMenu button:hover, .mockMenu button.active { color: white; background: linear-gradient(135deg,var(--blue),var(--blue2)); box-shadow: 0 10px 20px rgba(11,99,255,.22); }
-        .mockAssistant { margin-top: 12px; min-height: 68px; border-radius: 15px; padding: 11px; color: white; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08); }
-        .mockAssistant b { display: block; font-size: 12px; margin-bottom: 5px; }
-        .mockAssistant span { display: block; color: rgba(255,255,255,.58); font-size: 10px; line-height: 1.3; }
-        .mockContent { padding: 16px; }
-        .mockHeader { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; color: white; }
-        .mockHeader h3 { font-size: 17px; margin: 0; }
-        .mockHeader span { color: #8fb7ff; font-size: 11px; font-weight: 800; }
-        .mockCards { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 12px; }
-        .mockCard { min-height: 76px; padding: 12px; border-radius: 14px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08); color: white; transition: .22s ease; }
-        .mockCard:hover { background: rgba(255,255,255,.1); transform: translateY(-3px); }
-        .mockCard small { display: block; color: #8fb7ff; font-size: 10px; margin-bottom: 8px; }
-        .mockCard b { display: block; font-size: 18px; letter-spacing: -.4px; }
-        .mockCard em { display: block; margin-top: 4px; font-style: normal; color: var(--green); font-size: 10px; font-weight: 900; }
-        .mockLower { display: grid; grid-template-columns: 1.45fr 1fr; gap: 12px; }
-        .mockGraph { height: 172px; border-radius: 16px; overflow: hidden; background: linear-gradient(180deg, rgba(11,99,255,.2), rgba(11,99,255,.03)); border: 1px solid rgba(255,255,255,.08); position: relative; }
-        .mockGraph::before { content: "Satış Grafiği"; position: absolute; left: 14px; top: 12px; color: white; font-size: 12px; font-weight: 900; z-index: 2; }
-        .mockGraph svg { width: 100%; height: 100%; padding-top: 22px; }
-        .activityPanel { height: 172px; border-radius: 16px; padding: 12px; background: rgba(255,255,255,.055); border: 1px solid rgba(255,255,255,.08); color: white; overflow: hidden; }
-        .activityPanel h4 { font-size: 12px; margin: 0 0 10px; }
-        .activityPanel div { min-height: 31px; display: flex; align-items: center; justify-content: space-between; gap: 8px; border-radius: 10px; padding: 0 9px; margin-bottom: 7px; background: rgba(255,255,255,.055); font-size: 10px; color: rgba(255,255,255,.75); }
-        .activityPanel b { color: var(--green); }
-        .mockList { margin-top: 11px; display: grid; gap: 8px; }
-        .mockList div { min-height: 36px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; border-radius: 12px; color: rgba(255,255,255,.78); background: rgba(255,255,255,.055); border: 1px solid rgba(255,255,255,.06); font-size: 12px; }
-        .mockList b { color: white; }
-
-        .phoneMock { position: absolute; right: -18px; bottom: 44px; width: 174px; height: 348px; border-radius: 38px; padding: 10px; background: linear-gradient(135deg,#1c2533,#050b15); border: 3px solid #101827; box-shadow: 0 30px 60px rgba(7,20,47,.24); transform: rotate(3deg); transition: .35s ease; z-index: 7; }
-        .demoArea:hover .phoneMock { transform: rotate(0deg) translateY(-12px) translateX(8px); }
-        .phoneScreen { height: 100%; border-radius: 29px; overflow: hidden; background: #041020; color: white; padding: 14px 10px; }
-        .phoneHead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; font-size: 12px; font-weight: 900; }
-        .phoneHead span { display: flex; align-items: center; gap: 6px; }
-        .phoneHead img { width: 20px; height: 20px; object-fit: contain; }
-        .phoneGreeting { margin-bottom: 10px; }
-        .phoneGreeting b { display: block; font-size: 13px; margin-bottom: 2px; }
-        .phoneGreeting span { color: #8fb7ff; font-size: 10px; font-weight: 700; }
-        .phoneTabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
-        .phoneTabs button { height: 25px; border: 0; border-radius: 8px; background: rgba(255,255,255,.07); color: rgba(255,255,255,.62); font-size: 9px; font-weight: 800; }
-        .phoneTabs button.active { color: white; background: var(--blue); }
-        .phoneGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
-        .phoneCard { min-height: 62px; border-radius: 13px; padding: 9px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.08); }
-        .phoneCard small { display: block; color: #8fb7ff; font-size: 9px; margin-bottom: 6px; }
-        .phoneCard b { display: block; font-size: 14px; }
-        .phoneCard em { display: block; margin-top: 4px; color: var(--green); font-style: normal; font-size: 9px; font-weight: 900; }
-        .phoneList { margin-top: 11px; display: grid; gap: 8px; }
-        .phoneList div { height: 31px; border-radius: 11px; padding: 0 8px; display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.06); color: rgba(255,255,255,.7); font-size: 9px; }
-        .phoneList b { color: var(--orange); }
-
-        .floatingCard { position: absolute; z-index: 11; min-width: 178px; display: flex; align-items: center; gap: 12px; padding: 13px 15px; border-radius: 20px; background: rgba(255,255,255,.84); border: 1px solid rgba(11,99,255,.16); box-shadow: 0 24px 42px rgba(7,20,47,.13); transition: .28s ease; }
-        .floatingCard:hover { transform: translateY(-8px) scale(1.02); border-color: rgba(11,99,255,.36); box-shadow: 0 34px 58px rgba(7,20,47,.18); }
-        .floatingCard svg { width: 27px; height: 27px; color: var(--blue); flex: 0 0 auto; }
-        .floatingCard b { display: block; color: #050914; font-size: 15px; line-height: 1.1; }
-        .floatingCard span { display: block; color: var(--muted); font-size: 12px; font-weight: 750; margin-top: 3px; }
-        .floatingCard em { display: block; margin-top: 5px; color: var(--green); font-size: 11px; font-style: normal; font-weight: 950; }
-        .floatOrders { left: -28px; top: 62px; animation: floaty 5s ease-in-out infinite; }
-        .floatRevenue { right: 82px; top: 50px; animation: floaty 5.8s ease-in-out infinite .35s; }
-        .floatStock { left: 10px; bottom: 74px; animation: floaty 5.4s ease-in-out infinite .2s; }
-
-        .sideStack { position: relative; z-index: 20; display: grid; gap: 18px; align-content: center; }
-        .pricePanel { position: relative; overflow: hidden; min-height: 302px; border-radius: 34px; padding: 21px; color: white; background: radial-gradient(circle at 50% 0%, rgba(73,217,255,.28), transparent 36%), linear-gradient(180deg,#071026 0%,#050914 100%); border: 1px solid rgba(255,255,255,.13); box-shadow: 0 32px 74px rgba(7,20,47,.26); transition: .32s ease; }
-        .pricePanel:hover { transform: translateY(-8px); box-shadow: 0 42px 90px rgba(7,20,47,.32); }
-        .priceShine { position: absolute; inset: -70px auto auto -100px; width: 130px; height: 460px; background: linear-gradient(90deg, transparent, rgba(255,255,255,.13), transparent); transform: rotate(28deg); animation: shine 4.8s ease-in-out infinite; }
-        .priceLabel { width: max-content; margin: 0 auto 18px; padding: 10px 12px; border-radius: 13px; background: linear-gradient(135deg,var(--blue),var(--blue2)); font-size: 15px; font-weight: 950; box-shadow: 0 14px 25px rgba(11,99,255,.32); }
-        .pricePanel p { text-align: center; text-transform: uppercase; color: rgba(255,255,255,.82); font-size: 15px; font-weight: 950; margin: 0; }
-        .priceNumbers { text-align: center; margin: 5px 0 9px; }
-        .priceNumbers del { display: block; color: rgba(255,255,255,.34); font-size: 42px; font-weight: 950; line-height: 1; text-decoration-color: var(--blue); text-decoration-thickness: 5px; }
-        .priceNumbers strong { display: block; color: white; font-size: 74px; line-height: .95; text-shadow: 0 0 24px rgba(11,99,255,.9); }
-        .pricePanel small { display: block; color: rgba(255,255,255,.62); text-align: center; font-size: 13px; font-weight: 750; margin-bottom: 14px; }
-        .priceBullets { display: grid; gap: 8px; margin-bottom: 14px; }
-        .priceBullets span { display: flex; align-items: center; gap: 7px; color: rgba(255,255,255,.76); font-size: 12px; font-weight: 800; }
-        .priceBullets svg { width: 15px; height: 15px; color: var(--cyan); }
-        .pricePanel a { width: 100%; height: 44px; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 15px; color: white; font-size: 13px; font-weight: 950; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.16); transition: .25s ease; }
-        .pricePanel a:hover { background: var(--blue); }
-        .pricePanel a svg { width: 15px; height: 15px; }
-
-        .gorkiPanel { min-height: 302px; border-radius: 34px; padding: 18px; background: rgba(255,255,255,.84); border: 1px solid rgba(11,99,255,.15); box-shadow: var(--shadow); overflow: hidden; position: relative; }
-        .gorkiPanel::before { content: ""; position: absolute; width: 190px; height: 190px; border-radius: 50%; right: -80px; top: -70px; background: rgba(11,99,255,.08); }
-        .gorkiTop { display: flex; align-items: center; gap: 11px; position: relative; z-index: 2; margin-bottom: 10px; }
-        .gorkiAvatar { width: 45px; height: 45px; border-radius: 16px; display: grid; place-items: center; background: #050914; color: white; box-shadow: 0 16px 28px rgba(7,20,47,.16); }
-        .gorkiAvatar img { width: 38px; height: 38px; object-fit: contain; }
-        .gorkiTop b { display: block; color: var(--ink); font-size: 18px; }
-        .gorkiTop span { display: block; color: var(--muted); font-size: 13px; font-weight: 760; }
-        .gorkiImageWrap { height: 126px; display: flex; justify-content: center; align-items: center; position: relative; z-index: 2; margin-bottom: 8px; }
-        .gorkiImageWrap img { width: 128px; height: 128px; object-fit: contain; filter: drop-shadow(0 14px 18px rgba(7,20,47,.12)); animation: gorkiFloat 5.2s ease-in-out infinite; }
-        .gorkiMessages { position: relative; z-index: 2; display: grid; gap: 9px; }
-        .gorkiMessage { min-height: 50px; padding: 12px; border-radius: 17px; color: #1d2939; background: #f7fbff; border: 1px solid rgba(11,99,255,.1); font-size: 13px; line-height: 1.38; font-weight: 830; }
-        .gorkiFooter { margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 7px; color: var(--blue); font-size: 12px; font-weight: 900; position: relative; z-index: 2; }
-        .gorkiFooter svg { width: 15px; height: 15px; }
-
-        .featureGrid { max-width: 1500px; margin: 10px auto 0; display: grid; grid-template-columns: repeat(5,1fr); gap: 16px; position: relative; z-index: 2; }
-        .featureCard { min-height: 154px; padding: 22px; display: flex; align-items: center; gap: 15px; border-radius: 28px; background: rgba(255,255,255,.78); border: 1px solid rgba(11,99,255,.14); box-shadow: 0 20px 44px rgba(7,20,47,.08); transition: .3s ease; }
-        .featureCard:hover { transform: translateY(-8px); border-color: rgba(11,99,255,.34); box-shadow: 0 30px 60px rgba(7,20,47,.13); }
-        .featureIcon { width: 52px; height: 52px; flex: 0 0 auto; border-radius: 18px; display: grid; place-items: center; color: white; background: linear-gradient(135deg,var(--blue),var(--blue2)); box-shadow: 0 16px 28px rgba(11,99,255,.22); }
-        .featureIcon svg { width: 27px; height: 27px; }
-        .featureCard h3 { font-size: 18px; letter-spacing: -.55px; line-height: 1.1; margin: 0 0 8px; }
-        .featureCard p { color: var(--muted); font-size: 13px; line-height: 1.42; margin: 0; }
-
-        .bottomBand { max-width: 1500px; margin: 20px auto 0; display: grid; grid-template-columns: 1fr .95fr 1.35fr; gap: 16px; position: relative; z-index: 2; }
-        .domainCard, .instagramCard, .trustCard { min-height: 112px; border-radius: 28px; background: white; border: 1px solid rgba(11,99,255,.14); box-shadow: 0 20px 44px rgba(7,20,47,.08); }
-        .domainCard, .instagramCard { display: flex; align-items: center; gap: 18px; padding: 22px 25px; transition: .28s ease; }
-        .domainCard:hover, .instagramCard:hover { transform: translateY(-6px); border-color: rgba(11,99,255,.32); }
-        .domainCard svg, .instagramCard svg { width: 44px; height: 44px; flex: 0 0 auto; }
-        .domainCard svg { color: var(--blue); }
-        .instagramCard svg { color: #e1306c; }
-        .domainCard h3, .instagramCard h3 { font-size: 30px; line-height: 1; letter-spacing: -1px; text-transform: lowercase; margin: 0; }
-        .domainCard p, .instagramCard p { margin: 7px 0 0; color: var(--muted); font-weight: 760; font-size: 14px; }
-        .trustCard { display: grid; grid-template-columns: repeat(3,1fr); padding: 16px; gap: 12px; }
-        .trustCard div { display: flex; align-items: center; justify-content: center; gap: 11px; border-radius: 20px; background: #f7fbff; border: 1px solid rgba(11,99,255,.1); color: #1d2939; font-size: 15px; font-weight: 900; transition: .25s ease; }
-        .trustCard div:hover { transform: translateY(-4px); background: white; border-color: rgba(11,99,255,.26); }
-        .trustCard svg { width: 25px; height: 25px; color: var(--blue); flex: 0 0 auto; }
-        .floatingTopButton { position: fixed; right: 18px; bottom: 18px; z-index: 1000; width: 46px; height: 46px; display: grid; place-items: center; border-radius: 999px; color: white; background: linear-gradient(135deg,var(--blue),var(--blue2)); box-shadow: 0 14px 26px rgba(11,99,255,.24); font-size: 22px; font-weight: 950; border: 1px solid rgba(255,255,255,.4); transition: .2s ease; }
-        .floatingTopButton:hover { transform: translateY(-4px); box-shadow: 0 24px 46px rgba(11,99,255,.34); }
-
-        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(34,197,94,.55); } 70% { box-shadow: 0 0 0 10px rgba(34,197,94,0); } 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); } }
-        @keyframes shine { 0% { transform: translateX(0) rotate(28deg); } 45%, 100% { transform: translateX(360px) rotate(28deg); } }
-        @keyframes gorkiFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
+        @keyframes gorkiFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
         @keyframes floaty { 0%, 100% { translate: 0 0; } 50% { translate: 0 -12px; } }
 
-        @media (max-width: 1460px) { .hero { grid-template-columns: 1fr; gap: 28px; } .heroCopy { max-width: 900px; } .heroShowcase { min-height: 720px; grid-template-columns: minmax(560px,1fr) 252px; } .featureGrid { grid-template-columns: repeat(3,1fr); } .bottomBand { grid-template-columns: 1fr; } .trustCard { min-height: 112px; } }
-        @media (max-width: 1080px) { .takipioPremium { overflow-x: hidden; overflow-y: initial; padding: 22px 16px 92px; } .navLinks { display: none !important; } .navBar { width: 100%; height: auto; top: 12px; left: 0; transform: none; padding: 0; background: transparent; border: 0; box-shadow: none; justify-content: center; } .brandCapsule { width: 170px; height: 54px; margin: 0 auto; border-radius: 22px; background: linear-gradient(180deg, rgba(7,15,32,.96), rgba(5,9,20,.96)), #050914; border: 1px solid rgba(255,255,255,.14); box-shadow: 0 18px 38px rgba(6,16,31,.18), inset 0 0 22px rgba(11,99,255,.1); justify-content: center; } .brandCapsule img { width: 138px; height: auto; display: block; margin: 0 auto; filter: drop-shadow(0 0 10px rgba(11,99,255,.28)); } .mobileNav { position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 1001; height: 58px; display: grid; grid-template-columns: repeat(4,1fr); gap: 7px; padding: 7px; border-radius: 24px; background: rgba(255,255,255,.96); border: 1px solid rgba(11,99,255,.12); box-shadow: 0 16px 34px rgba(15,32,64,.14); } .mobileNav a { display: flex; align-items: center; justify-content: center; border-radius: 17px; color: #1d2939; background: #f7fbff; border: 1px solid rgba(11,99,255,.08); font-size: 12px; font-weight: 900; } .mobileNav a:last-child { color: white; background: linear-gradient(135deg,var(--blue),var(--blue2)); box-shadow: 0 10px 20px rgba(11,99,255,.2); } .floatingTopButton { right: 18px; bottom: 82px; } h1 { letter-spacing: -3px; } .heroText { font-size: 18px; } .heroShowcase { grid-template-columns: 1fr; min-height: auto; } .demoArea { min-height: 570px; } .sideStack { grid-template-columns: 1fr 1fr; } .pricePanel, .gorkiPanel { min-height: 300px; } .floatRevenue { right: 26px; top: 40px; } .floatOrders { left: 8px; } .floatStock { left: 14px; } .featureGrid { grid-template-columns: repeat(2,1fr); } }
-        @media (max-width: 780px) { .hero { min-height: auto; gap: 24px; } .statusPill { font-size: 12px; white-space: normal; line-height: 1.3; } .waitlistHeader { align-items: flex-start; } .formRow { grid-template-columns: 1fr; } .proofBar { grid-template-columns: 1fr; } .demoArea { min-height: 500px; overflow: visible; padding-top: 24px; } .ambientGlow { width: 520px; height: 330px; } .laptopMock { width: 98%; height: 315px; padding: 11px 11px 22px; border-radius: 24px 24px 16px 16px; } .laptopMock::before { width: 52px; height: 8px; } .screenTop { height: 44px; padding: 0 12px; } .screenBrand { font-size: 12px; } .screenBrand img { width: 18px; height: 18px; } .screenBody { height: calc(100% - 44px); grid-template-columns: 86px 1fr; } .mockMenu { padding: 10px 7px; gap: 7px; } .mockMenu button { min-height: 28px; font-size: 0; } .mockMenu button::after { content: ""; display: block; width: 70%; height: 7px; border-radius: 999px; background: currentColor; margin: auto; opacity: .65; } .mockAssistant { display: none; } .mockContent { padding: 10px; } .mockHeader { margin-bottom: 8px; } .mockHeader h3 { font-size: 13px; } .mockHeader span { font-size: 9px; } .mockCards { grid-template-columns: 1fr; gap: 8px; } .mockCards .mockCard:nth-child(2), .mockCards .mockCard:nth-child(3), .mockCards .mockCard:nth-child(4) { display: none; } .mockCard { min-height: 58px; padding: 10px; } .mockLower { grid-template-columns: 1fr; } .mockGraph { height: 112px; } .activityPanel, .mockList { display: none; } .phoneMock { width: 124px; height: 250px; right: -4px; bottom: 16px; border-radius: 28px; padding: 8px; } .phoneScreen { border-radius: 21px; padding: 10px 8px; } .phoneGreeting, .phoneTabs { display: none; } .phoneGrid { grid-template-columns: 1fr; } .phoneGrid .phoneCard:nth-child(3), .phoneGrid .phoneCard:nth-child(4) { display: none; } .phoneList div { height: 26px; font-size: 0; } .floatingCard { display: none; } .sideStack { grid-template-columns: 1fr; } .pricePanel, .gorkiPanel { min-height: auto; } .featureGrid { grid-template-columns: 1fr; } .featureCard { min-height: 132px; } .domainCard, .instagramCard { align-items: flex-start; } .domainCard h3, .instagramCard h3 { font-size: 26px; } .trustCard { grid-template-columns: 1fr; } .trustCard div { min-height: 62px; } }
-        @media (max-width: 460px) { .takipioPremium { padding: 18px 12px 92px; } h1 { font-size: 45px; line-height: 1; letter-spacing: -2.4px; } .heroText { font-size: 16px; } .waitlistCard { padding: 18px; border-radius: 24px; } .waitlistHeader h2 { font-size: 21px; } .mailIcon { width: 48px; height: 48px; border-radius: 16px; } .proofBar div { min-height: 74px; } .demoArea { min-height: 455px; } .laptopMock { height: 285px; } .phoneMock { scale: .9; right: -20px; bottom: 8px; } .priceNumbers strong { font-size: 62px; } .priceNumbers del { font-size: 36px; } }
-
-
-        @media (max-width: 780px) {
-          .marketplaceHeroTop {
-            align-items: flex-start;
-            flex-direction: column;
-          }
-
-          .marketplaceLogoRow {
-            grid-template-columns: repeat(2, 1fr);
-          }
-
-          .marketplaceLogoItem {
-            min-height: 66px;
-          }
-
-          .marketplaceLogoItem img {
-            max-width: 105px;
-            max-height: 32px;
-          }
+        @media (max-width: 1380px) {
+          .v5Hero { grid-template-columns: 1fr; gap: 26px; }
+          .v5HeroCopy { max-width: 900px; }
+          .v5HeroVisual { min-height: 700px; }
         }
 
+        @media (max-width: 1040px) {
+          .takipioV5 { padding: 18px 16px 92px; }
+          .v5Header { position: relative; top: auto; justify-content: center; background: transparent; border: 0; box-shadow: none; padding: 0; }
+          .v5Nav, .v5HeaderCta { display: none; }
+          .v5MobileNav { position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 100; height: 58px; display: grid; grid-template-columns: repeat(4,1fr); gap: 7px; padding: 7px; border-radius: 24px; background: rgba(255,255,255,.96); border: 1px solid rgba(11,99,255,.12); box-shadow: 0 16px 34px rgba(15,32,64,.14); }
+          .v5MobileNav a { display: flex; align-items: center; justify-content: center; border-radius: 17px; color: #1d2939; background: #f7fbff; border: 1px solid rgba(11,99,255,.08); font-size: 12px; font-weight: 900; }
+          .v5MobileNav a:last-child { color: white; background: linear-gradient(135deg,var(--blue),var(--blue2)); }
+          .v5Hero { padding-top: 42px; }
+          .v5HeroVisual { grid-template-columns: 1fr; min-height: auto; }
+          .v5Scene { min-height: 590px; }
+          .v5RightRail { grid-template-columns: 1fr 1fr; }
+          .metricRevenue { right: 28px; }
+          .v5ValueGrid { grid-template-columns: 1fr; }
+        }
 
-        @media (max-width: 780px) {
-          .marketplaceCleanTop {
-            flex-direction: column;
-          }
-
-          .marketplaceLiveBadge {
-            width: 100%;
-            justify-content: center;
-            text-align: center;
-          }
-
-          .marketplaceCleanLogos {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-          }
-
-          .marketplaceCleanLogoCard {
-            min-height: 76px;
-          }
-
-          .marketplaceCleanLogoCard img {
-            max-width: 112px;
-            max-height: 36px;
-          }
-
-          .marketplaceCleanFlow {
-            grid-template-columns: 1fr;
-          }
-
-          .marketplaceCleanFlow i {
-            width: 2px;
-            height: 18px;
-            margin: 0 auto;
-          }
-
-          .marketplaceCleanFlow i::after {
-            right: auto;
-            left: 50%;
-            top: auto;
-            bottom: -2px;
-            transform: translateX(-50%) rotate(135deg);
-          }
+        @media (max-width: 760px) {
+          .v5Hero h1 { font-size: clamp(46px, 12vw, 66px); letter-spacing: -0.055em; }
+          .v5HeroText { font-size: 16px; line-height: 1.68; }
+          .v5Waitlist, .v5MarketplaceStrip, .v5TrustBar { width: 100%; }
+          .v5WaitlistTop, .v5StripHeader { flex-direction: column; }
+          .v5StripHeader b { text-align: left; max-width: none; }
+          .v5FormRow { grid-template-columns: 1fr; }
+          .v5LogoStrip { grid-template-columns: repeat(2, 1fr); }
+          .v5FlowLine { grid-template-columns: 1fr; }
+          .v5FlowLine > span { height: 18px; width: 2px; justify-self: center; }
+          .v5TrustBar { grid-template-columns: 1fr; }
+          .v5Scene { min-height: 500px; }
+          .v5Dashboard { width: 100%; height: 320px; padding: 10px 10px 22px; border-radius: 26px 26px 18px 18px; transform: none; }
+          .v5ScreenTop { height: 46px; padding: 0 12px; }
+          .v5ScreenBody { height: calc(100% - 46px); grid-template-columns: 92px 1fr; }
+          .v5SideMenu { padding: 10px 7px; gap: 7px; }
+          .v5SideMenu button { min-height: 27px; font-size: 0; }
+          .v5SideMenu button::after { content: ""; display: block; width: 70%; height: 7px; border-radius: 999px; background: currentColor; opacity: .65; margin: auto; }
+          .v5MiniGorki { display: none; }
+          .v5DashContent { padding: 10px; }
+          .v5DashCards { grid-template-columns: 1fr; }
+          .v5DashCards .v5DashCard:nth-child(n+2) { display: none; }
+          .v5DashLower { grid-template-columns: 1fr; }
+          .v5Graph { height: 112px; }
+          .v5Activity { display: none; }
+          .v5Phone { width: 128px; height: 252px; right: -4px; bottom: 4px; padding: 8px; border-radius: 29px; }
+          .v5PhoneScreen { border-radius: 21px; padding: 10px 8px; }
+          .v5PhoneGreeting, .v5PhoneTabs { display: none; }
+          .v5PhoneGrid { grid-template-columns: 1fr; }
+          .v5PhoneGrid .v5PhoneCard:nth-child(n+3) { display: none; }
+          .v5Metric { display: none; }
+          .v5RightRail { grid-template-columns: 1fr; }
+          .v5ValueCard { align-items: flex-start; }
+          .v5Footer { flex-direction: column; justify-content: center; text-align: center; padding: 18px; }
         }
 
         @media (max-width: 460px) {
-          .marketplaceHeroBox {
-            padding: 18px;
-            border-radius: 26px;
-          }
-
-          .marketplaceCleanTop strong {
-            font-size: 21px;
-          }
-
-          .marketplaceCleanLogoCard {
-            min-height: 68px;
-            padding: 10px;
-          }
-
-          .marketplaceCleanLogoCard img {
-            max-width: 104px;
-            max-height: 32px;
-          }
+          .takipioV5 { padding: 16px 12px 92px; }
+          .v5Brand { width: 164px; height: 52px; }
+          .v5Brand img { width: 134px; }
+          .v5Hero h1 { font-size: 44px; }
+          .v5Waitlist, .v5MarketplaceStrip { padding: 16px; border-radius: 24px; }
+          .v5LogoPill { min-height: 74px; }
+          .v5LogoPill img { max-width: 108px; max-height: 34px; }
+          .v5Scene { min-height: 450px; }
+          .v5Dashboard { height: 285px; }
+          .v5Phone { scale: .88; right: -20px; bottom: -8px; }
+          .v5PriceNumbers strong { font-size: 62px; }
+          .v5PriceNumbers del { font-size: 34px; }
         }
-
       `}</style>
     </main>
   );
 }
 
-function LaptopMockup({ activeTab, setActiveTab }: { activeTab: DemoTab; setActiveTab: (tab: DemoTab) => void }) {
+function DashboardMockup({ activeTab, setActiveTab }: { activeTab: DemoTab; setActiveTab: (tab: DemoTab) => void }) {
   const active = useMemo(() => demoTabs.find((item) => item.key === activeTab) ?? demoTabs[0], [activeTab]);
-  return <div className="laptopMock"><div className="laptopScreen"><div className="screenTop"><div className="screenBrand"><img src="/takipio-logo.png" alt="" /> takipio</div><div className="screenActions"><span /><span /><span /></div></div><div className="screenBody"><div className="mockMenu">{demoTabs.map((tab) => <button key={tab.key} type="button" className={activeTab === tab.key ? "active" : ""} onClick={() => setActiveTab(tab.key)}>{tab.label}</button>)}<div className="mockAssistant"><b>Gorki AI</b><span>Asistanın hazır. Bugünkü işlerini özetliyorum.</span></div></div><div className="mockContent"><div className="mockHeader"><h3>{active.label}</h3><span>Canlı demo modu</span></div><div className="mockCards"><div className="mockCard"><small>{active.helper}</small><b>{active.value}</b><em>+%18,6</em></div><div className="mockCard"><small>Aktif işlem</small><b>{activeTab === "orders" ? "24" : activeTab === "payments" ? "8" : "18"}</b><em>Bugün</em></div><div className="mockCard"><small>Müşteri</small><b>89</b><em>+%5,7</em></div><div className="mockCard"><small>Durum</small><b>{activeTab === "payments" ? "Takipte" : "Güncel"}</b><em>Aktif</em></div></div><div className="mockLower"><div className="mockGraph"><svg viewBox="0 0 520 170" preserveAspectRatio="none" aria-hidden="true"><path d="M0 138 C40 110 65 98 105 110 C150 126 160 58 210 78 C250 94 260 45 310 62 C360 82 374 28 420 42 C460 54 470 18 520 28" fill="none" stroke="#0b63ff" strokeWidth="7" strokeLinecap="round" /></svg></div><div className="activityPanel"><h4>Canlı Akış</h4><div><span>Yeni sipariş #10248</span><b>2 dk</b></div><div><span>Ödeme alındı</span><b>15 dk</b></div><div><span>Stok güncellendi</span><b>1 sa</b></div><div><span>Müşteri kaydı</span><b>2 sa</b></div></div></div><div className="mockList"><div><span>{activeTab === "customers" ? "Arden Coffee" : "Nova Car Wash"}</span><b>{activeTab === "payments" ? "Ödeme bekliyor" : "Aktif"}</b></div><div><span>{activeTab === "orders" ? "Özel oto kokusu" : "Atlas Rent A Car"}</span><b>{activeTab === "orders" ? "Hazırlanıyor" : "Güncel"}</b></div><div><span>{activeTab === "overview" ? "Gorki önerisi" : "Otomatik takip"}</span><b>{activeTab === "overview" ? "2 uyarı" : "Açık"}</b></div></div></div></div></div></div>;
+
+  return (
+    <div className="v5Dashboard">
+      <div className="v5Screen">
+        <div className="v5ScreenTop">
+          <div className="v5ScreenBrand">
+            <img src="/takipio-logo.png" alt="" /> takipio
+          </div>
+          <div className="v5Dots"><span /><span /><span /></div>
+        </div>
+
+        <div className="v5ScreenBody">
+          <div className="v5SideMenu">
+            {demoTabs.map((tab) => (
+              <button key={tab.key} type="button" className={activeTab === tab.key ? "active" : ""} onClick={() => setActiveTab(tab.key)}>
+                {tab.label}
+              </button>
+            ))}
+            <div className="v5MiniGorki">
+              <b>Gorki AI</b>
+              <span>Bugünkü işleri ve pazaryeri akışını özetliyorum.</span>
+            </div>
+          </div>
+
+          <div className="v5DashContent">
+            <div className="v5DashHeader">
+              <h3>{active.label}</h3>
+              <span>Canlı demo modu</span>
+            </div>
+
+            <div className="v5DashCards">
+              <div className="v5DashCard"><small>{active.helper}</small><b>{active.value}</b><em>+%18,6</em></div>
+              <div className="v5DashCard"><small>Aktif işlem</small><b>{activeTab === "orders" ? "24" : "8"}</b><em>Bugün</em></div>
+              <div className="v5DashCard"><small>Müşteri</small><b>89</b><em>+%5,7</em></div>
+              <div className="v5DashCard"><small>Durum</small><b>{activeTab === "marketplaces" ? "Hazır" : "Güncel"}</b><em>Aktif</em></div>
+            </div>
+
+            <div className="v5DashLower">
+              <div className="v5Graph">
+                <svg viewBox="0 0 520 170" preserveAspectRatio="none" aria-hidden="true">
+                  <path d="M0 138 C40 110 65 98 105 110 C150 126 160 58 210 78 C250 94 260 45 310 62 C360 82 374 28 420 42 C460 54 470 18 520 28" fill="none" stroke="#0b63ff" strokeWidth="7" strokeLinecap="round" />
+                </svg>
+              </div>
+              <div className="v5Activity">
+                <h4>Akış</h4>
+                <div><span>Yeni sipariş</span><b>2 dk</b></div>
+                <div><span>Ödeme alındı</span><b>15 dk</b></div>
+                <div><span>Stok güncellendi</span><b>1 sa</b></div>
+                <div><span>Gorki özeti</span><b>Hazır</b></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function PhoneMockup({ activeTab, setActiveTab }: { activeTab: DemoTab; setActiveTab: (tab: DemoTab) => void }) {
   const active = useMemo(() => demoTabs.find((item) => item.key === activeTab) ?? demoTabs[0], [activeTab]);
-  return <div className="phoneMock"><div className="phoneScreen"><div className="phoneHead"><span><img src="/takipio-logo.png" alt="" /> takipio</span><b>9:41</b></div><div className="phoneGreeting"><b>Merhaba, Ahmet 👋</b><span>Bugün nasıl gidiyor?</span></div><div className="phoneTabs">{demoTabs.map((tab) => <button key={tab.key} type="button" className={activeTab === tab.key ? "active" : ""} onClick={() => setActiveTab(tab.key)}>{tab.short}</button>)}</div><div className="phoneGrid"><div className="phoneCard"><small>{active.label}</small><b>{active.value}</b><em>+%18,6</em></div><div className="phoneCard"><small>Sipariş</small><b>128</b><em>+%8,2</em></div><div className="phoneCard"><small>Müşteri</small><b>89</b><em>+%5,7</em></div><div className="phoneCard"><small>Stok</small><b>Güncel</b><em>128 ürün</em></div></div><div className="phoneList"><div><span>#10248 Ahmet</span><b>Hazırlanıyor</b></div><div><span>#10247 Zeynep</span><b>Kargoda</b></div><div><span>#10246 Mehmet</span><b>Tamamlandı</b></div></div></div></div>;
+
+  return (
+    <div className="v5Phone">
+      <div className="v5PhoneScreen">
+        <div className="v5PhoneHead"><span><img src="/takipio-logo.png" alt="" /> takipio</span><b>9:41</b></div>
+        <div className="v5PhoneGreeting"><b>Merhaba, Ahmet 👋</b><span>Bugün nasıl gidiyor?</span></div>
+        <div className="v5PhoneTabs">
+          {demoTabs.map((tab) => <button key={tab.key} type="button" className={activeTab === tab.key ? "active" : ""} onClick={() => setActiveTab(tab.key)}>{tab.label.split(" ")[0]}</button>)}
+        </div>
+        <div className="v5PhoneGrid">
+          <div className="v5PhoneCard"><small>{active.label}</small><b>{active.value}</b><em>+%18,6</em></div>
+          <div className="v5PhoneCard"><small>Sipariş</small><b>128</b><em>+%8,2</em></div>
+          <div className="v5PhoneCard"><small>Müşteri</small><b>89</b><em>+%5,7</em></div>
+          <div className="v5PhoneCard"><small>Stok</small><b>Güncel</b><em>128 ürün</em></div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
-function PricePanel() { return <div className="pricePanel" id="pricing"><div className="priceShine" /><div className="priceLabel">AÇILIŞA ÖZEL</div><p>İlk ay sadece</p><div className="priceNumbers"><del>₺99</del><strong>₺89</strong></div><small>Sonrasında ₺99 / ay</small><div className="priceBullets"><span><CheckIcon /> Tüm özelliklere erişim</span><span><CheckIcon /> Gorki AI asistan dahil</span><span><CheckIcon /> 7/24 destek</span></div><a href="#waitlist">Erken erişime katıl <ArrowIcon /></a></div>; }
-function GorkiPanel({ message }: { message: string }) { return <div className="gorkiPanel" id="assistant"><div className="gorkiTop"><div className="gorkiAvatar"><img src="/gorki-hero.png" alt="" /></div><div><b>Gorki AI</b><span>Akıllı asistanın</span></div></div><div className="gorkiImageWrap"><img src="/gorki-hero.png" alt="Gorki" /></div><div className="gorkiMessages"><div className="gorkiMessage">“{message}”</div><div className="gorkiMessage">“Bugünkü açık işleri senin için özetledim.”</div></div><div className="gorkiFooter"><HeartIcon /> Gorki her zaman yanında.</div></div>; }
-function FloatingInfoCard({ icon, title, text, metric, className }: { icon: React.ReactNode; title: string; text: string; metric: string; className: string }) { return <div className={`floatingCard ${className}`}>{icon}<div><b>{title}</b><span>{text}</span><em>{metric}</em></div></div>; }
-function FeatureCard({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) { return <article className="featureCard"><div className="featureIcon">{icon}</div><div><h3>{title}</h3><p>{text}</p></div></article>; }
-function MailIcon() { return <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3" /><path d="M4 7l8 7 8-7" /></svg>; }
+function FloatingMetric({ icon, title, value, helper, className }: { icon: React.ReactNode; title: string; value: string; helper: string; className: string }) {
+  return <div className={`v5Metric ${className}`}>{icon}<div><b>{title}</b><span>{helper}</span><em>{value}</em></div></div>;
+}
+
+function PriceCard() {
+  return (
+    <div className="v5PriceCard" id="pricing">
+      <div className="v5PriceLabel">AÇILIŞA ÖZEL</div>
+      <p>İlk ay sadece</p>
+      <div className="v5PriceNumbers"><del>₺99</del><strong>₺89</strong></div>
+      <small>Sonrasında ₺99 / ay</small>
+      <div className="v5PriceList">
+        <span><CheckIcon /> Tüm özelliklere erişim</span>
+        <span><CheckIcon /> Gorki AI asistan dahil</span>
+        <span><CheckIcon /> Pazaryeri altyapısı</span>
+      </div>
+      <a href="#waitlist">Erken erişime katıl <ArrowIcon /></a>
+    </div>
+  );
+}
+
+function GorkiCard({ message }: { message: string }) {
+  return (
+    <div className="v5GorkiCard" id="gorki">
+      <div className="v5GorkiTop">
+        <div className="v5GorkiAvatar"><img src="/gorki-hero.png" alt="" /></div>
+        <div><b>Gorki AI</b><span>Akıllı asistanın</span></div>
+      </div>
+      <div className="v5GorkiImage"><img src="/gorki-hero.png" alt="Gorki AI" /></div>
+      <div className="v5GorkiBubble">“{message}”</div>
+    </div>
+  );
+}
+
+function ValueCard({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) {
+  return <article className="v5ValueCard"><div className="v5ValueIcon">{icon}</div><div><h3>{title}</h3><p>{text}</p></div></article>;
+}
+
 function CheckIcon() { return <svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" /></svg>; }
 function ArrowIcon() { return <svg viewBox="0 0 24 24"><path d="M5 12h14" /><path d="M13 6l6 6-6 6" /></svg>; }
 function OrdersIcon() { return <svg viewBox="0 0 24 24"><path d="M6 2h12l3 5v15H3V7l3-5z" /><path d="M3 7h18" /><path d="M8 12h8" /><path d="M8 16h5" /></svg>; }
-function CubeIcon() { return <svg viewBox="0 0 24 24"><path d="M12 2l9 5-9 5-9-5 9-5z" /><path d="M3 7v10l9 5 9-5V7" /><path d="M12 12v10" /></svg>; }
 function WalletIcon() { return <svg viewBox="0 0 24 24"><path d="M3 7h18v12H3z" /><path d="M16 12h5v4h-5a2 2 0 0 1 0-4z" /><path d="M3 7l3-4h12l3 4" /></svg>; }
 function PanelIcon() { return <svg viewBox="0 0 24 24"><path d="M4 5h7v6H4z" /><path d="M13 5h7v14h-7z" /><path d="M4 13h7v6H4z" /></svg>; }
-function ChartIcon() { return <svg viewBox="0 0 24 24"><path d="M4 19V5" /><path d="M4 19h16" /><path d="M7 15l3-4 4 2 5-7" /></svg>; }
 function LinkIcon() { return <svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1.2 1.2" /><path d="M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1.2-1.2" /></svg>; }
-function HeadsetIcon() { return <svg viewBox="0 0 24 24"><path d="M4 13v-1a8 8 0 0 1 16 0v1" /><path d="M4 13h4v6H4z" /><path d="M16 13h4v6h-4z" /><path d="M16 21h-4" /></svg>; }
-function ShieldIcon() { return <svg viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6l8-4z" /><path d="M8.5 12l2.3 2.3 4.8-5" /></svg>; }
-function BoltIcon() { return <svg viewBox="0 0 24 24"><path d="M13 2L3 14h8l-1 8 11-14h-8l0-6z" /></svg>; }
-function HeartIcon() { return <svg viewBox="0 0 24 24"><path d="M12 21s-8-4.8-9.6-10C1.2 7.1 3.7 4.5 7 4.5c2 0 3.8 1.2 5 3 1.2-1.8 3-3 5-3 3.3 0 5.8 2.6 4.6 6.5C20 16.2 12 21 12 21z" /></svg>; }
-function GlobeIcon() { return <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path d="M2 12h20" /><path d="M12 2a15 15 0 0 1 0 20" /><path d="M12 2a15 15 0 0 0 0 20" /></svg>; }
+function RobotIcon() { return <svg viewBox="0 0 24 24"><rect x="5" y="8" width="14" height="10" rx="4" /><path d="M12 3v5" /><circle cx="9.2" cy="12.2" r="1" fill="currentColor" /><circle cx="14.8" cy="12.2" r="1" fill="currentColor" /><path d="M10 15c.6.5 1.2.8 2 .8s1.4-.3 2-.8" /></svg>; }
 function InstagramIcon() { return <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17" cy="7" r="1" /></svg>; }
