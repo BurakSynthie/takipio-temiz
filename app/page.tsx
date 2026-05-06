@@ -25,6 +25,29 @@ const gorkiMessages = [
   "Stokta azalan ürünleri senin için işaretledim.",
 ];
 
+const marketplaces = [
+  {
+    name: "Trendyol",
+    logo: "/trendyol.png",
+    accent: "#f27a1a",
+  },
+  {
+    name: "Amazon",
+    logo: "/amazon.png",
+    accent: "#ffb000",
+  },
+  {
+    name: "Hepsiburada",
+    logo: "/hepsiburada.png",
+    accent: "#ff6000",
+  },
+  {
+    name: "Çiçeksepeti",
+    logo: "/ciceksepeti.png",
+    accent: "#36b86a",
+  },
+];
+
 export default function Page() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -158,6 +181,30 @@ window.setTimeout(() => setSaved(false), 3200);
             işletmeni büyütürken kontrolü elinde tutman için tasarlandı.
           </p>
 
+          <div className="marketplaceHeroBox">
+  <div className="marketplaceHeroTop">
+    <span>Pazaryeri entegrasyonları hazırlanıyor</span>
+    <strong>Artık pazaryerlerinde de varız</strong>
+  </div>
+
+  <div className="marketplaceLogoRow">
+    {marketplaces.map((market) => (
+      <div className="marketplaceLogoItem" key={market.name}>
+        <span
+          className="marketplaceAccent"
+          style={{ background: market.accent }}
+        />
+        <img src={market.logo} alt={market.name} />
+      </div>
+    ))}
+  </div>
+
+  <p>
+    Trendyol, Amazon, Hepsiburada ve Çiçeksepeti satışlarınızı tek panelden
+    takip etmek için Takipio altyapısı genişliyor.
+  </p>
+</div>
+          
           <form className="waitlistCard" id="waitlist" onSubmit={handleSubmit}>
             <div className="waitlistHeader">
               <div className="mailIcon"><MailIcon /></div>
@@ -244,6 +291,7 @@ window.setTimeout(() => setSaved(false), 3200);
         </div>
       </section>
 
+
       <style jsx global>{`
         :root {
           --bg: #f8fbff;
@@ -289,8 +337,6 @@ window.setTimeout(() => setSaved(false), 3200);
           overflow-x: hidden;
           overflow-y: initial;
           padding: 28px 34px 38px;
-          opacity: 0;
-          visibility: hidden;
           background:
             radial-gradient(circle at 20% 18%, rgba(11, 99, 255, 0.085), transparent 30%),
             radial-gradient(circle at 80% 22%, rgba(73, 217, 255, 0.16), transparent 30%),
@@ -330,6 +376,92 @@ window.setTimeout(() => setSaved(false), 3200);
         h1 { max-width: 780px; font-size: clamp(56px,5.4vw,92px); line-height: .96; letter-spacing: -5px; font-weight: 950; color: var(--ink); margin: 0 0 23px; }
         h1 mark { color: var(--blue); background: transparent; text-shadow: 0 12px 30px rgba(11,99,255,.16); }
         .heroText { max-width: 650px; color: var(--muted); font-size: 21px; line-height: 1.58; letter-spacing: -.4px; margin: 0 0 28px; }
+
+        .marketplaceHeroBox {
+          width: min(690px, 100%);
+          margin: 0 0 26px;
+          padding: 20px;
+          border-radius: 28px;
+          background: rgba(255, 255, 255, 0.86);
+          border: 1px solid rgba(11, 99, 255, 0.14);
+          box-shadow: 0 22px 48px rgba(7, 20, 47, 0.09);
+        }
+
+        .marketplaceHeroTop {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 14px;
+          margin-bottom: 14px;
+        }
+
+        .marketplaceHeroTop span {
+          display: inline-flex;
+          align-items: center;
+          min-height: 34px;
+          padding: 0 12px;
+          border-radius: 999px;
+          background: rgba(11, 99, 255, 0.08);
+          color: #0b63ff;
+          font-size: 12px;
+          font-weight: 900;
+          letter-spacing: 0.7px;
+          text-transform: uppercase;
+        }
+
+        .marketplaceHeroTop strong {
+          color: #06101f;
+          font-size: 18px;
+          letter-spacing: -0.5px;
+        }
+
+        .marketplaceLogoRow {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 10px;
+        }
+
+        .marketplaceLogoItem {
+          position: relative;
+          min-height: 72px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 20px;
+          background: #ffffff;
+          border: 1px solid rgba(11, 99, 255, 0.1);
+          box-shadow: 0 14px 28px rgba(7, 20, 47, 0.06);
+          overflow: hidden;
+          padding: 12px;
+        }
+
+        .marketplaceLogoItem img {
+          max-width: 112px;
+          max-height: 34px;
+          width: auto;
+          height: auto;
+          object-fit: contain;
+          display: block;
+          position: relative;
+          z-index: 2;
+        }
+
+        .marketplaceAccent {
+          position: absolute;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          height: 4px;
+        }
+
+        .marketplaceHeroBox p {
+          margin: 14px 0 0;
+          color: #667085;
+          line-height: 1.6;
+          font-size: 14px;
+          font-weight: 650;
+        }
+
 
         .waitlistCard { width: min(690px,100%); border-radius: 30px; padding: 24px; background: rgba(255,255,255,.82); border: 1px solid rgba(11,99,255,.16); box-shadow: var(--shadow); transition: .32s ease; }
         .waitlistCard:hover { transform: translateY(-4px); box-shadow: 0 38px 90px rgba(15,32,64,.16), 0 0 0 6px rgba(11,99,255,.035); }
@@ -494,6 +626,28 @@ window.setTimeout(() => setSaved(false), 3200);
         @media (max-width: 1080px) { .takipioPremium { overflow-x: hidden; overflow-y: initial; padding: 22px 16px 92px; } .navLinks { display: none !important; } .navBar { width: 100%; height: auto; top: 12px; left: 0; transform: none; padding: 0; background: transparent; border: 0; box-shadow: none; justify-content: center; } .brandCapsule { width: 170px; height: 54px; margin: 0 auto; border-radius: 22px; background: linear-gradient(180deg, rgba(7,15,32,.96), rgba(5,9,20,.96)), #050914; border: 1px solid rgba(255,255,255,.14); box-shadow: 0 18px 38px rgba(6,16,31,.18), inset 0 0 22px rgba(11,99,255,.1); justify-content: center; } .brandCapsule img { width: 138px; height: auto; display: block; margin: 0 auto; filter: drop-shadow(0 0 10px rgba(11,99,255,.28)); } .mobileNav { position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 1001; height: 58px; display: grid; grid-template-columns: repeat(4,1fr); gap: 7px; padding: 7px; border-radius: 24px; background: rgba(255,255,255,.96); border: 1px solid rgba(11,99,255,.12); box-shadow: 0 16px 34px rgba(15,32,64,.14); } .mobileNav a { display: flex; align-items: center; justify-content: center; border-radius: 17px; color: #1d2939; background: #f7fbff; border: 1px solid rgba(11,99,255,.08); font-size: 12px; font-weight: 900; } .mobileNav a:last-child { color: white; background: linear-gradient(135deg,var(--blue),var(--blue2)); box-shadow: 0 10px 20px rgba(11,99,255,.2); } .floatingTopButton { right: 18px; bottom: 82px; } h1 { letter-spacing: -3px; } .heroText { font-size: 18px; } .heroShowcase { grid-template-columns: 1fr; min-height: auto; } .demoArea { min-height: 570px; } .sideStack { grid-template-columns: 1fr 1fr; } .pricePanel, .gorkiPanel { min-height: 300px; } .floatRevenue { right: 26px; top: 40px; } .floatOrders { left: 8px; } .floatStock { left: 14px; } .featureGrid { grid-template-columns: repeat(2,1fr); } }
         @media (max-width: 780px) { .hero { min-height: auto; gap: 24px; } .statusPill { font-size: 12px; white-space: normal; line-height: 1.3; } .waitlistHeader { align-items: flex-start; } .formRow { grid-template-columns: 1fr; } .proofBar { grid-template-columns: 1fr; } .demoArea { min-height: 500px; overflow: visible; padding-top: 24px; } .ambientGlow { width: 520px; height: 330px; } .laptopMock { width: 98%; height: 315px; padding: 11px 11px 22px; border-radius: 24px 24px 16px 16px; } .laptopMock::before { width: 52px; height: 8px; } .screenTop { height: 44px; padding: 0 12px; } .screenBrand { font-size: 12px; } .screenBrand img { width: 18px; height: 18px; } .screenBody { height: calc(100% - 44px); grid-template-columns: 86px 1fr; } .mockMenu { padding: 10px 7px; gap: 7px; } .mockMenu button { min-height: 28px; font-size: 0; } .mockMenu button::after { content: ""; display: block; width: 70%; height: 7px; border-radius: 999px; background: currentColor; margin: auto; opacity: .65; } .mockAssistant { display: none; } .mockContent { padding: 10px; } .mockHeader { margin-bottom: 8px; } .mockHeader h3 { font-size: 13px; } .mockHeader span { font-size: 9px; } .mockCards { grid-template-columns: 1fr; gap: 8px; } .mockCards .mockCard:nth-child(2), .mockCards .mockCard:nth-child(3), .mockCards .mockCard:nth-child(4) { display: none; } .mockCard { min-height: 58px; padding: 10px; } .mockLower { grid-template-columns: 1fr; } .mockGraph { height: 112px; } .activityPanel, .mockList { display: none; } .phoneMock { width: 124px; height: 250px; right: -4px; bottom: 16px; border-radius: 28px; padding: 8px; } .phoneScreen { border-radius: 21px; padding: 10px 8px; } .phoneGreeting, .phoneTabs { display: none; } .phoneGrid { grid-template-columns: 1fr; } .phoneGrid .phoneCard:nth-child(3), .phoneGrid .phoneCard:nth-child(4) { display: none; } .phoneList div { height: 26px; font-size: 0; } .floatingCard { display: none; } .sideStack { grid-template-columns: 1fr; } .pricePanel, .gorkiPanel { min-height: auto; } .featureGrid { grid-template-columns: 1fr; } .featureCard { min-height: 132px; } .domainCard, .instagramCard { align-items: flex-start; } .domainCard h3, .instagramCard h3 { font-size: 26px; } .trustCard { grid-template-columns: 1fr; } .trustCard div { min-height: 62px; } }
         @media (max-width: 460px) { .takipioPremium { padding: 18px 12px 92px; } h1 { font-size: 45px; line-height: 1; letter-spacing: -2.4px; } .heroText { font-size: 16px; } .waitlistCard { padding: 18px; border-radius: 24px; } .waitlistHeader h2 { font-size: 21px; } .mailIcon { width: 48px; height: 48px; border-radius: 16px; } .proofBar div { min-height: 74px; } .demoArea { min-height: 455px; } .laptopMock { height: 285px; } .phoneMock { scale: .9; right: -20px; bottom: 8px; } .priceNumbers strong { font-size: 62px; } .priceNumbers del { font-size: 36px; } }
+
+
+        @media (max-width: 780px) {
+          .marketplaceHeroTop {
+            align-items: flex-start;
+            flex-direction: column;
+          }
+
+          .marketplaceLogoRow {
+            grid-template-columns: repeat(2, 1fr);
+          }
+
+          .marketplaceLogoItem {
+            min-height: 66px;
+          }
+
+          .marketplaceLogoItem img {
+            max-width: 105px;
+            max-height: 32px;
+          }
+        }
+
       `}</style>
     </main>
   );
