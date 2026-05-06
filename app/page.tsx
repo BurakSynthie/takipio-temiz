@@ -157,9 +157,9 @@ export default function Page() {
 
         <nav className="desktopNav">
           <a href="#product">Ürün</a>
-          <a href="#integrations">Entegrasyon</a>
-          <a href="#gorki">Gorki AI</a>
-          <a href="#waitlist">Erken Erişim</a>
+          <a href="#what">Neler Sunar</a>
+          <a href="#gain">Kazanç</a>
+          <a href="#contact">İletişim</a>
         </nav>
 
         <a className="navCta" href="#waitlist">
@@ -169,10 +169,10 @@ export default function Page() {
       </header>
 
       <nav className="mobileDock" aria-label="Mobil menü">
-        <a href="#top">Ana Sayfa</a>
-        <a href="#product">Panel</a>
-        <a href="#integrations">Pazaryeri</a>
-        <a href="#waitlist">Kayıt</a>
+        <a href="#top"><span>⌂</span>Ana</a>
+        <a href="#product"><span>▣</span>Panel</a>
+        <a href="#gain"><span>↗</span>Kazanç</a>
+        <a href="#waitlist"><span>✦</span>Kayıt</a>
       </nav>
 
       <section className="hero" id="top">
@@ -278,6 +278,9 @@ export default function Page() {
           text="Günlük hareketleri kısa özetlere ve aksiyon önerilerine çevir."
         />
       </section>
+
+      <ScrollSections />
+      <FooterSection />
 
       {successOpen && <SuccessModal onClose={() => setSuccessOpen(false)} />}
 
@@ -875,6 +878,182 @@ function FeatureCard({ icon, title, text }: { icon: ReactNode; title: string; te
   );
 }
 
+
+function ScrollSections() {
+  const offerCards = [
+    {
+      title: "Operasyon kontrolü",
+      text: "Siparişten ödemeye kadar tüm günlük akışı tek panelde görürsün. Dağınık not, Excel ve farklı pazaryeri panelleri arasında kaybolmazsın.",
+      stat: "5+",
+      label: "akış tek ekranda",
+    },
+    {
+      title: "Pazaryeri görünürlüğü",
+      text: "Trendyol, Amazon, Hepsiburada ve Çiçeksepeti gibi kanallar için sipariş, stok ve durum takibini merkezi hale getirecek yapı hazırlanıyor.",
+      stat: "4",
+      label: "kanal desteği",
+    },
+    {
+      title: "Gorki AI özetleri",
+      text: "Gorki, yoğun günlerde kritik stokları, bekleyen ödemeleri ve aksiyon alman gereken işleri kısa özetlere çevirir.",
+      stat: "AI",
+      label: "akıllı öneri",
+    },
+  ];
+
+  const comparisonRows = [
+    { label: "Günlük sipariş kontrolü", before: "Manuel panel gezme", after: "Tek ekranda canlı özet" },
+    { label: "Stok ve ödeme takibi", before: "Geç fark edilen açıklar", after: "Erken uyarı ve aksiyon" },
+    { label: "Müşteri takibi", before: "Dağınık konuşmalar", after: "Sipariş geçmişiyle düzenli CRM" },
+    { label: "Karar alma", before: "Tahminle yönetim", after: "Güncel veriye göre karar" },
+  ];
+
+  const gainCards = [
+    { value: "%18", title: "daha hızlı aksiyon", text: "Günlük yoğunlukta bekleyen işleri daha erken görme hedefi." },
+    { value: "%12", title: "daha net ciro takibi", text: "Haftalık satış ve ödeme akışını daha anlaşılır izleme hedefi." },
+    { value: "2x", title: "daha az panel karmaşası", text: "Farklı kanalları tek merkezden takip etme yaklaşımı." },
+  ];
+
+  return (
+    <>
+      <section className="storySection" id="what">
+        <div className="sectionIntro">
+          <span>Takipio neler sunar?</span>
+          <h2>İşletmeni sadece kayıt altına almaz, yönetilebilir hale getirir.</h2>
+          <p>
+            Takipio; sipariş, müşteri, stok, ödeme ve pazaryeri akışlarını bir araya getirerek
+            günlük operasyonu daha okunabilir, daha hızlı ve daha kontrollü hale getirmek için tasarlandı.
+          </p>
+        </div>
+
+        <div className="offerGrid">
+          {offerCards.map((card) => (
+            <article className="offerCard" key={card.title}>
+              <div className="offerStat">
+                <b>{card.stat}</b>
+                <span>{card.label}</span>
+              </div>
+              <h3>{card.title}</h3>
+              <p>{card.text}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="compareSection" id="gain">
+        <div className="sectionIntro compact">
+          <span>Neyi değiştirir?</span>
+          <h2>Manuel takipten canlı işletme hafızasına geçersin.</h2>
+          <p>
+            Amaç sadece daha güzel bir panel değil; karar alırken elinde daha güncel, daha düzenli ve daha
+            aksiyon alınabilir veri olması.
+          </p>
+        </div>
+
+        <div className="compareShell">
+          <div className="compareTable">
+            <div className="compareHead">
+              <span>Alan</span>
+              <span>Takipio yokken</span>
+              <span>Takipio ile</span>
+            </div>
+            {comparisonRows.map((row) => (
+              <div className="compareRow" key={row.label}>
+                <b>{row.label}</b>
+                <span className="negative">{row.before}</span>
+                <span className="positive">{row.after}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="liveDataCard">
+            <span className="liveLabel"><i /> Güncel veri simülasyonu</span>
+            <h3>Bugünkü operasyon özeti</h3>
+            <div className="liveMetrics">
+              <div><b>146</b><span>aktif sipariş</span></div>
+              <div><b>₺24.610</b><span>bekleyen ödeme</span></div>
+              <div><b>3</b><span>kritik stok</span></div>
+            </div>
+            <p>
+              Bu veriler örnek senaryo olarak gösterilir. Gerçek kullanımda panel, işletmenin kendi
+              kayıtlarına ve bağlanan satış kanallarına göre şekillenir.
+            </p>
+          </div>
+        </div>
+
+        <div className="gainGrid">
+          {gainCards.map((card) => (
+            <article className="gainCard" key={card.title}>
+              <strong>{card.value}</strong>
+              <b>{card.title}</b>
+              <span>{card.text}</span>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="flowSection">
+        <div className="sectionIntro compact">
+          <span>Nasıl kolaylık sağlar?</span>
+          <h2>Gün içinde bakman gereken yerleri azaltır.</h2>
+        </div>
+
+        <div className="flowGrid">
+          <article>
+            <small>01</small>
+            <b>Topla</b>
+            <p>Sipariş, müşteri, stok ve ödeme bilgilerini tek merkezde düzenle.</p>
+          </article>
+          <article>
+            <small>02</small>
+            <b>Özetle</b>
+            <p>Gorki AI günlük hareketleri kısa, anlaşılır ve aksiyon odaklı hale getirir.</p>
+          </article>
+          <article>
+            <small>03</small>
+            <b>Harekete geç</b>
+            <p>Bekleyen ödeme, kritik stok ve geciken siparişleri daha hızlı fark et.</p>
+          </article>
+        </div>
+      </section>
+    </>
+  );
+}
+
+function FooterSection() {
+  return (
+    <footer className="siteFooter" id="contact">
+      <div className="footerTop">
+        <div>
+          <img src="/takipio-logo.png" alt="Takipio" />
+          <p>İşletme takibini, pazaryeri akışını ve Gorki AI özetlerini tek panelde birleştiren premium takip asistanı.</p>
+        </div>
+
+        <a className="instagramBox" href="https://instagram.com/takipiocom" target="_blank" rel="noreferrer">
+          <span>Instagram</span>
+          <b>@takipiocom</b>
+          <em>Gelişmeleri takip et <ArrowIcon /></em>
+        </a>
+      </div>
+
+      <div className="paymentRow">
+        <span>Ödeme yöntemleri</span>
+        <div>
+          <b>Mastercard</b>
+          <b>Visa</b>
+          <b>Troy</b>
+          <b>iyzico</b>
+        </div>
+      </div>
+
+      <div className="copyrightRow">
+        <span>© 2026 Takipio. Tüm hakları saklıdır.</span>
+        <span>Burak Kutluk tarafından geliştirilmektedir.</span>
+      </div>
+    </footer>
+  );
+}
+
 function SuccessModal({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -1063,7 +1242,7 @@ svg {
   stroke-linejoin: round;
 }
 
-#top, #product, #integrations, #gorki, #waitlist {
+#top, #product, #integrations, #gorki, #waitlist, #what, #gain, #contact {
   scroll-margin-top: 120px;
 }
 
@@ -2629,6 +2808,441 @@ svg {
   font-weight: 650;
 }
 
+
+.storySection,
+.compareSection,
+.flowSection,
+.siteFooter {
+  width: min(1500px, 100%);
+  margin: 24px auto 0;
+  position: relative;
+  z-index: 2;
+}
+
+.storySection,
+.compareSection,
+.flowSection {
+  padding: 34px;
+  border-radius: 38px;
+  background: linear-gradient(145deg, rgba(255,255,255,.075), rgba(255,255,255,.032));
+  border: 1px solid var(--line);
+  box-shadow: 0 24px 70px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.06);
+  backdrop-filter: blur(18px);
+}
+
+.sectionIntro {
+  max-width: 850px;
+  margin-bottom: 24px;
+}
+
+.sectionIntro.compact {
+  max-width: 780px;
+}
+
+.sectionIntro span {
+  width: max-content;
+  min-height: 31px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(11,99,255,.16);
+  border: 1px solid rgba(147,197,253,.14);
+  color: #a8d8ff;
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+
+.sectionIntro h2 {
+  margin: 0;
+  color: white;
+  font-size: clamp(32px, 3.2vw, 54px);
+  line-height: 1.02;
+  letter-spacing: -2.4px;
+  font-weight: 950;
+}
+
+.sectionIntro p {
+  max-width: 760px;
+  margin: 16px 0 0;
+  color: var(--muted);
+  line-height: 1.72;
+  font-size: 16px;
+  font-weight: 590;
+}
+
+.offerGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.offerCard,
+.gainCard,
+.flowGrid article,
+.liveDataCard {
+  border-radius: 28px;
+  background: rgba(255,255,255,.065);
+  border: 1px solid rgba(255,255,255,.09);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+}
+
+.offerCard {
+  min-height: 285px;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  transition: transform .22s ease, border-color .22s ease;
+}
+
+.offerCard:hover,
+.gainCard:hover,
+.flowGrid article:hover {
+  transform: translateY(-4px);
+  border-color: rgba(34,211,238,.26);
+}
+
+.offerStat {
+  width: 104px;
+  height: 104px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  border-radius: 28px;
+  background: radial-gradient(circle at 50% 0%, rgba(34,211,238,.22), transparent 62%), rgba(255,255,255,.07);
+  border: 1px solid rgba(147,197,253,.14);
+  margin-bottom: 22px;
+}
+
+.offerStat b {
+  display: block;
+  color: white;
+  font-size: 32px;
+  line-height: 1;
+  letter-spacing: -1.6px;
+}
+
+.offerStat span {
+  display: block;
+  color: var(--muted2);
+  font-size: 11px;
+  font-weight: 850;
+  margin-top: -16px;
+}
+
+.offerCard h3 {
+  margin: 0 0 10px;
+  color: white;
+  font-size: 22px;
+  letter-spacing: -.7px;
+}
+
+.offerCard p,
+.flowGrid p,
+.liveDataCard p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.66;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.compareShell {
+  display: grid;
+  grid-template-columns: 1.35fr .65fr;
+  gap: 16px;
+  align-items: stretch;
+}
+
+.compareTable {
+  overflow: hidden;
+  border-radius: 28px;
+  background: rgba(255,255,255,.055);
+  border: 1px solid rgba(255,255,255,.09);
+}
+
+.compareHead,
+.compareRow {
+  display: grid;
+  grid-template-columns: 1fr 1.1fr 1.1fr;
+  gap: 12px;
+  align-items: center;
+  padding: 15px 18px;
+}
+
+.compareHead {
+  color: var(--muted2);
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: .6px;
+  text-transform: uppercase;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+
+.compareRow {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 760;
+  border-bottom: 1px solid rgba(255,255,255,.055);
+}
+
+.compareRow:last-child { border-bottom: 0; }
+.compareRow b { color: white; }
+.compareRow .negative { color: rgba(254,202,202,.78); }
+.compareRow .positive { color: rgba(187,247,208,.86); }
+
+.liveDataCard {
+  padding: 22px;
+  min-height: 100%;
+}
+
+.liveLabel {
+  width: max-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 29px;
+  padding: 0 10px;
+  border-radius: 999px;
+  color: #bbf7d0;
+  background: rgba(52,211,153,.1);
+  border: 1px solid rgba(52,211,153,.2);
+  font-size: 11px;
+  font-weight: 950;
+  margin-bottom: 16px;
+}
+
+.liveLabel i {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--green);
+  box-shadow: 0 0 10px var(--green);
+}
+
+.liveDataCard h3 {
+  margin: 0 0 16px;
+  color: white;
+  font-size: 24px;
+  letter-spacing: -.8px;
+}
+
+.liveMetrics {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.liveMetrics div {
+  min-height: 74px;
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  padding: 13px;
+  border-radius: 18px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.075);
+}
+
+.liveMetrics b {
+  color: white;
+  font-size: 25px;
+  letter-spacing: -.9px;
+}
+
+.liveMetrics span {
+  color: var(--muted2);
+  font-size: 12px;
+  font-weight: 780;
+}
+
+.gainGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.gainCard {
+  min-height: 170px;
+  padding: 22px;
+  transition: transform .22s ease, border-color .22s ease;
+}
+
+.gainCard strong {
+  display: block;
+  width: max-content;
+  color: transparent;
+  background: linear-gradient(135deg, #fff, #8fd7ff, var(--blue));
+  -webkit-background-clip: text;
+  background-clip: text;
+  font-size: 44px;
+  line-height: 1;
+  letter-spacing: -2px;
+  margin-bottom: 12px;
+}
+
+.gainCard b {
+  display: block;
+  color: white;
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+
+.gainCard span {
+  display: block;
+  color: var(--muted);
+  line-height: 1.56;
+  font-size: 13px;
+  font-weight: 680;
+}
+
+.flowGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.flowGrid article {
+  min-height: 190px;
+  padding: 22px;
+  transition: transform .22s ease, border-color .22s ease;
+}
+
+.flowGrid small {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 15px;
+  color: #8fd7ff;
+  background: rgba(34,211,238,.09);
+  border: 1px solid rgba(34,211,238,.16);
+  font-weight: 950;
+  margin-bottom: 18px;
+}
+
+.flowGrid b {
+  display: block;
+  color: white;
+  font-size: 22px;
+  margin-bottom: 8px;
+}
+
+.siteFooter {
+  padding: 28px;
+  border-radius: 38px 38px 0 0;
+  background: rgba(255,255,255,.06);
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  box-shadow: 0 24px 70px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.06);
+  backdrop-filter: blur(18px);
+}
+
+.footerTop {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: 18px;
+  align-items: stretch;
+  margin-bottom: 20px;
+}
+
+.footerTop img {
+  width: 160px;
+  height: 48px;
+  object-fit: contain;
+  margin-bottom: 12px;
+}
+
+.footerTop p {
+  max-width: 620px;
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.65;
+  font-weight: 650;
+}
+
+.instagramBox {
+  min-height: 150px;
+  display: grid;
+  align-content: center;
+  gap: 7px;
+  padding: 20px;
+  border-radius: 28px;
+  color: white;
+  background: radial-gradient(circle at 0% 0%, rgba(236,72,153,.18), transparent 42%), rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.1);
+  transition: transform .22s ease, border-color .22s ease;
+}
+
+.instagramBox:hover {
+  transform: translateY(-4px);
+  border-color: rgba(236,72,153,.32);
+}
+
+.instagramBox span {
+  color: #fbcfe8;
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.instagramBox b {
+  font-size: 24px;
+  letter-spacing: -.7px;
+}
+
+.instagramBox em {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-style: normal;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.paymentRow,
+.copyrightRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255,255,255,.08);
+  color: var(--muted2);
+  font-size: 13px;
+  font-weight: 780;
+}
+
+.paymentRow div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.paymentRow b {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  border-radius: 12px;
+  color: white;
+  background: rgba(255,255,255,.075);
+  border: 1px solid rgba(255,255,255,.09);
+  font-size: 12px;
+}
+
+.copyrightRow {
+  margin-top: 18px;
+}
+
 .modalOverlay {
   position: fixed;
   inset: 0;
@@ -2853,16 +3467,35 @@ svg {
   .mobileDock a {
     display: grid;
     place-items: center;
+    grid-template-rows: 17px 1fr;
+    gap: 1px;
     border-radius: 17px;
     color: var(--muted);
     background: rgba(255,255,255,.06);
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 900;
+    line-height: 1;
+  }
+
+  .mobileDock a span {
+    display: grid;
+    place-items: center;
+    width: 19px;
+    height: 19px;
+    border-radius: 8px;
+    color: #8fd7ff;
+    background: rgba(34,211,238,.09);
+    font-size: 12px;
   }
 
   .mobileDock a:last-child {
     color: white;
-    background: linear-gradient(135deg, var(--blue), var(--cyan));
+    background: linear-gradient(135deg, rgba(11,99,255,.95), rgba(34,211,238,.72));
+  }
+
+  .mobileDock a:last-child span {
+    color: white;
+    background: rgba(255,255,255,.14);
   }
 
   .hero {
@@ -2891,6 +3524,46 @@ svg {
 
   .featureBand {
     grid-template-columns: 1fr;
+  }
+}
+
+
+@media (max-width: 1100px) {
+  .offerGrid,
+  .compareShell,
+  .gainGrid,
+  .flowGrid,
+  .footerTop {
+    grid-template-columns: 1fr;
+  }
+
+  .storySection,
+  .compareSection,
+  .flowSection,
+  .siteFooter {
+    padding: 24px;
+    border-radius: 30px;
+  }
+
+  .compareHead,
+  .compareRow {
+    grid-template-columns: 1fr;
+    gap: 7px;
+  }
+
+  .compareHead span:nth-child(2),
+  .compareHead span:nth-child(3) {
+    display: none;
+  }
+
+  .paymentRow,
+  .copyrightRow {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .paymentRow div {
+    justify-content: flex-start;
   }
 }
 
@@ -3127,6 +3800,17 @@ svg {
   }
 }
 
+
+@media (max-width: 780px) {
+  .heroRight { min-height: 760px; }
+  .studio { min-height: 730px; overflow: hidden; }
+  .macbookScene { top: 270px; left: 16px; right: 16px; }
+  .macbook { height: 330px; }
+  .iphone { right: 6px; bottom: -10px; }
+  .gorkiPanel { bottom: 112px; }
+  .couponMini { bottom: 16px; }
+}
+
 @media (max-width: 460px) {
   .takipioV8 {
     padding: 16px 12px 92px;
@@ -3194,5 +3878,23 @@ svg {
   .couponMini {
     right: 16px;
   }
+}
+
+
+@media (max-width: 460px) {
+  .sectionIntro h2 { font-size: 31px; letter-spacing: -1.4px; }
+  .sectionIntro p { font-size: 14px; }
+  .offerCard, .gainCard, .flowGrid article { min-height: auto; padding: 18px; border-radius: 24px; }
+  .offerStat { width: 86px; height: 86px; border-radius: 23px; }
+  .offerStat b { font-size: 27px; }
+  .liveDataCard { padding: 18px; border-radius: 24px; }
+  .compareRow { font-size: 13px; padding: 14px; }
+  .siteFooter { padding: 20px; }
+  .instagramBox { min-height: 128px; border-radius: 24px; }
+  .paymentRow b { min-height: 32px; font-size: 11px; }
+  .heroRight { min-height: 700px; }
+  .studio { min-height: 680px; }
+  .macbookScene { top: 252px; }
+  .macbook { height: 300px; }
 }
 `;
