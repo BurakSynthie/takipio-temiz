@@ -48,6 +48,7 @@ export default function Page() {
   const [loading, setLoading] = useState(false);
   const [errorText, setErrorText] = useState("");
   const [successOpen, setSuccessOpen] = useState(false);
+  const [gorkiChatOpen, setGorkiChatOpen] = useState(false);
   const [ready, setReady] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
   const userTouched = useRef(false);
@@ -298,6 +299,13 @@ export default function Page() {
 
       <ScrollSections />
       <FooterSection />
+
+      <GorkiChatWidget
+        open={gorkiChatOpen}
+        onToggle={() => setGorkiChatOpen((current) => !current)}
+        onClose={() => setGorkiChatOpen(false)}
+        message={GORKI_MESSAGES[messageIndex]}
+      />
 
       {successOpen && <SuccessModal onClose={() => setSuccessOpen(false)} />}
 
@@ -884,6 +892,90 @@ function getPhoneData(tab: TabKey) {
       };
   }
 }
+
+function GorkiChatWidget({
+  open,
+  onToggle,
+  onClose,
+  message,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  message: string;
+}) {
+  const quickItems = [
+    "Bugünkü siparişlerde neye bakmalıyım?",
+    "Stokta risk var mı?",
+    "Pazaryeri satışlarını özetle",
+  ];
+
+  return (
+    <div className={`gorkiChatWidget ${open ? "open" : ""}`}>
+      {open && (
+        <div className="gorkiChatPanel" role="dialog" aria-label="Gorki AI sohbet ekranı">
+          <div className="chatTop">
+            <div className="chatGorkiHead">
+              <img src="/gorki-hero.png" alt="Gorki AI" />
+            </div>
+            <div>
+              <b>Gorki AI</b>
+              <span>Takipio akıllı asistanı</span>
+            </div>
+            <button type="button" onClick={onClose} aria-label="Gorki sohbetini kapat">
+              <CloseIcon />
+            </button>
+          </div>
+
+          <div className="chatBody">
+            <div className="chatBubble ai">
+              Merhaba 👋 Ben Gorki. Sipariş, stok, ödeme ve pazaryeri akışlarını senin için özetleyebilirim.
+            </div>
+
+            <div className="chatBubble ai highlight">
+              {message}
+            </div>
+
+            <div className="chatBubble user">
+              Bugün nelere dikkat etmeliyim?
+            </div>
+
+            <div className="chatBubble ai">
+              Öncelik: bekleyen ödemeler, kritik stoklar ve hazırlıkta kalan siparişler. Takipio bu işleri tek panelde öne çıkarır.
+            </div>
+          </div>
+
+          <div className="chatQuick">
+            {quickItems.map((item) => (
+              <button type="button" key={item}>
+                {item}
+              </button>
+            ))}
+          </div>
+
+          <div className="chatInputFake">
+            <span>Gorki’ye sor...</span>
+            <button type="button" aria-label="Gönder">
+              <ArrowIcon />
+            </button>
+          </div>
+        </div>
+      )}
+
+      <button
+        type="button"
+        className="gorkiFloatingHead"
+        onClick={onToggle}
+        aria-label={open ? "Gorki sohbetini kapat" : "Gorki sohbetini aç"}
+      >
+        <span className="gorkiPulse" />
+        <img src="/gorki-hero.png" alt="" />
+        <em>{open ? "Kapat" : "Gorki"}</em>
+      </button>
+    </div>
+  );
+}
+
 
 function FeatureCard({ icon, title, text }: { icon: ReactNode; title: string; text: string }) {
   return (
@@ -4959,6 +5051,328 @@ svg {
 .takipioV8.lightMode .compareSection,
 .takipioV8.lightMode .gainSection {
   color: #06101f !important;
+}
+
+
+/* ---------- Gorki floating chat widget ---------- */
+
+.gorkiPanel {
+  display: none !important;
+}
+
+.gorkiChatWidget {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 90;
+  pointer-events: none;
+}
+
+.gorkiFloatingHead {
+  width: 82px;
+  height: 82px;
+  position: relative;
+  pointer-events: auto;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(147,197,253,.2);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(34,211,238,.2), transparent 58%),
+    rgba(6,16,31,.88);
+  box-shadow: 0 24px 64px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.08);
+  backdrop-filter: blur(18px);
+  color: white;
+  transition: transform .22s ease, box-shadow .22s ease;
+}
+
+.gorkiFloatingHead:hover {
+  transform: translateY(-4px) scale(1.03);
+  box-shadow: 0 30px 80px rgba(11,99,255,.24), 0 24px 64px rgba(0,0,0,.34);
+}
+
+.gorkiFloatingHead img {
+  width: 62px;
+  height: 62px;
+  object-fit: contain;
+  position: relative;
+  z-index: 2;
+  filter: drop-shadow(0 14px 22px rgba(0,0,0,.28));
+}
+
+.gorkiFloatingHead em {
+  position: absolute;
+  left: 50%;
+  bottom: -10px;
+  transform: translateX(-50%);
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 9px;
+  border-radius: 999px;
+  color: #06101f;
+  background: linear-gradient(135deg, #8fd7ff, #22d3ee);
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 950;
+  box-shadow: 0 10px 20px rgba(34,211,238,.22);
+}
+
+.gorkiPulse {
+  position: absolute;
+  inset: -6px;
+  border-radius: 32px;
+  border: 1px solid rgba(34,211,238,.34);
+  animation: gorkiPulse 2.4s ease-in-out infinite;
+}
+
+.gorkiChatPanel {
+  width: 380px;
+  max-width: calc(100vw - 32px);
+  margin-bottom: 18px;
+  pointer-events: auto;
+  border-radius: 30px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(34,211,238,.16), transparent 38%),
+    rgba(6,16,31,.94);
+  border: 1px solid rgba(147,197,253,.18);
+  box-shadow: 0 34px 100px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.08);
+  backdrop-filter: blur(22px);
+  animation: chatIn .24s cubic-bezier(.22,1,.36,1);
+}
+
+.chatTop {
+  min-height: 76px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+
+.chatGorkiHead {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.08);
+}
+
+.chatGorkiHead img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+
+.chatTop b {
+  display: block;
+  color: white;
+  font-size: 16px;
+  line-height: 1.1;
+}
+
+.chatTop span {
+  display: block;
+  color: var(--muted2);
+  font-size: 12px;
+  font-weight: 750;
+  margin-top: 4px;
+}
+
+.chatTop button {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.06);
+  color: white;
+}
+
+.chatTop button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.chatBody {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  max-height: 360px;
+  overflow: auto;
+}
+
+.chatBubble {
+  width: fit-content;
+  max-width: 86%;
+  padding: 11px 13px;
+  border-radius: 18px;
+  color: rgba(226,237,255,.82);
+  background: rgba(255,255,255,.07);
+  border: 1px solid rgba(255,255,255,.075);
+  font-size: 13px;
+  line-height: 1.48;
+  font-weight: 700;
+}
+
+.chatBubble.ai {
+  border-top-left-radius: 8px;
+}
+
+.chatBubble.user {
+  justify-self: end;
+  color: white;
+  background: linear-gradient(135deg, rgba(11,99,255,.95), rgba(34,211,238,.75));
+  border-color: transparent;
+  border-top-right-radius: 8px;
+}
+
+.chatBubble.highlight {
+  color: #baf6fe;
+  background: rgba(34,211,238,.1);
+  border-color: rgba(34,211,238,.2);
+}
+
+.chatQuick {
+  display: flex;
+  gap: 8px;
+  padding: 0 14px 14px;
+  overflow-x: auto;
+}
+
+.chatQuick button {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 11px;
+  border-radius: 999px;
+  color: #baf6fe;
+  background: rgba(34,211,238,.08);
+  border: 1px solid rgba(34,211,238,.18);
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.chatInputFake {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  padding: 14px;
+  border-top: 1px solid rgba(255,255,255,.08);
+}
+
+.chatInputFake span {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 0 13px;
+  border-radius: 16px;
+  color: var(--muted2);
+  background: rgba(255,255,255,.07);
+  border: 1px solid rgba(255,255,255,.08);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.chatInputFake button {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  border: 0;
+  color: white;
+  background: linear-gradient(135deg, var(--blue), var(--cyan));
+}
+
+.chatInputFake button svg {
+  width: 17px;
+  height: 17px;
+}
+
+.takipioV8.lightMode .gorkiChatPanel {
+  background:
+    radial-gradient(circle at 0% 0%, rgba(11,99,255,.08), transparent 38%),
+    rgba(255,255,255,.94);
+  border-color: rgba(11,99,255,.14);
+  box-shadow: 0 34px 100px rgba(16,24,40,.18), inset 0 1px 0 rgba(255,255,255,.88);
+}
+
+.takipioV8.lightMode .chatTop,
+.takipioV8.lightMode .chatInputFake {
+  border-color: rgba(11,99,255,.1);
+}
+
+.takipioV8.lightMode .chatTop b {
+  color: #06101f;
+}
+
+.takipioV8.lightMode .chatTop span,
+.takipioV8.lightMode .chatBubble.ai,
+.takipioV8.lightMode .chatInputFake span {
+  color: #475467;
+}
+
+.takipioV8.lightMode .chatBubble.ai,
+.takipioV8.lightMode .chatInputFake span,
+.takipioV8.lightMode .chatGorkiHead,
+.takipioV8.lightMode .chatTop button {
+  background: rgba(245,249,255,.9);
+  border-color: rgba(11,99,255,.1);
+}
+
+.takipioV8.lightMode .chatTop button {
+  color: #06101f;
+}
+
+.takipioV8.lightMode .gorkiFloatingHead {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(11,99,255,.12), transparent 58%),
+    rgba(255,255,255,.92);
+  border-color: rgba(11,99,255,.16);
+  box-shadow: 0 24px 64px rgba(16,24,40,.14), inset 0 1px 0 rgba(255,255,255,.84);
+}
+
+@keyframes chatIn {
+  from { opacity: 0; transform: translateY(14px) scale(.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes gorkiPulse {
+  0%, 100% { opacity: .45; transform: scale(1); }
+  50% { opacity: .08; transform: scale(1.14); }
+}
+
+@media (max-width: 780px) {
+  .gorkiChatWidget {
+    right: 16px;
+    bottom: 86px;
+  }
+
+  .gorkiFloatingHead {
+    width: 68px;
+    height: 68px;
+    border-radius: 24px;
+  }
+
+  .gorkiFloatingHead img {
+    width: 52px;
+    height: 52px;
+  }
+
+  .gorkiChatPanel {
+    width: calc(100vw - 32px);
+    margin-bottom: 14px;
+    border-radius: 26px;
+  }
+
+  .chatBody {
+    max-height: 310px;
+  }
 }
 
 `;
