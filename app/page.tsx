@@ -1564,8 +1564,10 @@ svg {
 }
 
 .takipioV8.lightMode .brand {
-  background: rgba(255,255,255,.92);
-  border-color: rgba(11,99,255,.12);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.09), rgba(255,255,255,.03)),
+    #050914;
+  border-color: rgba(11,99,255,.18);
 }
 
 .takipioV8.lightMode .desktopNav,
@@ -4783,108 +4785,180 @@ svg {
 }
 
 
-/* ---------- Light mode readability hotfix ---------- */
 
-.takipioV8.lightMode,
-.takipioV8.lightMode * {
-  text-shadow: none;
+
+/* ---------- FINAL LIGHT MODE READABILITY + LOGO FIX ---------- */
+
+/* Logo görselinde beyaz yazı olduğu için light mode'da da logo kapsülü koyu kalır */
+.takipioV8.lightMode .brand {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.09), rgba(255,255,255,.03)),
+    #050914 !important;
+  border-color: rgba(11,99,255,.18) !important;
+  box-shadow: 0 18px 38px rgba(6,16,31,.12), inset 0 1px 0 rgba(255,255,255,.08) !important;
 }
 
-.takipioV8.lightMode .sectionIntro h2,
-.takipioV8.lightMode .sectionIntro p,
-.takipioV8.lightMode .sectionIntro span,
-.takipioV8.lightMode .flowSection h2,
-.takipioV8.lightMode .flowSection p,
-.takipioV8.lightMode .gainCard b,
-.takipioV8.lightMode .gainCard span,
-.takipioV8.lightMode .offerCard b,
-.takipioV8.lightMode .offerCard span,
-.takipioV8.lightMode .compareCard b,
-.takipioV8.lightMode .compareCard span,
-.takipioV8.lightMode .flowCard b,
-.takipioV8.lightMode .flowCard span,
+.takipioV8.lightMode .brand img {
+  filter: none !important;
+}
+
+/* Alt içerik bölümlerinde beyaz yazı kalmasını engelle */
+.takipioV8.lightMode .scrollContent,
+.takipioV8.lightMode .scrollContent *,
+.takipioV8.lightMode .featureBand,
+.takipioV8.lightMode .featureBand *,
+.takipioV8.lightMode .analyticsSection,
+.takipioV8.lightMode .analyticsSection *,
+.takipioV8.lightMode .footerArea,
+.takipioV8.lightMode .footerArea *,
 .takipioV8.lightMode .footerShell,
+.takipioV8.lightMode .footerShell * {
+  text-shadow: none !important;
+}
+
+/* Genel açıklama metinleri */
+.takipioV8.lightMode .scrollContent p,
+.takipioV8.lightMode .scrollContent span,
+.takipioV8.lightMode .scrollContent li,
+.takipioV8.lightMode .scrollContent small,
+.takipioV8.lightMode .scrollContent em,
+.takipioV8.lightMode .featureBand span,
+.takipioV8.lightMode .analyticsSection p,
+.takipioV8.lightMode .analyticsSection span,
+.takipioV8.lightMode .analyticsSection small,
+.takipioV8.lightMode .analyticsSection em,
+.takipioV8.lightMode .footerArea span,
+.takipioV8.lightMode .footerArea p,
+.takipioV8.lightMode .footerArea small,
 .takipioV8.lightMode .footerShell span,
 .takipioV8.lightMode .footerShell p,
-.takipioV8.lightMode .paymentCard,
-.takipioV8.lightMode .paymentCard span,
-.takipioV8.lightMode .instagramCard,
-.takipioV8.lightMode .instagramCard span,
-.takipioV8.lightMode .copyright,
-.takipioV8.lightMode .copyright span {
-  color: rgba(52, 64, 84, .82) !important;
+.takipioV8.lightMode .footerShell small {
+  color: #475467 !important;
 }
 
-.takipioV8.lightMode .sectionIntro h2,
-.takipioV8.lightMode .flowSection h2,
-.takipioV8.lightMode .gainCard b,
-.takipioV8.lightMode .offerCard b,
-.takipioV8.lightMode .compareCard b,
-.takipioV8.lightMode .flowCard b,
+/* Başlıklar ve güçlü metinler */
+.takipioV8.lightMode .scrollContent h1,
+.takipioV8.lightMode .scrollContent h2,
+.takipioV8.lightMode .scrollContent h3,
+.takipioV8.lightMode .scrollContent h4,
+.takipioV8.lightMode .scrollContent b,
+.takipioV8.lightMode .scrollContent strong,
+.takipioV8.lightMode .featureBand b,
+.takipioV8.lightMode .analyticsSection h2,
+.takipioV8.lightMode .analyticsSection h3,
+.takipioV8.lightMode .analyticsSection b,
+.takipioV8.lightMode .analyticsSection strong,
+.takipioV8.lightMode .footerArea b,
+.takipioV8.lightMode .footerArea strong,
 .takipioV8.lightMode .footerShell b,
-.takipioV8.lightMode .paymentCard b,
-.takipioV8.lightMode .instagramCard b {
+.takipioV8.lightMode .footerShell strong {
   color: #06101f !important;
 }
 
-.takipioV8.lightMode .sectionIntro span,
-.takipioV8.lightMode .flowSection .sectionBadge,
-.takipioV8.lightMode .offerCard small,
-.takipioV8.lightMode .compareCard small,
-.takipioV8.lightMode .flowCard small,
-.takipioV8.lightMode .gainCard strong {
-  color: #0b63ff !important;
-}
-
-.takipioV8.lightMode .gainCard strong {
-  background: linear-gradient(135deg, #0b63ff, #22d3ee);
-  -webkit-background-clip: text;
-  background-clip: text;
+/* Vurgulu rakamlar */
+.takipioV8.lightMode .gainCard strong,
+.takipioV8.lightMode .analysisMetric b,
+.takipioV8.lightMode .healthScore b,
+.takipioV8.lightMode .profitChart b {
+  background: linear-gradient(135deg, #0b63ff, #22d3ee) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
   color: transparent !important;
 }
 
+/* Rozetler */
+.takipioV8.lightMode .sectionIntro span,
+.takipioV8.lightMode .sectionBadge,
+.takipioV8.lightMode .liveLabel,
+.takipioV8.lightMode .simEyebrow,
+.takipioV8.lightMode .offerCard small,
+.takipioV8.lightMode .compareCard small,
+.takipioV8.lightMode .flowCard small {
+  color: #075985 !important;
+  background: rgba(224,242,254,.88) !important;
+  border-color: rgba(14,165,233,.22) !important;
+}
+
+/* Kart yüzeyleri */
 .takipioV8.lightMode .gainCard,
 .takipioV8.lightMode .offerCard,
 .takipioV8.lightMode .compareCard,
 .takipioV8.lightMode .flowCard,
+.takipioV8.lightMode .featureCard,
+.takipioV8.lightMode .analysisBoard,
+.takipioV8.lightMode .profitSimulator,
+.takipioV8.lightMode .analysisMetric,
+.takipioV8.lightMode .analysisBar,
+.takipioV8.lightMode .profitChart div,
+.takipioV8.lightMode .miniComparison div,
 .takipioV8.lightMode .footerShell,
 .takipioV8.lightMode .paymentCard,
 .takipioV8.lightMode .instagramCard {
-  background: rgba(255,255,255,.82) !important;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(11,99,255,.055), transparent 38%),
+    rgba(255,255,255,.86) !important;
   border-color: rgba(11,99,255,.13) !important;
-  box-shadow: 0 20px 54px rgba(16,24,40,.08), inset 0 1px 0 rgba(255,255,255,.82) !important;
+  box-shadow: 0 20px 54px rgba(16,24,40,.08), inset 0 1px 0 rgba(255,255,255,.88) !important;
 }
 
-.takipioV8.lightMode .flowIcon,
-.takipioV8.lightMode .offerIcon,
-.takipioV8.lightMode .compareIcon {
-  background: rgba(11,99,255,.08) !important;
-  color: #0b63ff !important;
+/* Kırmızı/yeşil karşılaştırma satırlarında aşırı soluk görünümü düzelt */
+.takipioV8.lightMode .negative,
+.takipioV8.lightMode .minus,
+.takipioV8.lightMode .bad,
+.takipioV8.lightMode .danger {
+  color: #d92d20 !important;
 }
 
+.takipioV8.lightMode .positive,
+.takipioV8.lightMode .plus,
+.takipioV8.lightMode .good,
+.takipioV8.lightMode .success {
+  color: #039855 !important;
+}
+
+/* Eğer kart içlerinde özel class yoksa renkli satırları yine okunur yap */
+.takipioV8.lightMode .compareCard li:nth-child(2),
+.takipioV8.lightMode .offerCard li:nth-child(2),
+.takipioV8.lightMode .flowCard li:nth-child(2) {
+  color: #d92d20 !important;
+}
+
+.takipioV8.lightMode .compareCard li:nth-child(3),
+.takipioV8.lightMode .offerCard li:nth-child(3),
+.takipioV8.lightMode .flowCard li:nth-child(3) {
+  color: #039855 !important;
+}
+
+/* Mobil dock */
 .takipioV8.lightMode .mobileDock {
-  background: rgba(255,255,255,.9) !important;
+  background: rgba(255,255,255,.94) !important;
   border-color: rgba(11,99,255,.16) !important;
+  box-shadow: 0 18px 42px rgba(16,24,40,.14) !important;
 }
 
 .takipioV8.lightMode .mobileDock a {
-  color: rgba(52,64,84,.78) !important;
-  background: rgba(245,249,255,.92) !important;
+  color: #475467 !important;
+  background: rgba(245,249,255,.94) !important;
 }
 
 .takipioV8.lightMode .mobileDock a:last-child {
-  color: white !important;
+  color: #fff !important;
   background: linear-gradient(135deg, var(--blue), var(--cyan)) !important;
 }
 
-.takipioV8.lightMode .mobileDock svg,
-.takipioV8.lightMode .mobileDock i {
-  color: #0b63ff !important;
+/* Üst tema butonu */
+.takipioV8.lightMode .themeToggle {
+  color: #06101f !important;
+  background: rgba(255,255,255,.88) !important;
+  border-color: rgba(11,99,255,.15) !important;
 }
 
-.takipioV8.lightMode .mobileDock a:last-child svg,
-.takipioV8.lightMode .mobileDock a:last-child i {
-  color: white !important;
+/* Çok açık kalan cam arka planları biraz sıkılaştır */
+.takipioV8.lightMode .flowSection,
+.takipioV8.lightMode .offerSection,
+.takipioV8.lightMode .compareSection,
+.takipioV8.lightMode .gainSection {
+  color: #06101f !important;
 }
 
 `;
