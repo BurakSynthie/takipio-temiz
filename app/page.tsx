@@ -4782,4 +4782,109 @@ svg {
   }
 }
 
+
+/* ---------- Light mode readability hotfix ---------- */
+
+.takipioV8.lightMode,
+.takipioV8.lightMode * {
+  text-shadow: none;
+}
+
+.takipioV8.lightMode .sectionIntro h2,
+.takipioV8.lightMode .sectionIntro p,
+.takipioV8.lightMode .sectionIntro span,
+.takipioV8.lightMode .flowSection h2,
+.takipioV8.lightMode .flowSection p,
+.takipioV8.lightMode .gainCard b,
+.takipioV8.lightMode .gainCard span,
+.takipioV8.lightMode .offerCard b,
+.takipioV8.lightMode .offerCard span,
+.takipioV8.lightMode .compareCard b,
+.takipioV8.lightMode .compareCard span,
+.takipioV8.lightMode .flowCard b,
+.takipioV8.lightMode .flowCard span,
+.takipioV8.lightMode .footerShell,
+.takipioV8.lightMode .footerShell span,
+.takipioV8.lightMode .footerShell p,
+.takipioV8.lightMode .paymentCard,
+.takipioV8.lightMode .paymentCard span,
+.takipioV8.lightMode .instagramCard,
+.takipioV8.lightMode .instagramCard span,
+.takipioV8.lightMode .copyright,
+.takipioV8.lightMode .copyright span {
+  color: rgba(52, 64, 84, .82) !important;
+}
+
+.takipioV8.lightMode .sectionIntro h2,
+.takipioV8.lightMode .flowSection h2,
+.takipioV8.lightMode .gainCard b,
+.takipioV8.lightMode .offerCard b,
+.takipioV8.lightMode .compareCard b,
+.takipioV8.lightMode .flowCard b,
+.takipioV8.lightMode .footerShell b,
+.takipioV8.lightMode .paymentCard b,
+.takipioV8.lightMode .instagramCard b {
+  color: #06101f !important;
+}
+
+.takipioV8.lightMode .sectionIntro span,
+.takipioV8.lightMode .flowSection .sectionBadge,
+.takipioV8.lightMode .offerCard small,
+.takipioV8.lightMode .compareCard small,
+.takipioV8.lightMode .flowCard small,
+.takipioV8.lightMode .gainCard strong {
+  color: #0b63ff !important;
+}
+
+.takipioV8.lightMode .gainCard strong {
+  background: linear-gradient(135deg, #0b63ff, #22d3ee);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent !important;
+}
+
+.takipioV8.lightMode .gainCard,
+.takipioV8.lightMode .offerCard,
+.takipioV8.lightMode .compareCard,
+.takipioV8.lightMode .flowCard,
+.takipioV8.lightMode .footerShell,
+.takipioV8.lightMode .paymentCard,
+.takipioV8.lightMode .instagramCard {
+  background: rgba(255,255,255,.82) !important;
+  border-color: rgba(11,99,255,.13) !important;
+  box-shadow: 0 20px 54px rgba(16,24,40,.08), inset 0 1px 0 rgba(255,255,255,.82) !important;
+}
+
+.takipioV8.lightMode .flowIcon,
+.takipioV8.lightMode .offerIcon,
+.takipioV8.lightMode .compareIcon {
+  background: rgba(11,99,255,.08) !important;
+  color: #0b63ff !important;
+}
+
+.takipioV8.lightMode .mobileDock {
+  background: rgba(255,255,255,.9) !important;
+  border-color: rgba(11,99,255,.16) !important;
+}
+
+.takipioV8.lightMode .mobileDock a {
+  color: rgba(52,64,84,.78) !important;
+  background: rgba(245,249,255,.92) !important;
+}
+
+.takipioV8.lightMode .mobileDock a:last-child {
+  color: white !important;
+  background: linear-gradient(135deg, var(--blue), var(--cyan)) !important;
+}
+
+.takipioV8.lightMode .mobileDock svg,
+.takipioV8.lightMode .mobileDock i {
+  color: #0b63ff !important;
+}
+
+.takipioV8.lightMode .mobileDock a:last-child svg,
+.takipioV8.lightMode .mobileDock a:last-child i {
+  color: white !important;
+}
+
 `;
