@@ -7,6 +7,51 @@ export async function GET() {
   });
 }
 
+async function markEmailAsSent(email: string) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    return {
+      ok: false,
+      skipped: true,
+      message: "Supabase service role key veya URL eksik olduğu için emailed güncellenmedi.",
+    };
+  }
+
+  const updateUrl = `${supabaseUrl}/rest/v1/waitlist?email=eq.${encodeURIComponent(email)}`;
+
+  const response = await fetch(updateUrl, {
+    method: "PATCH",
+    headers: {
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${serviceRoleKey}`,
+      "Content-Type": "application/json",
+      Prefer: "return=minimal",
+    },
+    body: JSON.stringify({
+      emailed: true,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    return {
+      ok: false,
+      skipped: false,
+      message: "Supabase emailed update başarısız.",
+      details: errorText,
+      status: response.status,
+    };
+  }
+
+  return {
+    ok: true,
+    skipped: false,
+    message: "Supabase emailed alanı true yapıldı.",
+  };
+}
+
 export async function POST(request: Request) {
   try {
     const resendApiKey = process.env.RESEND_API_KEY;
@@ -244,11 +289,14 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({ ok: true, result });
+    const emailedUpdate = await markEmailAsSent(email);
+
+    return NextResponse.json({
+      ok: true,
+      result,
+      emailedUpdate,
+    });
   } catch (error) {
     return NextResponse.json(
       { ok: false, message: "Beklenmeyen bir hata oluştu.", error: String(error) },
       { status: 500 }
-    );
-  }
-}
