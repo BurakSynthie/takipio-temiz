@@ -30,8 +30,9 @@ const marketplaces = [
     name: "Trendyol",
     logo: "/trendyol.png",
     accent: "#f27a1a",
-    status: "Hazırlanıyor",
+    status: "Yakında",
     sync: "Sipariş + stok",
+    desc: "Siparişleri, ürün durumlarını ve satış akışını tek panelde topla.",
   },
   {
     name: "Amazon",
@@ -39,13 +40,15 @@ const marketplaces = [
     accent: "#ffb000",
     status: "Planlandı",
     sync: "Satış akışı",
+    desc: "Farklı mağaza hareketlerini Takipio içinde merkezi olarak izle.",
   },
   {
     name: "Hepsiburada",
     logo: "/hepsiburada.png",
     accent: "#ff6000",
-    status: "Hazırlanıyor",
+    status: "Yakında",
     sync: "Ürün + stok",
+    desc: "Stok, ürün ve sipariş takibini tek ekrandan yönetecek yapı hazırlanıyor.",
   },
   {
     name: "Çiçeksepeti",
@@ -53,6 +56,7 @@ const marketplaces = [
     accent: "#36b86a",
     status: "Planlandı",
     sync: "Mağaza akışı",
+    desc: "Mağaza hareketleri ve günlük satış özetleri Gorki AI ile yorumlanır.",
   },
 ];
 
@@ -190,69 +194,84 @@ window.setTimeout(() => setSaved(false), 3200);
           </p>
 
           <div className="marketplaceHeroBox">
-            <div className="marketplaceHeroTop">
-              <div>
-                <span className="marketplaceMiniLabel">Pazaryeri modu</span>
-                <strong>Satış kanallarını tek merkeze topluyoruz.</strong>
+            <div className="marketplaceHeroHeader">
+              <div className="marketplaceHeroIntro">
+                <span className="marketplaceMiniLabel">Pazaryeri entegrasyonları</span>
+                <strong>Satış kanallarını tek panelde birleştiren premium merkez.</strong>
+                <p>
+                  Trendyol, Amazon, Hepsiburada ve Çiçeksepeti siparişlerini aynı akışta topla;
+                  Gorki AI günlük hareketleri senin için özetlesin.
+                </p>
               </div>
 
               <div className="marketplaceLiveBadge">
-                <span /> Entegrasyon altyapısı hazırlanıyor
+                <span /> Entegrasyon merkezi yakında aktif
               </div>
             </div>
 
-            <div className="marketplaceFlow">
-              <div className="flowStep">
-                <small>01</small>
-                <b>Pazaryeri</b>
-                <span>Sipariş verisi</span>
+            <div className="marketplaceFlowShell">
+              <div className="marketplaceFlow">
+                <div className="flowStep">
+                  <small>01</small>
+                  <b>Pazaryerleri</b>
+                  <span>Sipariş + mağaza verisi</span>
+                </div>
+                <div className="flowConnector" />
+                <div className="flowStep active">
+                  <small>02</small>
+                  <b>Takipio</b>
+                  <span>Tek panel, tek akış</span>
+                </div>
+                <div className="flowConnector" />
+                <div className="flowStep">
+                  <small>03</small>
+                  <b>Gorki AI</b>
+                  <span>Akıllı özet ve öneri</span>
+                </div>
               </div>
-              <div className="flowConnector" />
-              <div className="flowStep active">
-                <small>02</small>
-                <b>Takipio</b>
-                <span>Tek panel</span>
-              </div>
-              <div className="flowConnector" />
-              <div className="flowStep">
-                <small>03</small>
-                <b>Gorki AI</b>
-                <span>Akıllı özet</span>
+
+              <div className="marketplaceFlowNote">
+                Siparişler, stok durumu ve operasyon akışı tek merkezde birleşir. Böylece farklı
+                panel dolaşmadan tüm satış kanallarını tek yerden kontrol edersin.
               </div>
             </div>
 
-            <div className="marketplaceLogoRow">
+            <div className="marketplaceLogoGrid">
               {marketplaces.map((market) => (
-                <div
-                  className="marketplaceLogoItem"
+                <article
+                  className="marketplaceCard"
                   key={market.name}
                   style={{ "--market-accent": market.accent } as React.CSSProperties}
                 >
-                  <span className="marketplaceAccent" />
-                  <div className="marketLogoWrap">
-                    <img src={market.logo} alt={market.name} />
+                  <div className="marketplaceCardTop">
+                    <div className="marketplaceCardLogo">
+                      <img src={market.logo} alt={market.name} />
+                    </div>
+                    <em>{market.status}</em>
                   </div>
-                  <div className="marketMeta">
+
+                  <div className="marketplaceCardBody">
                     <b>{market.name}</b>
                     <small>{market.sync}</small>
+                    <p>{market.desc}</p>
                   </div>
-                  <em>{market.status}</em>
-                </div>
+
+                  <span className="marketplaceAccent" />
+                </article>
               ))}
             </div>
 
-            <div className="marketplaceSummary">
+            <div className="marketplaceInsights">
               <div>
-                <b>Tek panelden takip</b>
-                <span>Sipariş, stok, müşteri ve ödeme akışı aynı ekranda.</span>
+                <b>Tek panelden operasyon</b>
+                <span>Sipariş, stok, ödeme ve müşteri akışını aynı ekranda görüntüle.</span>
               </div>
               <div>
-                <b>Gorki analizleri</b>
-                <span>Günlük pazaryeri hareketlerini kısa özetlere çevirir.</span>
+                <b>Gorki AI yorumları</b>
+                <span>Günlük pazaryeri hareketlerini kısa, net ve kullanışlı özetlere çevir.</span>
               </div>
             </div>
           </div>
-          
           <form className="waitlistCard" id="waitlist" onSubmit={handleSubmit}>
             <div className="waitlistHeader">
               <div className="mailIcon"><MailIcon /></div>
@@ -428,15 +447,16 @@ window.setTimeout(() => setSaved(false), 3200);
         .marketplaceHeroBox {
           width: min(690px, 100%);
           margin: 0 0 26px;
-          padding: 20px;
+          padding: 24px;
           border-radius: 34px;
           background:
-            linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(244, 249, 255, 0.9)),
-            radial-gradient(circle at 0% 0%, rgba(11, 99, 255, 0.14), transparent 34%);
+            linear-gradient(145deg, rgba(255, 255, 255, 0.97), rgba(244, 248, 255, 0.92)),
+            radial-gradient(circle at 100% 0%, rgba(73, 217, 255, 0.16), transparent 34%),
+            radial-gradient(circle at 0% 0%, rgba(11, 99, 255, 0.12), transparent 36%);
           border: 1px solid rgba(11, 99, 255, 0.16);
           box-shadow:
             0 26px 70px rgba(7, 20, 47, 0.11),
-            inset 0 1px 0 rgba(255, 255, 255, 0.9);
+            inset 0 1px 0 rgba(255, 255, 255, 0.94);
           position: relative;
           overflow: hidden;
         }
@@ -444,28 +464,25 @@ window.setTimeout(() => setSaved(false), 3200);
         .marketplaceHeroBox::before {
           content: "";
           position: absolute;
-          width: 180px;
-          height: 180px;
-          right: -80px;
-          top: -90px;
-          border-radius: 999px;
-          background: radial-gradient(circle, rgba(73, 217, 255, 0.28), transparent 66%);
+          inset: 0;
+          background: linear-gradient(180deg, rgba(255,255,255,.14), transparent 28%);
           pointer-events: none;
         }
 
-        .marketplaceHeroTop {
+        .marketplaceHeroHeader {
           position: relative;
           z-index: 2;
           display: flex;
           align-items: flex-start;
           justify-content: space-between;
           gap: 16px;
-          margin-bottom: 16px;
+          margin-bottom: 18px;
         }
 
-        .marketplaceHeroTop > div:first-child {
+        .marketplaceHeroIntro {
           display: grid;
           gap: 8px;
+          max-width: 430px;
         }
 
         .marketplaceMiniLabel {
@@ -475,7 +492,7 @@ window.setTimeout(() => setSaved(false), 3200);
           min-height: 31px;
           padding: 0 12px;
           border-radius: 999px;
-          background: rgba(11, 99, 255, 0.09);
+          background: rgba(11, 99, 255, 0.08);
           color: #0b63ff;
           font-size: 11px;
           font-weight: 950;
@@ -483,12 +500,19 @@ window.setTimeout(() => setSaved(false), 3200);
           text-transform: uppercase;
         }
 
-        .marketplaceHeroTop strong {
-          max-width: 360px;
+        .marketplaceHeroHeader strong {
           color: #06101f;
-          font-size: 23px;
-          line-height: 1.08;
+          font-size: 24px;
+          line-height: 1.06;
           letter-spacing: -1px;
+        }
+
+        .marketplaceHeroHeader p {
+          margin: 0;
+          color: #5d6b83;
+          line-height: 1.56;
+          font-size: 14px;
+          font-weight: 760;
         }
 
         .marketplaceLiveBadge {
@@ -496,11 +520,11 @@ window.setTimeout(() => setSaved(false), 3200);
           display: inline-flex;
           align-items: center;
           gap: 8px;
-          min-height: 36px;
-          padding: 0 12px;
+          min-height: 38px;
+          padding: 0 14px;
           border-radius: 999px;
           color: #075985;
-          background: rgba(224, 242, 254, 0.86);
+          background: rgba(224, 242, 254, 0.92);
           border: 1px solid rgba(14, 165, 233, 0.18);
           font-size: 12px;
           font-weight: 900;
@@ -515,23 +539,32 @@ window.setTimeout(() => setSaved(false), 3200);
           box-shadow: 0 0 0 5px rgba(18, 183, 106, 0.12);
         }
 
-        .marketplaceFlow {
+        .marketplaceFlowShell {
           position: relative;
           z-index: 2;
+          padding: 16px;
+          border-radius: 26px;
+          background: linear-gradient(180deg, rgba(247, 251, 255, 0.95), rgba(255,255,255,0.84));
+          border: 1px solid rgba(11, 99, 255, 0.1);
+          box-shadow: inset 0 1px 0 rgba(255,255,255,.88);
+          margin-bottom: 14px;
+        }
+
+        .marketplaceFlow {
           display: grid;
-          grid-template-columns: 1fr 30px 1fr 30px 1fr;
+          grid-template-columns: 1fr 28px 1fr 28px 1fr;
           align-items: center;
           gap: 8px;
-          margin-bottom: 16px;
+          margin-bottom: 12px;
         }
 
         .flowStep {
-          min-height: 82px;
-          padding: 13px;
-          border-radius: 21px;
-          background: rgba(255, 255, 255, 0.78);
+          min-height: 94px;
+          padding: 14px;
+          border-radius: 22px;
+          background: rgba(255, 255, 255, 0.88);
           border: 1px solid rgba(11, 99, 255, 0.1);
-          box-shadow: 0 14px 28px rgba(7, 20, 47, 0.055);
+          box-shadow: 0 14px 28px rgba(7, 20, 47, 0.05);
         }
 
         .flowStep.active {
@@ -573,105 +606,129 @@ window.setTimeout(() => setSaved(false), 3200);
         }
 
         .flowConnector {
+          position: relative;
+          width: 100%;
           height: 2px;
           border-radius: 999px;
-          background: linear-gradient(90deg, rgba(11, 99, 255, 0.12), rgba(11, 99, 255, 0.55), rgba(73, 217, 255, 0.28));
-          position: relative;
+          background: linear-gradient(90deg, rgba(11,99,255,.18), rgba(11,99,255,.56));
         }
 
         .flowConnector::after {
           content: "";
           position: absolute;
-          right: -2px;
           top: 50%;
-          width: 7px;
-          height: 7px;
-          border-top: 2px solid rgba(11, 99, 255, 0.62);
-          border-right: 2px solid rgba(11, 99, 255, 0.62);
+          right: 0;
+          width: 9px;
+          height: 9px;
+          border-top: 2px solid rgba(11,99,255,.56);
+          border-right: 2px solid rgba(11,99,255,.56);
           transform: translateY(-50%) rotate(45deg);
         }
 
-        .marketplaceLogoRow {
+        .marketplaceFlowNote {
+          color: #667085;
+          font-size: 13px;
+          line-height: 1.55;
+          font-weight: 750;
+        }
+
+        .marketplaceLogoGrid {
           position: relative;
           z-index: 2;
           display: grid;
-          grid-template-columns: repeat(4, 1fr);
-          gap: 10px;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px;
         }
 
-        .marketplaceLogoItem {
+        .marketplaceCard {
           --market-accent: #0b63ff;
           position: relative;
-          min-height: 118px;
+          min-height: 168px;
           display: grid;
           align-content: space-between;
-          gap: 9px;
-          border-radius: 23px;
-          background: rgba(255, 255, 255, 0.92);
+          gap: 12px;
+          border-radius: 24px;
+          background: rgba(255, 255, 255, 0.94);
           border: 1px solid rgba(11, 99, 255, 0.12);
-          box-shadow: 0 16px 34px rgba(7, 20, 47, 0.075);
+          box-shadow: 0 18px 38px rgba(7, 20, 47, 0.075);
           overflow: hidden;
-          padding: 12px;
+          padding: 14px;
           transition: 0.24s ease;
         }
 
-        .marketplaceLogoItem:hover {
+        .marketplaceCard:hover {
           transform: translateY(-4px);
-          border-color: color-mix(in srgb, var(--market-accent) 38%, rgba(11, 99, 255, 0.1));
+          border-color: color-mix(in srgb, var(--market-accent) 36%, rgba(11,99,255,.1));
           box-shadow: 0 24px 44px rgba(7, 20, 47, 0.1);
         }
 
-        .marketLogoWrap {
-          min-height: 44px;
+        .marketplaceCardTop {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 10px;
+        }
+
+        .marketplaceCardLogo {
+          flex: 1;
+          min-height: 58px;
+          padding: 12px 14px;
           display: flex;
           align-items: center;
           justify-content: center;
-          border-radius: 16px;
-          background: #fff;
+          border-radius: 18px;
+          background: linear-gradient(180deg, #ffffff, #fbfdff);
           border: 1px solid rgba(7, 20, 47, 0.06);
+          box-shadow: inset 0 1px 0 rgba(255,255,255,.92);
         }
 
-        .marketplaceLogoItem img {
-          max-width: 112px;
-          max-height: 34px;
+        .marketplaceCardLogo img {
+          max-width: 148px;
+          max-height: 42px;
           width: auto;
           height: auto;
           object-fit: contain;
           display: block;
-          position: relative;
-          z-index: 2;
         }
 
-        .marketMeta b {
-          display: block;
-          color: #06101f;
-          font-size: 13px;
-          line-height: 1.1;
-          letter-spacing: -0.25px;
-        }
-
-        .marketMeta small {
-          display: block;
-          margin-top: 4px;
-          color: #667085;
-          font-size: 11px;
-          font-weight: 800;
-          line-height: 1.25;
-        }
-
-        .marketplaceLogoItem em {
-          width: max-content;
-          max-width: 100%;
+        .marketplaceCardTop em {
+          flex: 0 0 auto;
           display: inline-flex;
           align-items: center;
-          min-height: 24px;
-          padding: 0 8px;
+          min-height: 26px;
+          padding: 0 10px;
           border-radius: 999px;
           color: var(--market-accent);
-          background: color-mix(in srgb, var(--market-accent) 10%, #ffffff);
+          background: color-mix(in srgb, var(--market-accent) 11%, #ffffff);
           font-size: 10px;
           font-style: normal;
           font-weight: 950;
+          border: 1px solid color-mix(in srgb, var(--market-accent) 18%, rgba(11,99,255,.08));
+        }
+
+        .marketplaceCardBody b {
+          display: block;
+          color: #06101f;
+          font-size: 16px;
+          line-height: 1.1;
+          letter-spacing: -0.35px;
+        }
+
+        .marketplaceCardBody small {
+          display: inline-flex;
+          margin-top: 6px;
+          color: var(--market-accent);
+          font-size: 11px;
+          font-weight: 900;
+          letter-spacing: 0.2px;
+        }
+
+        .marketplaceCardBody p {
+          margin: 8px 0 0;
+          color: #667085;
+          font-size: 12px;
+          line-height: 1.5;
+          font-weight: 760;
         }
 
         .marketplaceAccent {
@@ -683,7 +740,7 @@ window.setTimeout(() => setSaved(false), 3200);
           background: var(--market-accent);
         }
 
-        .marketplaceSummary {
+        .marketplaceInsights {
           position: relative;
           z-index: 2;
           display: grid;
@@ -692,21 +749,21 @@ window.setTimeout(() => setSaved(false), 3200);
           margin-top: 14px;
         }
 
-        .marketplaceSummary div {
-          padding: 13px 14px;
+        .marketplaceInsights div {
+          padding: 14px 15px;
           border-radius: 18px;
           background: rgba(247, 251, 255, 0.9);
           border: 1px solid rgba(11, 99, 255, 0.1);
         }
 
-        .marketplaceSummary b {
+        .marketplaceInsights b {
           display: block;
           color: #06101f;
           font-size: 13px;
           letter-spacing: -0.2px;
         }
 
-        .marketplaceSummary span {
+        .marketplaceInsights span {
           display: block;
           margin-top: 5px;
           color: #667085;
@@ -881,7 +938,7 @@ window.setTimeout(() => setSaved(false), 3200);
 
 
         @media (max-width: 780px) {
-          .marketplaceHeroTop {
+          .marketplaceHeroHeader {
             flex-direction: column;
           }
 
@@ -909,21 +966,50 @@ window.setTimeout(() => setSaved(false), 3200);
             transform: translateX(-50%) rotate(135deg);
           }
 
-          .marketplaceLogoRow {
-            grid-template-columns: repeat(2, 1fr);
-          }
-
-          .marketplaceLogoItem {
-            min-height: 112px;
-          }
-
-          .marketplaceLogoItem img {
-            max-width: 105px;
-            max-height: 32px;
-          }
-
-          .marketplaceSummary {
+          .marketplaceLogoGrid {
             grid-template-columns: 1fr;
+          }
+
+          .marketplaceCard {
+            min-height: 154px;
+          }
+
+          .marketplaceCardLogo img {
+            max-width: 138px;
+            max-height: 40px;
+          }
+
+          .marketplaceInsights {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        @media (max-width: 460px) {
+          .marketplaceHeroBox {
+            padding: 18px;
+            border-radius: 26px;
+          }
+
+          .marketplaceHeroHeader strong {
+            font-size: 21px;
+          }
+
+          .marketplaceFlowShell {
+            padding: 12px;
+            border-radius: 22px;
+          }
+
+          .marketplaceCardTop {
+            flex-direction: column;
+            align-items: stretch;
+          }
+
+          .marketplaceCardTop em {
+            width: max-content;
+          }
+
+          .marketplaceCardLogo {
+            min-height: 54px;
           }
         }
 
