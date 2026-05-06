@@ -88,18 +88,20 @@ export default function Page() {
     }
 
     try {
-      await fetch("/api/send-welcome", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: cleanEmail }),
-      });
-    } catch (mailError) {
-      console.error("Welcome email could not be sent:", mailError);
-    }
+  await fetch("/api/send-welcome", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email: cleanEmail }),
+  });
+} catch (mailError) {
+  console.error("Welcome email could not be sent:", mailError);
+}
 
-    setSaved(true);
-    setEmail("");
-    window.setTimeout(() => setSaved(false), 3200);
+setSaved(true);
+setEmail("");
+window.setTimeout(() => setSaved(false), 3200);
   }
 
   return (
