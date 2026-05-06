@@ -10,20 +10,14 @@ import React, {
 } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-/* ------------------------------------------------------------------ */
-/*  Supabase client                                                    */
-/* ------------------------------------------------------------------ */
-
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL as string,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string
 );
 
-/* ------------------------------------------------------------------ */
-/*  Types & constants                                                  */
-/* ------------------------------------------------------------------ */
-
 type TabKey = "overview" | "orders" | "customers" | "marketplaces" | "gorki";
+
+type BadgeKind = "ok" | "warn" | "info" | "muted" | "err";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "overview", label: "Genel Bakış" },
@@ -34,351 +28,414 @@ const TABS: { key: TabKey; label: string }[] = [
 ];
 
 const MARKETPLACES = [
-  { name: "Trendyol", src: "/trendyol.png" },
-  { name: "Hepsiburada", src: "/hepsiburada.png" },
-  { name: "Amazon", src: "/amazon.png" },
-  { name: "Çiçeksepeti", src: "/ciceksepeti.png" },
+  { name: "Trendyol", src: "/trendyol.png", accent: "#f27a1a" },
+  { name: "Amazon", src: "/amazon.png", accent: "#ffb000" },
+  { name: "Hepsiburada", src: "/hepsiburada.png", accent: "#ff6000" },
+  { name: "Çiçeksepeti", src: "/ciceksepeti.png", accent: "#36b86a" },
 ];
 
-/* ------------------------------------------------------------------ */
-/*  Page                                                               */
-/* ------------------------------------------------------------------ */
+const GORKI_MESSAGES = [
+  "Bugün pazaryeri siparişlerinde %18 artış var.",
+  "2 ürün kritik stok seviyesine yaklaşıyor.",
+  "Bekleyen 4 ödeme için hatırlatma öneriyorum.",
+  "Hepsiburada ve Trendyol akışı güncellendi.",
+];
 
 export default function Page() {
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
+  const [messageIndex, setMessageIndex] = useState(0);
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [showSuccess, setShowSuccess] = useState(false);
+  const [errorText, setErrorText] = useState("");
+  const [successOpen, setSuccessOpen] = useState(false);
+  const [ready, setReady] = useState(false);
   const userTouched = useRef(false);
 
-  // Auto-rotate tabs unless user has clicked
   useEffect(() => {
-    const id = window.setInterval(() => {
+    setReady(true);
+
+    const tabTimer = window.setInterval(() => {
       if (userTouched.current) return;
-      setActiveTab((cur) => {
-        const i = TABS.findIndex((t) => t.key === cur);
-        return TABS[(i + 1) % TABS.length].key;
+
+      setActiveTab((current) => {
+        const index = TABS.findIndex((tab) => tab.key === current);
+        return TABS[(index + 1) % TABS.length].key;
       });
-    }, 4500);
-    return () => window.clearInterval(id);
+    }, 4700);
+
+    const messageTimer = window.setInterval(() => {
+      setMessageIndex((current) => (current + 1) % GORKI_MESSAGES.length);
+    }, 3500);
+
+    return () => {
+      window.clearInterval(tabTimer);
+      window.clearInterval(messageTimer);
+    };
   }, []);
 
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (loading) return;
+  function handleTabClick(tab: TabKey) {
+    userTouched.current = true;
+    setActiveTab(tab);
+  }
 
-    const trimmed = email.trim().toLowerCase();
-    if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
-      setError("Geçerli bir e-posta adresi gir.");
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      setErrorText("Lütfen geçerli bir e-posta adresi yaz.");
       return;
     }
 
-    setError(null);
+    setErrorText("");
     setLoading(true);
 
     try {
-      const { error: supaError } = await supabase
-        .from("waitlist")
-        .insert({ email: trimmed });
+      const { error } = await supabase.from("waitlist").insert({
+        email: cleanEmail,
+        coupon_code: "TAKIPIO10",
+        source: "landing-v8",
+      });
 
-      if (supaError) {
-        const dup =
-          supaError.code === "23505" ||
-          /duplicate|unique|already/i.test(supaError.message ?? "");
-        setError(
-          dup
+      if (error) {
+        const duplicate =
+          error.code === "23505" ||
+          error.message?.toLowerCase().includes("duplicate") ||
+          error.message?.toLowerCase().includes("unique");
+
+        setErrorText(
+          duplicate
             ? "Bu e-posta zaten erken erişim listesinde."
-            : "Bir sorun oluştu. Lütfen birazdan tekrar dene."
+            : "Kayıt sırasında bir sorun oluştu. Lütfen tekrar dene."
         );
+
         setLoading(false);
         return;
       }
 
-      // Welcome e-mail (don't block UX if it fails)
       try {
         await fetch("/api/send-welcome", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: trimmed }),
+          body: JSON.stringify({ email: cleanEmail }),
         });
-      } catch {
-        /* silent */
+      } catch (mailError) {
+        console.error("Welcome email could not be sent:", mailError);
       }
 
       setEmail("");
-      setShowSuccess(true);
-    } catch {
-      setError("Beklenmeyen bir hata oluştu.");
+      setSuccessOpen(true);
+    } catch (error) {
+      console.error(error);
+      setErrorText("Beklenmeyen bir hata oluştu.");
     } finally {
       setLoading(false);
     }
-  };
-
-  const onTabClick = (k: TabKey) => {
-    userTouched.current = true;
-    setActiveTab(k);
-  };
+  }
 
   return (
-    <main className="page">
-      {/* ambient background */}
-      <div className="bg-grid" aria-hidden />
-      <div className="bg-orb bg-orb-a" aria-hidden />
-      <div className="bg-orb bg-orb-b" aria-hidden />
-      <div className="bg-vignette" aria-hidden />
+    <main
+      className="takipioV8"
+      style={{
+        opacity: ready ? 1 : 0,
+        visibility: ready ? "visible" : "hidden",
+        transition: "opacity 220ms ease",
+      }}
+    >
+      <div className="v8Bg">
+        <div className="mesh meshA" />
+        <div className="mesh meshB" />
+        <div className="mesh meshC" />
+        <div className="gridLayer" />
+      </div>
 
-      {/* nav */}
-      <header className="nav">
-        <div className="nav-row">
-          <a href="#" className="brand">
-            <img src="/takipio-logo.png" alt="" className="brand-mark" />
-            <span className="brand-name">Takipio</span>
-          </a>
-          <a href="#waitlist" className="nav-cta">
-            Erken erişim
-            <ArrowRight />
-          </a>
-        </div>
+      <header className="topNav">
+        <a className="brand" href="#top" aria-label="Takipio">
+          <img src="/takipio-logo.png" alt="Takipio" />
+        </a>
+
+        <nav className="desktopNav">
+          <a href="#product">Ürün</a>
+          <a href="#integrations">Entegrasyon</a>
+          <a href="#gorki">Gorki AI</a>
+          <a href="#waitlist">Erken Erişim</a>
+        </nav>
+
+        <a className="navCta" href="#waitlist">
+          Listeye katıl
+          <ArrowIcon />
+        </a>
       </header>
 
-      {/* hero */}
-      <section className="hero">
-        <div className="hero-grid">
-          <div className="hero-left">
-            <div className="pill">
-              <span className="pill-dot" />
-              <span>Erken erişim açık</span>
-              <span className="pill-sep" />
-              <span className="pill-dim">Sınırlı kontenjan</span>
-            </div>
+      <nav className="mobileDock" aria-label="Mobil menü">
+        <a href="#top">Ana Sayfa</a>
+        <a href="#product">Panel</a>
+        <a href="#integrations">Pazaryeri</a>
+        <a href="#waitlist">Kayıt</a>
+      </nav>
 
-            <h1 className="title">
-              İşletme akışını
-              <br />
-              <span className="title-grad">tek panelde sadeleştir.</span>
-            </h1>
+      <section className="hero" id="top">
+        <div className="heroLeft">
+          <div className="statusPill">
+            <span />
+            Takipio erken erişim açıldı
+          </div>
 
-            <p className="lede">
-              Sipariş, müşteri, stok, ödeme ve pazaryeri hareketlerini
-              Takipio&apos;da topla. Gorki AI günlük işlerini senin için
-              özetlesin.
-            </p>
+          <h1>
+            İşletme akışını
+            <em>tek panelde</em>
+            premium yönet.
+          </h1>
 
-            {/* marketplace rail */}
-            <div className="rail">
-              <div className="rail-head">
-                <span className="rail-eyebrow">
-                  Pazaryeri entegrasyonları hazırlanıyor
-                </span>
-                <span className="rail-sub">
-                  Satış kanallarınızı Takipio&apos;da tek panelde takip edin.
-                </span>
+          <p className="heroText">
+            Sipariş, müşteri, stok, ödeme ve pazaryeri hareketlerini Takipio’da
+            topla. Gorki AI günlük işleri özetlesin, sen büyümeye odaklan.
+          </p>
+
+          <IntegrationRail />
+
+          <form className="waitlistCard" id="waitlist" onSubmit={handleSubmit}>
+            <div className="waitlistHeader">
+              <div>
+                <span>Erken erişim</span>
+                <b>Açılışa özel TAKIPIO10 kodunu kaçırma.</b>
               </div>
-              <div className="rail-track">
-                {MARKETPLACES.map((m) => (
-                  <div className="rail-cell" key={m.name} title={m.name}>
-                    <img src={m.src} alt={m.name} />
-                  </div>
-                ))}
+
+              <div className="priceChip">
+                <small>İlk ay</small>
+                <strong>₺89</strong>
               </div>
             </div>
 
-            {/* form */}
-            <form id="waitlist" className="form" onSubmit={handleSubmit}>
-              <div className="form-field">
-                <span className="form-icon" aria-hidden>
-                  <MailIcon />
-                </span>
+            <div className="emailRow">
+              <div className="inputShell">
+                <MailIcon />
                 <input
                   type="email"
                   inputMode="email"
                   autoComplete="email"
-                  className="form-input"
                   placeholder="ornek@firma.com"
                   value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    if (error) setError(null);
-                  }}
                   disabled={loading}
-                  aria-label="E-posta adresi"
+                  onChange={(event) => {
+                    setEmail(event.target.value);
+                    if (errorText) setErrorText("");
+                  }}
                   required
                 />
-                <button
-                  type="submit"
-                  className="form-btn"
-                  disabled={loading}
-                  aria-busy={loading}
-                >
-                  {loading ? (
-                    <span className="spinner" aria-label="Gönderiliyor" />
-                  ) : (
-                    <>
-                      <span>Erken erişime katıl</span>
-                      <ArrowRight />
-                    </>
-                  )}
-                </button>
               </div>
 
-              <div className="form-meta">
-                <span className="coupon">
-                  <span className="coupon-tag">TAKIPIO10</span>
-                  <span className="coupon-text">
-                    İlk ay <b>₺89</b>
-                    <span className="coupon-dim"> · Sonrasında ₺99/ay</span>
-                  </span>
-                </span>
-
-                {error ? (
-                  <span className="form-error" role="alert">
-                    <AlertIcon />
-                    {error}
-                  </span>
+              <button type="submit" disabled={loading}>
+                {loading ? (
+                  <span className="spinner" />
                 ) : (
-                  <span className="form-hint">
-                    Spam yok. İstediğin zaman çıkabilirsin.
-                  </span>
+                  <>
+                    Erken erişime katıl
+                    <ArrowIcon />
+                  </>
                 )}
-              </div>
-            </form>
-          </div>
+              </button>
+            </div>
 
-          {/* right column: device scene */}
-          <div className="hero-right">
-            <Scene activeTab={activeTab} onTabClick={onTabClick} />
+            <div className="waitlistMeta">
+              <span className="couponBadge">TAKIPIO10</span>
+              <span>Hoş geldin maili otomatik gönderilir.</span>
+              {errorText && <b>{errorText}</b>}
+            </div>
+          </form>
+
+          <div className="trustLine">
+            <span><CheckIcon /> 15 müşteriye kadar ücretsiz</span>
+            <span><CheckIcon /> Gorki AI dahil</span>
+            <span><CheckIcon /> Pazaryeri altyapısı hazırlanıyor</span>
           </div>
+        </div>
+
+        <div className="heroRight" id="product">
+          <ProductStudio
+            activeTab={activeTab}
+            onTabClick={handleTabClick}
+            message={GORKI_MESSAGES[messageIndex]}
+          />
         </div>
       </section>
 
-      {showSuccess && <SuccessModal onClose={() => setShowSuccess(false)} />}
+      <section className="featureBand">
+        <FeatureCard
+          icon={<PanelIcon />}
+          title="Tek panel yönetim"
+          text="Sipariş, müşteri, stok ve ödeme akışını tek merkezde takip et."
+        />
+        <FeatureCard
+          icon={<LinkIcon />}
+          title="Pazaryeri senkronizasyonu"
+          text="Trendyol, Amazon, Hepsiburada ve Çiçeksepeti akışlarını sadeleştir."
+        />
+        <FeatureCard
+          icon={<SparkIcon />}
+          title="Gorki AI analizleri"
+          text="Günlük hareketleri kısa özetlere ve aksiyon önerilerine çevir."
+        />
+      </section>
+
+      {successOpen && <SuccessModal onClose={() => setSuccessOpen(false)} />}
 
       <style dangerouslySetInnerHTML={{ __html: GLOBAL_CSS }} />
     </main>
   );
 }
 
-/* ================================================================== */
-/*  Device scene                                                       */
-/* ================================================================== */
-
-function Scene({
-  activeTab,
-  onTabClick,
-}: {
-  activeTab: TabKey;
-  onTabClick: (k: TabKey) => void;
-}) {
+function IntegrationRail() {
   return (
-    <div className="scene">
-      <div className="scene-glow" aria-hidden />
-
-      {/* floating mini coupon */}
-      <div className="float float-coupon">
-        <div className="float-coupon-row">
-          <div className="float-coupon-tag">TAKIPIO10</div>
-          <div className="float-coupon-meta">Açılışa özel</div>
-        </div>
-        <div className="float-coupon-price">
-          <span>₺89</span>
-          <span className="float-coupon-sub">ilk ay</span>
-        </div>
+    <div className="integrationRail" id="integrations">
+      <div className="railHeader">
+        <span>Pazaryeri entegrasyonları hazırlanıyor</span>
+        <b>Satış kanallarını tek akışta topla.</b>
       </div>
 
-      {/* floating gorki bubble */}
-      <div className="float float-gorki">
-        <div className="gorki-orb-sm">
-          <span>G</span>
-        </div>
-        <div className="float-gorki-text">
-          <strong>Gorki AI</strong>
-          <span>Bugün 12 sipariş bekliyor.</span>
-        </div>
+      <div className="railLogos">
+        {MARKETPLACES.map((market) => (
+          <div
+            className="railLogoCard"
+            key={market.name}
+            style={{ "--accent": market.accent } as React.CSSProperties}
+          >
+            <img src={market.src} alt={market.name} />
+          </div>
+        ))}
       </div>
 
-      <Laptop activeTab={activeTab} onTabClick={onTabClick} />
-      <Phone activeTab={activeTab} />
+      <p>
+        Trendyol, Amazon, Hepsiburada ve Çiçeksepeti satışlarınızı Takipio’da
+        tek panelden takip etmek için altyapı hazırlanıyor.
+      </p>
     </div>
   );
 }
 
-/* -------------------------------- Laptop ----------------------------- */
+function ProductStudio({
+  activeTab,
+  onTabClick,
+  message,
+}: {
+  activeTab: TabKey;
+  onTabClick: (tab: TabKey) => void;
+  message: string;
+}) {
+  return (
+    <div className="studio">
+      <div className="studioGlow" />
 
-function Laptop({
+      <div className="floatingMetric metricOne">
+        <OrdersIcon />
+        <div>
+          <b>146</b>
+          <span>Aktif sipariş</span>
+        </div>
+        <em>+%18,6</em>
+      </div>
+
+      <div className="floatingMetric metricTwo">
+        <WalletIcon />
+        <div>
+          <b>₺184.250</b>
+          <span>Toplam ciro</span>
+        </div>
+        <em>+%12,4</em>
+      </div>
+
+      <div className="macbookScene">
+        <Macbook activeTab={activeTab} onTabClick={onTabClick} />
+        <Iphone activeTab={activeTab} message={message} />
+      </div>
+
+      <div className="gorkiPanel" id="gorki">
+        <div className="gorkiVisual">
+          <img src="/gorki-hero.png" alt="Gorki AI" />
+        </div>
+        <div>
+          <b>Gorki AI</b>
+          <span>Akıllı işletme asistanın</span>
+          <p>“{message}”</p>
+        </div>
+      </div>
+
+      <div className="couponMini">
+        <span>Açılışa özel</span>
+        <b>TAKIPIO10</b>
+        <em>İlk ay ₺89</em>
+      </div>
+    </div>
+  );
+}
+
+function Macbook({
   activeTab,
   onTabClick,
 }: {
   activeTab: TabKey;
-  onTabClick: (k: TabKey) => void;
+  onTabClick: (tab: TabKey) => void;
 }) {
   return (
-    <div className="laptop">
-      <div className="laptop-lid">
-        <div className="laptop-cam" />
-        <div className="laptop-screen">
-          <div className="topbar">
-            <div className="dots" aria-hidden>
-              <span /> <span /> <span />
+    <div className="macbook">
+      <div className="macLid">
+        <div className="macCamera" />
+        <div className="macScreen">
+          <div className="browserBar">
+            <div className="browserDots">
+              <i /> <i /> <i />
             </div>
-            <div className="urlbar">
+            <div className="urlBox">
               <LockIcon />
-              <span>app.takipio.com</span>
+              app.takipio.com
             </div>
-            <div className="topbar-spacer" />
+            <div className="barRight" />
           </div>
 
-          <div className="osBody">
-            <aside className="sidebar">
-              <div className="sidebar-brand">
+          <div className="dashboard">
+            <aside className="dashboardSide">
+              <div className="dashBrand">
                 <img src="/takipio-logo.png" alt="" />
-                <span>Takipio</span>
+                <b>Takipio</b>
               </div>
-              <nav className="sidebar-nav">
-                {TABS.map((t) => (
+
+              <nav>
+                {TABS.map((tab) => (
                   <button
-                    key={t.key}
+                    key={tab.key}
                     type="button"
-                    className={`side-item ${
-                      activeTab === t.key ? "is-active" : ""
-                    }`}
-                    onClick={() => onTabClick(t.key)}
+                    className={activeTab === tab.key ? "active" : ""}
+                    onClick={() => onTabClick(tab.key)}
                   >
-                    <span className="side-bullet" />
-                    <span>{t.label}</span>
-                    {activeTab === t.key && <span className="side-active" />}
+                    <span />
+                    {tab.label}
                   </button>
                 ))}
               </nav>
-              <div className="sidebar-foot">
-                <div className="user-chip">
-                  <span className="user-avatar">A</span>
-                  <span className="user-meta">
-                    <b>Ahmet Y.</b>
-                    <em>Yönetici</em>
-                  </span>
-                </div>
+
+              <div className="sideGorki">
+                <strong>Gorki AI</strong>
+                <small>Bugünkü işler ve pazaryeri akışın özetleniyor.</small>
               </div>
             </aside>
 
-            <div className="osMain">
-              <TabContent tab={activeTab} />
-            </div>
+            <main className="dashboardMain">
+              <TabView tab={activeTab} />
+            </main>
           </div>
         </div>
       </div>
-      <div className="laptop-base">
-        <div className="laptop-base-notch" />
+      <div className="macBase">
+        <span />
       </div>
     </div>
   );
 }
 
-/* -------------------------------- Tab content ------------------------ */
-
-function TabContent({ tab }: { tab: TabKey }) {
+function TabView({ tab }: { tab: TabKey }) {
   return (
-    <div key={tab} className="view">
+    <div className="tabView" key={tab}>
       {tab === "overview" && <OverviewView />}
       {tab === "orders" && <OrdersView />}
       {tab === "customers" && <CustomersView />}
@@ -388,22 +445,22 @@ function TabContent({ tab }: { tab: TabKey }) {
   );
 }
 
-function ViewHead({
+function ViewHeader({
   title,
   sub,
-  pill,
+  right,
 }: {
   title: string;
   sub: string;
-  pill: ReactNode;
+  right: ReactNode;
 }) {
   return (
-    <div className="view-head">
+    <div className="viewHeader">
       <div>
-        <div className="view-title">{title}</div>
-        <div className="view-sub">{sub}</div>
+        <h3>{title}</h3>
+        <span>{sub}</span>
       </div>
-      <div className="view-pill">{pill}</div>
+      <div className="viewRight">{right}</div>
     </div>
   );
 }
@@ -411,39 +468,34 @@ function ViewHead({
 function OverviewView() {
   return (
     <>
-      <ViewHead
+      <ViewHeader
         title="Genel Bakış"
         sub="Bugünün özeti · 09:42"
-        pill={
-          <>
-            <span className="live-dot" />
-            Canlı
-          </>
-        }
+        right={<><i className="liveDot" /> Canlı</>}
       />
-      <div className="stats">
+
+      <div className="statGrid">
         <Stat label="Toplam ciro" value="₺184.250" trend="+%12,4" />
         <Stat label="Aktif sipariş" value="146" trend="+18 bugün" />
         <Stat label="Bekleyen ödeme" value="₺24.610" trend="9 fatura" muted />
         <Stat label="Stok durumu" value="%87" trend="3 kritik" muted />
       </div>
-      <div className="chart">
-        <div className="chart-head">
-          <div>
-            <div className="chart-title">Canlı satış</div>
-            <div className="chart-meta">Son 7 gün</div>
+
+      <div className="overviewLower">
+        <div className="chartPanel">
+          <div className="chartTop">
+            <b>Canlı satış grafiği</b>
+            <span>Son 7 gün</span>
           </div>
-          <div className="chart-legend">
-            <span className="legend cyan">Bu hafta</span>
-            <span className="legend dim">Geçen hafta</span>
-          </div>
+          <AnimatedChart />
         </div>
-        <Sparkline />
-      </div>
-      <div className="activity">
-        <ActivityRow color="cyan" text="Trendyol'dan 3 yeni sipariş" time="2 dk" />
-        <ActivityRow color="green" text="#10246 teslim edildi" time="14 dk" />
-        <ActivityRow color="amber" text="2 ürün kritik stokta" time="1 sa" />
+
+        <div className="activityPanel">
+          <b>Son hareketler</b>
+          <Activity color="cyan" text="Trendyol’dan 3 yeni sipariş" time="2 dk" />
+          <Activity color="green" text="#10246 teslim edildi" time="14 dk" />
+          <Activity color="amber" text="2 ürün kritik stokta" time="1 sa" />
+        </div>
       </div>
     </>
   );
@@ -461,15 +513,54 @@ function Stat({
   muted?: boolean;
 }) {
   return (
-    <div className="stat">
-      <div className="stat-label">{label}</div>
-      <div className="stat-value">{value}</div>
-      <div className={`stat-trend ${muted ? "is-muted" : ""}`}>{trend}</div>
+    <div className="statCard">
+      <span>{label}</span>
+      <b>{value}</b>
+      <em className={muted ? "muted" : ""}>{trend}</em>
     </div>
   );
 }
 
-function ActivityRow({
+function AnimatedChart() {
+  return (
+    <svg className="chartSvg" viewBox="0 0 520 190" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="lineGradientV8" x1="0" x2="1" y1="0" y2="0">
+          <stop offset="0%" stopColor="#22D3EE" />
+          <stop offset="55%" stopColor="#3B82F6" />
+          <stop offset="100%" stopColor="#8B5CF6" />
+        </linearGradient>
+        <linearGradient id="areaGradientV8" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor="rgba(34, 211, 238, 0.28)" />
+          <stop offset="100%" stopColor="rgba(34, 211, 238, 0)" />
+        </linearGradient>
+      </defs>
+      <path
+        className="chartArea"
+        d="M0 160 C42 126 68 118 106 128 C150 140 165 62 212 84 C252 103 264 42 313 61 C362 84 376 25 422 40 C464 54 476 18 520 32 L520 190 L0 190 Z"
+        fill="url(#areaGradientV8)"
+      />
+      <path
+        className="chartPrev"
+        d="M0 172 C42 148 88 145 132 134 C186 120 236 126 274 110 C330 88 378 100 420 82 C456 66 486 72 520 60"
+        fill="none"
+        stroke="rgba(255,255,255,.16)"
+        strokeWidth="2"
+        strokeDasharray="4 6"
+      />
+      <path
+        className="chartLine"
+        d="M0 160 C42 126 68 118 106 128 C150 140 165 62 212 84 C252 103 264 42 313 61 C362 84 376 25 422 40 C464 54 476 18 520 32"
+        fill="none"
+        stroke="url(#lineGradientV8)"
+        strokeWidth="7"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function Activity({
   color,
   text,
   time,
@@ -479,127 +570,48 @@ function ActivityRow({
   time: string;
 }) {
   return (
-    <div className="act-row">
-      <span className={`act-dot dot-${color}`} />
-      <span className="act-text">{text}</span>
-      <span className="act-time">{time}</span>
+    <div className="activityRow">
+      <i className={`dot ${color}`} />
+      <span>{text}</span>
+      <em>{time}</em>
     </div>
   );
 }
 
-function Sparkline() {
-  // two sample lines, current + previous week
-  return (
-    <svg className="spark" viewBox="0 0 460 130" preserveAspectRatio="none">
-      <defs>
-        <linearGradient id="spk-fill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#22D3EE" stopOpacity="0.32" />
-          <stop offset="100%" stopColor="#22D3EE" stopOpacity="0" />
-        </linearGradient>
-        <linearGradient id="spk-stroke" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="#22D3EE" />
-          <stop offset="100%" stopColor="#3B82F6" />
-        </linearGradient>
-      </defs>
-      <path
-        className="spk-area"
-        d="M0,95 C40,72 80,82 120,60 S200,30 240,46 S320,18 380,32 S440,22 460,28 L460,130 L0,130 Z"
-        fill="url(#spk-fill)"
-      />
-      <path
-        className="spk-prev"
-        d="M0,108 C40,98 80,92 120,90 S200,80 240,82 S320,72 380,68 S440,60 460,62"
-        fill="none"
-        stroke="rgba(255,255,255,0.16)"
-        strokeWidth="1.6"
-        strokeDasharray="3 4"
-      />
-      <path
-        className="spk-line"
-        d="M0,95 C40,72 80,82 120,60 S200,30 240,46 S320,18 380,32 S440,22 460,28"
-        fill="none"
-        stroke="url(#spk-stroke)"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-/* -------------------------------- Orders ----------------------------- */
-
-const ORDERS = [
-  {
-    id: "#10248",
-    customer: "Ahmet Yılmaz",
-    market: "Trendyol",
-    status: "Hazırlanıyor",
-    kind: "warn" as const,
-    amount: "₺1.250",
-  },
-  {
-    id: "#10247",
-    customer: "Zeynep Kaya",
-    market: "Hepsiburada",
-    status: "Kargoda",
-    kind: "info" as const,
-    amount: "₺890",
-  },
-  {
-    id: "#10246",
-    customer: "Mert Demir",
-    market: "Amazon",
-    status: "Teslim edildi",
-    kind: "ok" as const,
-    amount: "₺2.140",
-  },
-  {
-    id: "#10245",
-    customer: "Selin Aksoy",
-    market: "Çiçeksepeti",
-    status: "Hazırlanıyor",
-    kind: "warn" as const,
-    amount: "₺640",
-  },
-  {
-    id: "#10244",
-    customer: "Burak Şahin",
-    market: "Trendyol",
-    status: "İade",
-    kind: "err" as const,
-    amount: "₺320",
-  },
+const ORDERS: {
+  id: string;
+  customer: string;
+  market: string;
+  status: string;
+  amount: string;
+  kind: BadgeKind;
+}[] = [
+  { id: "#10248", customer: "Ahmet Yılmaz", market: "Trendyol", status: "Hazırlanıyor", amount: "₺1.250", kind: "warn" },
+  { id: "#10247", customer: "Zeynep Kaya", market: "Hepsiburada", status: "Kargoda", amount: "₺890", kind: "info" },
+  { id: "#10246", customer: "Mert Demir", market: "Amazon", status: "Teslim edildi", amount: "₺2.140", kind: "ok" },
+  { id: "#10245", customer: "Selin Aksoy", market: "Çiçeksepeti", status: "Hazırlanıyor", amount: "₺640", kind: "warn" },
+  { id: "#10244", customer: "Burak Şahin", market: "Trendyol", status: "İade", amount: "₺320", kind: "err" },
 ];
 
 function OrdersView() {
   return (
     <>
-      <ViewHead
-        title="Siparişler"
-        sub="Bugün 18 yeni sipariş"
-        pill={<>5 / 18</>}
-      />
-      <div className="table">
-        <div className="thead">
+      <ViewHeader title="Siparişler" sub="Bugün 18 yeni sipariş" right="Kargo durumu" />
+      <div className="dataTable">
+        <div className="tableHead">
           <span>Sipariş</span>
           <span>Müşteri</span>
           <span>Pazaryeri</span>
           <span>Durum</span>
-          <span className="ta-r">Tutar</span>
+          <span>Tutar</span>
         </div>
-        {ORDERS.map((o, i) => (
-          <div
-            className="trow"
-            key={o.id}
-            style={{ animationDelay: `${i * 50}ms` }}
-          >
-            <span className="mono">{o.id}</span>
-            <span>{o.customer}</span>
-            <span className="dim">{o.market}</span>
-            <span>
-              <span className={`badge badge-${o.kind}`}>{o.status}</span>
-            </span>
-            <span className="ta-r mono">{o.amount}</span>
+        {ORDERS.map((order, index) => (
+          <div className="tableRow" key={order.id} style={{ animationDelay: `${index * 60}ms` }}>
+            <b>{order.id}</b>
+            <span>{order.customer}</span>
+            <span>{order.market}</span>
+            <Badge kind={order.kind}>{order.status}</Badge>
+            <em>{order.amount}</em>
           </div>
         ))}
       </div>
@@ -607,92 +619,68 @@ function OrdersView() {
   );
 }
 
-/* -------------------------------- Customers -------------------------- */
-
-const CUSTOMERS = [
-  { name: "Ahmet Yılmaz", orders: 24, last: "Bugün", status: "Aktif", kind: "ok" as const },
-  { name: "Zeynep Kaya", orders: 18, last: "Dün", status: "Aktif", kind: "ok" as const },
-  { name: "Mert Demir", orders: 12, last: "3 gün önce", status: "Aktif", kind: "ok" as const },
-  { name: "Selin Aksoy", orders: 9, last: "1 hf önce", status: "Yeni", kind: "info" as const },
-  { name: "Burak Şahin", orders: 6, last: "2 hf önce", status: "Pasif", kind: "muted" as const },
-  { name: "Ece Polat", orders: 4, last: "1 ay önce", status: "Pasif", kind: "muted" as const },
+const CUSTOMERS: {
+  name: string;
+  orders: number;
+  last: string;
+  status: string;
+  kind: BadgeKind;
+}[] = [
+  { name: "Ahmet Yılmaz", orders: 24, last: "Bugün", status: "Premium", kind: "ok" },
+  { name: "Zeynep Kaya", orders: 18, last: "Dün", status: "Aktif", kind: "ok" },
+  { name: "Mert Demir", orders: 12, last: "3 gün önce", status: "Aktif", kind: "info" },
+  { name: "Selin Aksoy", orders: 9, last: "1 hafta önce", status: "Yeni", kind: "warn" },
+  { name: "Burak Şahin", orders: 6, last: "2 hafta önce", status: "Pasif", kind: "muted" },
+  { name: "Ece Polat", orders: 4, last: "1 ay önce", status: "Pasif", kind: "muted" },
 ];
 
 function CustomersView() {
   return (
     <>
-      <ViewHead
-        title="Müşteriler"
-        sub="Son 30 gün · 384 müşteri"
-        pill={<>+24 yeni</>}
-      />
-      <div className="customers">
-        {CUSTOMERS.map((c, i) => (
-          <div
-            key={c.name}
-            className="cust-row"
-            style={{ animationDelay: `${i * 50}ms` }}
-          >
-            <div className="cust-avatar">
-              {c.name
+      <ViewHeader title="Müşteriler" sub="Son 30 gün · 384 müşteri" right="+24 yeni" />
+      <div className="customerList">
+        {CUSTOMERS.map((customer, index) => (
+          <div className="customerRow" key={customer.name} style={{ animationDelay: `${index * 55}ms` }}>
+            <div className="avatar">
+              {customer.name
                 .split(" ")
-                .map((p) => p[0])
-                .slice(0, 2)
-                .join("")}
+                .map((part) => part[0])
+                .join("")
+                .slice(0, 2)}
             </div>
-            <div className="cust-info">
-              <div className="cust-name">{c.name}</div>
-              <div className="cust-meta">
-                {c.orders} sipariş · son {c.last.toLowerCase()}
-              </div>
+            <div>
+              <b>{customer.name}</b>
+              <span>{customer.orders} sipariş · son işlem: {customer.last}</span>
             </div>
-            <span className={`badge badge-${c.kind}`}>{c.status}</span>
+            <Badge kind={customer.kind}>{customer.status}</Badge>
           </div>
         ))}
       </div>
     </>
   );
 }
-
-/* -------------------------------- Marketplaces ----------------------- */
-
-const MARKET_STATUS = [
-  { name: "Trendyol", src: "/trendyol.png", status: "Hazırlanıyor", kind: "warn" as const },
-  { name: "Amazon", src: "/amazon.png", status: "Planlandı", kind: "info" as const },
-  { name: "Hepsiburada", src: "/hepsiburada.png", status: "Hazırlanıyor", kind: "warn" as const },
-  { name: "Çiçeksepeti", src: "/ciceksepeti.png", status: "Yakında", kind: "muted" as const },
-];
 
 function MarketplacesView() {
   return (
     <>
-      <ViewHead
+      <ViewHeader
         title="Pazaryerleri"
         sub="Entegrasyon durumu · 4 kanal"
-        pill={
-          <>
-            <span className="live-dot" />
-            4 aktif
-          </>
-        }
+        right={<><i className="liveDot" /> Hazırlanıyor</>}
       />
-      <div className="markets">
-        {MARKET_STATUS.map((m, i) => (
+      <div className="marketGrid">
+        {MARKETPLACES.map((market, index) => (
           <div
-            key={m.name}
-            className="market-card"
-            style={{ animationDelay: `${i * 60}ms` }}
+            className="marketDashCard"
+            key={market.name}
+            style={{ "--accent": market.accent, animationDelay: `${index * 70}ms` } as React.CSSProperties}
           >
-            <div className="market-logo">
-              <img src={m.src} alt={m.name} />
+            <div className="marketLogo">
+              <img src={market.src} alt={market.name} />
             </div>
-            <div className="market-info">
-              <div className="market-name">{m.name}</div>
-              <span className={`badge badge-${m.kind}`}>{m.status}</span>
-            </div>
-            <div className="market-arrow">
-              <ArrowRight />
-            </div>
+            <b>{market.name}</b>
+            <span>Satış ve stok akışı</span>
+            <em>Yakında aktif</em>
           </div>
         ))}
       </div>
@@ -700,145 +688,111 @@ function MarketplacesView() {
   );
 }
 
-/* -------------------------------- Gorki ------------------------------ */
-
 function GorkiView() {
-  const items: { kind: "up" | "warn" | "info"; text: string }[] = [
-    { kind: "up", text: "Bugün pazaryeri siparişlerinde %18 artış var." },
-    { kind: "warn", text: "2 ürün kritik stok seviyesine yaklaşıyor." },
-    { kind: "info", text: "Bekleyen 4 ödeme için hatırlatma öneriyorum." },
+  const suggestions = [
+    { text: "Bugün pazaryeri siparişlerinde %18 artış var.", kind: "ok" as BadgeKind },
+    { text: "2 ürün kritik stok seviyesine yaklaşıyor.", kind: "warn" as BadgeKind },
+    { text: "Bekleyen 4 ödeme için hatırlatma öneriyorum.", kind: "info" as BadgeKind },
   ];
+
   return (
     <>
-      <ViewHead
+      <ViewHeader
         title="Gorki AI"
         sub="Günlük öneriler · 09:42"
-        pill={
-          <>
-            <span className="ai-dot" />
-            Aktif
-          </>
-        }
+        right={<><i className="aiDot" /> Aktif</>}
       />
-      <div className="gorki-card">
-        <div className="gorki-head">
-          <div className="gorki-orb">
-            <span>G</span>
-          </div>
+      <div className="gorkiDashboard">
+        <div className="gorkiDashTop">
+          <img src="/gorki-hero.png" alt="Gorki AI" />
           <div>
-            <div className="gorki-title">Bugünün özeti</div>
-            <div className="gorki-meta">3 öneri hazır</div>
+            <b>Bugünün özeti</b>
+            <span>3 öneri hazır</span>
           </div>
         </div>
-        <div className="gorki-list">
-          {items.map((it, i) => (
-            <div
-              className="gi-row"
-              key={i}
-              style={{ animationDelay: `${i * 80}ms` }}
-            >
-              <span className={`gi-icon gi-${it.kind}`}>
-                {it.kind === "up" ? (
-                  <UpIcon />
-                ) : it.kind === "warn" ? (
-                  <AlertIcon />
-                ) : (
-                  <InfoIcon />
-                )}
-              </span>
-              <span className="gi-text">{it.text}</span>
+
+        <div className="suggestionList">
+          {suggestions.map((item, index) => (
+            <div className="suggestion" key={item.text} style={{ animationDelay: `${index * 80}ms` }}>
+              <Badge kind={item.kind}>{index + 1}</Badge>
+              <span>{item.text}</span>
             </div>
           ))}
         </div>
-        <div className="gorki-foot">
-          <button type="button" className="ghost-btn">
-            Hepsini gör
-          </button>
-          <button type="button" className="primary-btn">
-            Aksiyon al
-            <ArrowRight />
-          </button>
+
+        <div className="gorkiActions">
+          <button type="button">Hepsini gör</button>
+          <button type="button">Aksiyon al <ArrowIcon /></button>
         </div>
       </div>
     </>
   );
 }
 
-/* -------------------------------- Phone ------------------------------ */
+function Badge({ kind, children }: { kind: BadgeKind; children: ReactNode }) {
+  return <span className={`badge ${kind}`}>{children}</span>;
+}
 
-function Phone({ activeTab }: { activeTab: TabKey }) {
-  const data = useMemo(() => phoneData(activeTab), [activeTab]);
+function Iphone({ activeTab, message }: { activeTab: TabKey; message: string }) {
+  const data = useMemo(() => getPhoneData(activeTab), [activeTab]);
 
   return (
-    <div className="phone">
-      <div className="phone-frame">
-        <div className="phone-island" />
-        <div className="phone-screen">
-          <div className="phone-status">
-            <span className="phone-time">9:41</span>
-            <span className="phone-bars">
-              <span /> <span /> <span /> <span />
-            </span>
-          </div>
+    <div className="iphone">
+      <div className="phoneFrame">
+        <div className="dynamicIsland" />
+        <div className="phoneStatus">
+          <span>9:41</span>
+          <i />
+        </div>
 
-          <div className="phone-greet">
+        <div className="phoneContent" key={activeTab}>
+          <div className="phoneGreeting">
             <div>
-              <div className="phone-hi">Merhaba, Ahmet</div>
-              <div className="phone-day">{data.day}</div>
+              <b>Merhaba, Ahmet</b>
+              <span>{data.day}</span>
             </div>
-            <div className="phone-avatar">A</div>
+            <div className="phoneAvatar">A</div>
           </div>
 
-          <div className="phone-tabs">
-            {TABS.slice(0, 4).map((t) => (
-              <span
-                key={t.key}
-                className={`phone-tab ${
-                  activeTab === t.key ? "is-active" : ""
-                }`}
-              >
-                {t.label.split(" ")[0]}
+          <div className="phoneTabs">
+            {TABS.slice(0, 4).map((tab) => (
+              <span key={tab.key} className={activeTab === tab.key ? "active" : ""}>
+                {tab.label.split(" ")[0]}
               </span>
             ))}
           </div>
 
-          <div key={activeTab} className="phone-content">
-            <div className="phone-metrics">
-              <div className="pm">
-                <div className="pm-label">{data.m1.label}</div>
-                <div className="pm-value">{data.m1.value}</div>
-                <div className="pm-trend">{data.m1.trend}</div>
-              </div>
-              <div className="pm">
-                <div className="pm-label">{data.m2.label}</div>
-                <div className="pm-value">{data.m2.value}</div>
-                <div className="pm-trend muted">{data.m2.trend}</div>
-              </div>
+          <div className="phoneMetrics">
+            <div>
+              <span>{data.m1.label}</span>
+              <b>{data.m1.value}</b>
+              <em>{data.m1.trend}</em>
+            </div>
+            <div>
+              <span>{data.m2.label}</span>
+              <b>{data.m2.value}</b>
+              <em>{data.m2.trend}</em>
+            </div>
+          </div>
+
+          <div className="phoneList">
+            <div className="phoneListHead">
+              <b>{data.listTitle}</b>
+              <span>Tümü</span>
             </div>
 
-            <div className="phone-list">
-              <div className="phone-list-head">
-                <span>{data.listTitle}</span>
-                <span className="phone-list-meta">Tümü</span>
+            {data.rows.map((row) => (
+              <div className="phoneRow" key={row.text}>
+                <i className={row.color} />
+                <span>{row.text}</span>
+                <em>{row.time}</em>
               </div>
-              {data.rows.map((r, i) => (
-                <div key={i} className="phone-row">
-                  <span className={`phone-dot dot-${r.color}`} />
-                  <span className="phone-row-text">{r.text}</span>
-                  <span className="phone-row-time">{r.time}</span>
-                </div>
-              ))}
-            </div>
+            ))}
+          </div>
 
-            <div className="phone-gorki">
-              <div className="pg-orb">
-                <span>G</span>
-              </div>
-              <div>
-                <div className="pg-title">Gorki AI</div>
-                <div className="pg-text">{data.gorki}</div>
-              </div>
-            </div>
+          <div className="phoneGorki">
+            <img src="/gorki-hero.png" alt="" />
+            <span>{message}</span>
           </div>
         </div>
       </div>
@@ -846,12 +800,12 @@ function Phone({ activeTab }: { activeTab: TabKey }) {
   );
 }
 
-function phoneData(tab: TabKey) {
+function getPhoneData(tab: TabKey) {
   switch (tab) {
     case "orders":
       return {
-        day: "Çarşamba · 18 yeni sipariş",
-        m1: { label: "Aktif sip.", value: "146", trend: "+18" },
+        day: "Bugün 18 yeni sipariş",
+        m1: { label: "Aktif", value: "146", trend: "+18" },
         m2: { label: "Bekleyen", value: "9", trend: "kargo" },
         listTitle: "Son siparişler",
         rows: [
@@ -859,12 +813,11 @@ function phoneData(tab: TabKey) {
           { color: "green", text: "#10246 teslim", time: "14 dk" },
           { color: "amber", text: "#10245 hazırlık", time: "1 sa" },
         ],
-        gorki: "Hazırlık süresi %22 azaldı.",
       };
     case "customers":
       return {
-        day: "Çarşamba · 24 yeni müşteri",
-        m1: { label: "Yeni müşteri", value: "24", trend: "+%9" },
+        day: "24 yeni müşteri",
+        m1: { label: "Yeni", value: "24", trend: "+%9" },
         m2: { label: "Aktif", value: "318", trend: "müşteri" },
         listTitle: "Son müşteriler",
         rows: [
@@ -872,12 +825,11 @@ function phoneData(tab: TabKey) {
           { color: "green", text: "Mert Demir", time: "22 dk" },
           { color: "amber", text: "Zeynep Kaya", time: "1 sa" },
         ],
-        gorki: "5 müşteri tekrar sipariş verdi.",
       };
     case "marketplaces":
       return {
-        day: "Çarşamba · 4 kanal aktif",
-        m1: { label: "Bağlı kanal", value: "4", trend: "aktif" },
+        day: "4 kanal hazırlanıyor",
+        m1: { label: "Kanal", value: "4", trend: "aktif" },
         m2: { label: "Senk.", value: "98%", trend: "başarılı" },
         listTitle: "Kanallar",
         rows: [
@@ -885,24 +837,22 @@ function phoneData(tab: TabKey) {
           { color: "green", text: "Hepsiburada ok", time: "3 dk" },
           { color: "amber", text: "Amazon kuyruk", time: "12 dk" },
         ],
-        gorki: "2 kanal yakında aktif olacak.",
       };
     case "gorki":
       return {
-        day: "Çarşamba · 3 yeni öneri",
+        day: "3 yeni öneri",
         m1: { label: "Öneri", value: "3", trend: "yeni" },
-        m2: { label: "Otomasyon", value: "12", trend: "aktif" },
-        listTitle: "Bugünün önerileri",
+        m2: { label: "Oto.", value: "12", trend: "aktif" },
+        listTitle: "Gorki önerileri",
         rows: [
           { color: "cyan", text: "Stok hatırlatması", time: "2 dk" },
           { color: "green", text: "Ödeme tamamlandı", time: "9 dk" },
           { color: "amber", text: "Kritik ürün", time: "32 dk" },
         ],
-        gorki: "3 önerin uygulanmaya hazır.",
       };
     default:
       return {
-        day: "Çarşamba · Bugün 12 sipariş",
+        day: "Bugün 12 sipariş",
         m1: { label: "Ciro", value: "₺184K", trend: "+%12" },
         m2: { label: "Bekleyen", value: "₺24K", trend: "9 fatura" },
         listTitle: "Son hareketler",
@@ -911,1747 +861,2338 @@ function phoneData(tab: TabKey) {
           { color: "green", text: "#10246 teslim", time: "14 dk" },
           { color: "amber", text: "Stok uyarısı", time: "1 sa" },
         ],
-        gorki: "Bugün %18 daha iyi gidiyorsun.",
       };
   }
 }
 
-/* ================================================================== */
-/*  Success modal                                                      */
-/* ================================================================== */
+function FeatureCard({ icon, title, text }: { icon: ReactNode; title: string; text: string }) {
+  return (
+    <article className="featureCard">
+      <div>{icon}</div>
+      <b>{title}</b>
+      <span>{text}</span>
+    </article>
+  );
+}
 
 function SuccessModal({ onClose }: { onClose: () => void }) {
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
     };
+
     document.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
+    const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+
     return () => {
       document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prev;
+      document.body.style.overflow = previousOverflow;
     };
   }, [onClose]);
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div
-        className="modal"
-        role="dialog"
-        aria-modal="true"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button
-          type="button"
-          className="modal-close"
-          onClick={onClose}
-          aria-label="Kapat"
-        >
+    <div className="modalOverlay" onClick={onClose}>
+      <div className="successModal" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+        <button type="button" className="modalClose" onClick={onClose} aria-label="Kapat">
           <CloseIcon />
         </button>
 
-        <div className="modal-orb-wrap" aria-hidden>
-          <div className="modal-orb-glow" />
-          <div className="modal-orb">
-            <span>G</span>
-          </div>
+        <div className="modalGorki">
+          <img src="/gorki-hero.png" alt="Gorki AI" />
         </div>
 
-        <div className="modal-eyebrow">
-          <span className="modal-dot" />
-          Erken erişim onaylandı
-        </div>
-        <h3 className="modal-title">Listemizdesin.</h3>
-        <p className="modal-sub">
-          Takipio&apos;ya katıldığın için teşekkürler. Açılışta seninle ilk biz
-          iletişime geçeceğiz.
+        <span className="modalPill"><i /> Erken erişim onaylandı</span>
+        <h3>Kaydın alındı.</h3>
+        <p>
+          Takipio listesine eklendin. TAKIPIO10 kodun hazır ve hoş geldin maili
+          gönderildi.
         </p>
 
-        <ul className="modal-list">
-          <li>
-            <CheckBadge />
-            <span>
-              <b>Kaydın alındı.</b> Listemize başarıyla eklendin.
-            </span>
-          </li>
-          <li>
-            <CheckBadge />
-            <span>
-              <b>TAKIPIO10</b> kodun ilk ay için hazır.
-            </span>
-          </li>
-          <li>
-            <CheckBadge />
-            <span>
-              Hoş geldin <b>e-postan</b> kutuna gönderildi.
-            </span>
-          </li>
-        </ul>
+        <div className="modalList">
+          <span><CheckIcon /> TAKIPIO10 kodu hazır</span>
+          <span><CheckIcon /> Hoş geldin maili gönderildi</span>
+          <span><CheckIcon /> Açılışta öncelikli bilgilendirme</span>
+        </div>
 
-        <button type="button" className="modal-cta" onClick={onClose}>
+        <button type="button" className="modalButton" onClick={onClose}>
           Harika, devam edelim
-          <ArrowRight />
+          <ArrowIcon />
         </button>
       </div>
     </div>
   );
 }
 
-/* ================================================================== */
-/*  Tiny inline icons                                                  */
-/* ================================================================== */
-
-function ArrowRight() {
+function ArrowIcon() {
   return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d="M5 12h14M13 5l7 7-7 7" />
+    <svg viewBox="0 0 24 24">
+      <path d="M5 12h14" />
+      <path d="M13 6l6 6-6 6" />
     </svg>
   );
 }
+
+function CheckIcon() {
+  return (
+    <svg viewBox="0 0 24 24">
+      <path d="M20 6L9 17l-5-5" />
+    </svg>
+  );
+}
+
 function MailIcon() {
   return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
+    <svg viewBox="0 0 24 24">
       <rect x="3" y="5" width="18" height="14" rx="3" />
       <path d="M3 7l9 6 9-6" />
     </svg>
   );
 }
+
 function LockIcon() {
   return (
-    <svg
-      width="10"
-      height="10"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
+    <svg viewBox="0 0 24 24">
       <rect x="4" y="11" width="16" height="10" rx="2" />
-      <path d="M8 11V7a4 4 0 1 1 8 0v4" />
+      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
     </svg>
   );
 }
+
+function OrdersIcon() {
+  return (
+    <svg viewBox="0 0 24 24">
+      <path d="M6 2h12l3 5v15H3V7l3-5z" />
+      <path d="M3 7h18" />
+      <path d="M8 12h8" />
+      <path d="M8 16h5" />
+    </svg>
+  );
+}
+
+function WalletIcon() {
+  return (
+    <svg viewBox="0 0 24 24">
+      <path d="M3 7h18v12H3z" />
+      <path d="M16 12h5v4h-5a2 2 0 0 1 0-4z" />
+      <path d="M3 7l3-4h12l3 4" />
+    </svg>
+  );
+}
+
+function PanelIcon() {
+  return (
+    <svg viewBox="0 0 24 24">
+      <path d="M4 5h7v6H4z" />
+      <path d="M13 5h7v14h-7z" />
+      <path d="M4 13h7v6H4z" />
+    </svg>
+  );
+}
+
+function LinkIcon() {
+  return (
+    <svg viewBox="0 0 24 24">
+      <path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1.2 1.2" />
+      <path d="M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1.2-1.2" />
+    </svg>
+  );
+}
+
+function SparkIcon() {
+  return (
+    <svg viewBox="0 0 24 24">
+      <path d="M12 3l1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7L12 3z" />
+      <path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15z" />
+    </svg>
+  );
+}
+
 function CloseIcon() {
   return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.4"
-      strokeLinecap="round"
-      aria-hidden
-    >
+    <svg viewBox="0 0 24 24">
       <path d="M6 6l12 12M6 18 18 6" />
     </svg>
   );
 }
-function AlertIcon() {
-  return (
-    <svg
-      width="13"
-      height="13"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d="M12 9v4M12 17h.01" />
-      <path d="M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
-    </svg>
-  );
-}
-function UpIcon() {
-  return (
-    <svg
-      width="13"
-      height="13"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d="M3 17l6-6 4 4 7-7" />
-      <path d="M14 8h6v6" />
-    </svg>
-  );
-}
-function InfoIcon() {
-  return (
-    <svg
-      width="13"
-      height="13"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 11v5M12 8h.01" />
-    </svg>
-  );
-}
-function CheckBadge() {
-  return (
-    <span className="check-badge" aria-hidden>
-      <svg
-        width="12"
-        height="12"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="3"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M5 12l5 5L20 7" />
-      </svg>
-    </span>
-  );
-}
-
-/* ================================================================== */
-/*  Global CSS                                                         */
-/* ================================================================== */
 
 const GLOBAL_CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
 :root {
-  --bg-0: #060916;
-  --bg-1: #0A1024;
-  --surface: rgba(255,255,255,0.035);
-  --surface-2: rgba(255,255,255,0.06);
-  --surface-3: rgba(255,255,255,0.085);
-  --border: rgba(255,255,255,0.08);
-  --border-strong: rgba(255,255,255,0.14);
-  --text-1: #ECF0F8;
-  --text-2: #97A0B6;
-  --text-3: #5C657B;
-  --accent: #22D3EE;
-  --accent-2: #3B82F6;
-  --accent-3: #818CF8;
-  --ok: #34D399;
-  --warn: #F5B547;
-  --err: #F87171;
-  --info: #60A5FA;
-  --r-sm: 8px;
-  --r: 14px;
-  --r-lg: 20px;
+  --bg: #050914;
+  --ink: #f7fbff;
+  --muted: rgba(226, 237, 255, .68);
+  --muted2: rgba(226, 237, 255, .48);
+  --line: rgba(147, 197, 253, .16);
+  --line2: rgba(255,255,255,.1);
+  --card: rgba(255,255,255,.075);
+  --card2: rgba(255,255,255,.11);
+  --blue: #0b63ff;
+  --cyan: #22d3ee;
+  --green: #34d399;
+  --amber: #f5b547;
+  --red: #f87171;
+  --shadow: 0 34px 100px rgba(0,0,0,.42);
 }
 
 * { box-sizing: border-box; }
+
 html, body {
-  margin: 0; padding: 0;
-  background: var(--bg-0);
-  color: var(--text-1);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-  font-feature-settings: 'cv02','cv03','cv04','cv11','ss01';
-  font-size: 16px;
-  line-height: 1.55;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  margin: 0;
+  padding: 0;
   overflow-x: hidden;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
+
 body { min-height: 100vh; }
-img { display: block; max-width: 100%; }
-button { font-family: inherit; }
+
 a { color: inherit; text-decoration: none; }
+button, input { font-family: inherit; }
+button { cursor: pointer; }
+img { display: block; max-width: 100%; }
 
-.page {
+svg {
+  width: 1em;
+  height: 1em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+#top, #product, #integrations, #gorki, #waitlist {
+  scroll-margin-top: 120px;
+}
+
+.takipioV8 {
   position: relative;
-  min-height: 100vh;
-  isolation: isolate;
+  min-height: 100svh;
   overflow: hidden;
-}
-
-/* ---------- background ---------- */
-.bg-grid {
-  position: fixed; inset: 0; z-index: -2;
+  padding: 24px;
   background:
-    linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px) 0 0 / 64px 64px,
-    linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px) 0 0 / 64px 64px,
-    radial-gradient(ellipse at top, var(--bg-1) 0%, var(--bg-0) 60%);
-  mask-image: radial-gradient(ellipse 80% 70% at 50% 30%, #000 40%, transparent 100%);
-  pointer-events: none;
-}
-.bg-orb {
-  position: fixed; z-index: -1;
-  width: 720px; height: 720px;
-  border-radius: 50%;
-  filter: blur(120px);
-  opacity: 0.55;
-  pointer-events: none;
-}
-.bg-orb-a {
-  top: -260px; left: -180px;
-  background: radial-gradient(circle, rgba(34,211,238,0.45) 0%, transparent 60%);
-}
-.bg-orb-b {
-  top: 200px; right: -240px;
-  background: radial-gradient(circle, rgba(59,130,246,0.42) 0%, transparent 60%);
-}
-.bg-vignette {
-  position: fixed; inset: 0; z-index: -1;
-  background: radial-gradient(ellipse at center, transparent 0%, rgba(0,0,0,0.55) 100%);
-  pointer-events: none;
+    radial-gradient(circle at 18% 16%, rgba(11,99,255,.22), transparent 28%),
+    radial-gradient(circle at 84% 18%, rgba(34,211,238,.16), transparent 30%),
+    linear-gradient(180deg, #050914 0%, #071020 58%, #050914 100%);
 }
 
-/* ---------- nav ---------- */
-.nav {
-  position: relative;
-  z-index: 5;
-  padding: 22px 24px 0;
-}
-.nav-row {
-  max-width: 1200px;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 18px;
-  border: 1px solid var(--border);
+.v8Bg { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+
+.mesh {
+  position: absolute;
   border-radius: 999px;
-  background: rgba(10,15,28,0.55);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-}
-.brand { display: flex; align-items: center; gap: 10px; }
-.brand-mark { width: 26px; height: 26px; border-radius: 7px; }
-.brand-name {
-  font-weight: 600; font-size: 15.5px;
-  letter-spacing: -0.01em;
-}
-.nav-cta {
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 8px 14px;
-  font-size: 13.5px; font-weight: 500;
-  color: var(--text-1);
-  background: var(--surface-2);
-  border: 1px solid var(--border-strong);
-  border-radius: 999px;
-  transition: all .2s ease;
-}
-.nav-cta:hover {
-  background: var(--surface-3);
-  transform: translateY(-1px);
+  filter: blur(72px);
+  opacity: .8;
 }
 
-/* ---------- hero ---------- */
-.hero {
-  position: relative;
-  z-index: 1;
-  padding: 60px 24px 100px;
+.meshA { width: 520px; height: 520px; left: -220px; top: 90px; background: rgba(11,99,255,.22); }
+.meshB { width: 560px; height: 560px; right: -220px; top: 90px; background: rgba(34,211,238,.16); }
+.meshC { width: 400px; height: 400px; left: 45%; bottom: -240px; background: rgba(139,92,246,.16); }
+
+.gridLayer {
+  position: absolute;
+  inset: 0;
+  opacity: .55;
+  background-image:
+    linear-gradient(rgba(147,197,253,.052) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(147,197,253,.052) 1px, transparent 1px);
+  background-size: 84px 84px;
+  mask-image: radial-gradient(circle at 50% 36%, black 0%, transparent 74%);
 }
-.hero-grid {
-  max-width: 1200px;
-  margin: 0 auto;
+
+.topNav {
+  width: min(1500px, calc(100% - 48px));
+  height: 74px;
+  position: fixed;
+  left: 50%;
+  top: 18px;
+  transform: translateX(-50%);
+  z-index: 50;
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
-  gap: 60px;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 24px;
+  padding: 8px;
+  border-radius: 30px;
+  background: rgba(6,16,31,.78);
+  border: 1px solid rgba(255,255,255,.1);
+  box-shadow: 0 18px 46px rgba(0,0,0,.3);
+  backdrop-filter: blur(22px);
+}
+
+.brand {
+  width: 180px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border-radius: 23px;
+  background: linear-gradient(180deg, rgba(255,255,255,.09), rgba(255,255,255,.03)), #050914;
+  border: 1px solid rgba(255,255,255,.1);
+}
+
+.brand img {
+  width: 150px;
+  height: 42px;
+  object-fit: contain;
+}
+
+.desktopNav {
+  display: flex;
+  justify-content: center;
+  gap: 34px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.desktopNav a:hover { color: white; }
+
+.navCta {
+  height: 56px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 20px;
+  border-radius: 21px;
+  color: white;
+  background: linear-gradient(135deg, var(--blue), var(--cyan));
+  box-shadow: 0 18px 38px rgba(11,99,255,.28);
+  font-size: 14px;
+  font-weight: 950;
+}
+
+.mobileDock { display: none; }
+
+.hero {
+  width: min(1500px, 100%);
+  min-height: 900px;
+  margin: 0 auto;
+  padding-top: 118px;
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: minmax(430px, .88fr) minmax(700px, 1.12fr);
+  gap: 48px;
   align-items: center;
 }
-.hero-left {
-  animation: fadeUp .7s cubic-bezier(.22,1,.36,1) both;
-}
-.hero-right {
-  animation: fadeUp .9s cubic-bezier(.22,1,.36,1) .15s both;
-}
 
-/* ---------- pill ---------- */
-.pill {
-  display: inline-flex; align-items: center; gap: 10px;
-  padding: 6px 14px 6px 10px;
-  border: 1px solid var(--border-strong);
+.heroLeft { position: relative; z-index: 4; }
+
+.statusPill {
+  width: max-content;
+  max-width: 100%;
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 15px;
   border-radius: 999px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
-  font-size: 12.5px;
-  font-weight: 500;
-  color: var(--text-1);
-  letter-spacing: 0.01em;
-  backdrop-filter: blur(8px);
+  color: #a8d8ff;
+  background: rgba(255,255,255,.06);
+  border: 1px solid var(--line);
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: .9px;
+  text-transform: uppercase;
+  margin-bottom: 28px;
 }
-.pill-dot {
-  width: 7px; height: 7px; border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 4px rgba(34,211,238,0.18), 0 0 12px rgba(34,211,238,0.6);
-  animation: pulse 2.4s ease-in-out infinite;
-}
-.pill-sep {
-  width: 1px; height: 12px;
-  background: var(--border-strong);
-}
-.pill-dim { color: var(--text-2); }
 
-/* ---------- title ---------- */
-.title {
-  margin: 22px 0 18px;
-  font-size: clamp(2.4rem, 5.6vw, 4.4rem);
-  font-weight: 600;
-  letter-spacing: -0.038em;
-  line-height: 1.04;
-  color: var(--text-1);
+.statusPill span {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--green);
+  box-shadow: 0 0 0 8px rgba(52,211,153,.12);
 }
-.title-grad {
-  background: linear-gradient(120deg, #E7ECF5 0%, #22D3EE 45%, #3B82F6 95%);
+
+.hero h1 {
+  max-width: 740px;
+  margin: 0;
+  color: white;
+  font-size: clamp(54px, 5.3vw, 92px);
+  line-height: .91;
+  letter-spacing: -5.4px;
+  font-weight: 950;
+}
+
+.hero h1 em {
+  display: block;
+  font-style: normal;
+  width: max-content;
+  max-width: 100%;
+  background: linear-gradient(135deg, #fff 0%, #9defff 38%, #0b63ff 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  display: inline-block;
-}
-.lede {
-  font-size: clamp(15.5px, 1.25vw, 17.5px);
-  line-height: 1.62;
-  color: var(--text-2);
-  max-width: 540px;
-  margin: 0 0 36px;
+  text-shadow: 0 30px 80px rgba(11,99,255,.22);
 }
 
-/* ---------- rail ---------- */
-.rail {
-  margin-bottom: 28px;
+.heroText {
+  max-width: 650px;
+  margin: 26px 0 0;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1.76;
+  letter-spacing: -.2px;
+  font-weight: 560;
+}
+
+.integrationRail,
+.waitlistCard {
+  width: min(660px, 100%);
+  border-radius: 28px;
+  background: linear-gradient(145deg, rgba(255,255,255,.1), rgba(255,255,255,.045));
+  border: 1px solid var(--line);
+  box-shadow: 0 24px 70px rgba(0,0,0,.24), inset 0 1px 0 rgba(255,255,255,.07);
+  backdrop-filter: blur(18px);
+}
+
+.integrationRail {
+  margin: 28px 0 0;
   padding: 18px;
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
-  background: linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.005));
-  backdrop-filter: blur(10px);
 }
-.rail-head {
-  display: flex; flex-direction: column; gap: 4px;
-  margin-bottom: 16px;
+
+.railHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
 }
-.rail-eyebrow {
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+
+.railHeader span {
+  display: inline-flex;
+  min-height: 31px;
+  align-items: center;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(11,99,255,.18);
+  color: #a8d8ff;
+  border: 1px solid rgba(147,197,253,.12);
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: .8px;
   text-transform: uppercase;
-  color: var(--text-1);
 }
-.rail-sub {
-  font-size: 13px;
-  color: var(--text-2);
-  line-height: 1.5;
+
+.railHeader b {
+  max-width: 220px;
+  color: white;
+  text-align: right;
+  font-size: 15px;
+  line-height: 1.25;
 }
-.rail-track {
+
+.railLogos {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 10px;
 }
-.rail-cell {
-  position: relative;
-  height: 64px;
-  display: flex; align-items: center; justify-content: center;
-  padding: 10px 14px;
-  background: rgba(255,255,255,0.03);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  transition: all .25s ease;
-  overflow: hidden;
-}
-.rail-cell::after {
-  content: '';
-  position: absolute; left: 14px; right: 14px; bottom: -1px; height: 2px;
-  background: linear-gradient(90deg, transparent, var(--accent), transparent);
-  opacity: 0;
-  transition: opacity .3s ease;
-}
-.rail-cell img {
-  max-height: 28px;
-  max-width: 100%;
-  width: auto;
-  object-fit: contain;
-  opacity: 0.85;
-  filter: brightness(1.05);
-  transition: all .25s ease;
-}
-.rail-cell:hover {
-  background: rgba(255,255,255,0.05);
-  border-color: var(--border-strong);
-  transform: translateY(-2px);
-  box-shadow: 0 14px 30px -14px rgba(34,211,238,0.35);
-}
-.rail-cell:hover img {
-  opacity: 1;
-  filter: brightness(1.15);
-}
-.rail-cell:hover::after { opacity: 1; }
 
-/* ---------- form ---------- */
-.form {
-  margin-top: 8px;
-}
-.form-field {
-  display: flex; align-items: center;
-  gap: 6px;
-  padding: 6px 6px 6px 14px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid var(--border-strong);
-  border-radius: 14px;
-  transition: all .25s ease;
+.railLogoCard {
+  --accent: #0b63ff;
+  min-height: 78px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 14px;
+  border-radius: 20px;
+  background: rgba(255,255,255,.96);
+  border: 1px solid rgba(255,255,255,.08);
+  box-shadow: 0 16px 30px rgba(0,0,0,.14);
   position: relative;
+  overflow: hidden;
+  transition: transform .22s ease, box-shadow .22s ease;
 }
-.form-field:focus-within {
-  border-color: rgba(34,211,238,0.55);
-  box-shadow: 0 0 0 4px rgba(34,211,238,0.12), 0 10px 40px -10px rgba(34,211,238,0.35);
-  background: rgba(255,255,255,0.06);
+
+.railLogoCard:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 24px 42px rgba(0,0,0,.22);
 }
-.form-icon {
-  display: inline-flex;
-  color: var(--text-2);
+
+.railLogoCard:after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 4px;
+  background: var(--accent);
 }
-.form-field:focus-within .form-icon { color: var(--accent); }
-.form-input {
-  flex: 1;
+
+.railLogoCard img {
+  display: block;
+  max-width: 122px;
+  max-height: 36px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+.integrationRail p {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.58;
+  font-weight: 650;
+}
+
+.waitlistCard {
+  margin-top: 22px;
+  padding: 20px;
+}
+
+.waitlistHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.waitlistHeader span {
+  display: block;
+  color: #8fd7ff;
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.waitlistHeader b {
+  display: block;
+  color: white;
+  font-size: 16px;
+}
+
+.priceChip {
+  min-width: 92px;
+  min-height: 58px;
+  display: grid;
+  place-items: center;
+  padding: 8px 12px;
+  border-radius: 18px;
+  color: white;
+  background: linear-gradient(135deg, rgba(11,99,255,.95), rgba(34,211,238,.78));
+  box-shadow: 0 16px 30px rgba(11,99,255,.24);
+}
+
+.priceChip small {
+  font-size: 10px;
+  font-weight: 900;
+  opacity: .88;
+}
+
+.priceChip strong {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.emailRow {
+  display: grid;
+  grid-template-columns: 1fr 190px;
+  gap: 10px;
+}
+
+.inputShell {
+  height: 58px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(147,197,253,.18);
+  border-radius: 18px;
+  background: rgba(255,255,255,.08);
+  padding: 0 16px;
+}
+
+.inputShell svg {
+  width: 18px;
+  height: 18px;
+  color: var(--muted2);
+}
+
+.inputShell input {
   min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
   background: transparent;
-  border: none;
-  outline: none;
-  color: var(--text-1);
+  color: white;
   font-size: 15px;
-  font-weight: 400;
-  padding: 12px 8px;
-  letter-spacing: -0.005em;
+  font-weight: 650;
 }
-.form-input::placeholder { color: var(--text-3); }
-.form-input:disabled { opacity: 0.6; }
-.form-btn {
-  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  padding: 12px 20px;
-  min-width: 168px;
-  height: 46px;
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: -0.005em;
-  color: #061018;
-  background: linear-gradient(180deg, #5BE5F5 0%, #22D3EE 50%, #3B82F6 100%);
-  border: none;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: all .2s ease;
-  box-shadow:
-    0 1px 0 rgba(255,255,255,0.4) inset,
-    0 -1px 0 rgba(0,0,0,0.2) inset,
-    0 8px 22px -6px rgba(34,211,238,0.55);
+
+.inputShell input::placeholder { color: rgba(226,237,255,.42); }
+
+.emailRow button,
+.modalButton {
+  height: 58px;
+  border: 0;
+  border-radius: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  color: white;
+  background: linear-gradient(135deg, var(--blue), var(--cyan));
+  box-shadow: 0 18px 34px rgba(11,99,255,.28);
+  font-size: 15px;
+  font-weight: 950;
 }
-.form-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  filter: brightness(1.05);
-  box-shadow:
-    0 1px 0 rgba(255,255,255,0.45) inset,
-    0 -1px 0 rgba(0,0,0,0.2) inset,
-    0 14px 30px -8px rgba(34,211,238,0.7);
-}
-.form-btn:disabled { cursor: progress; opacity: 0.85; }
+
+.emailRow button:disabled { opacity: .7; cursor: wait; }
 
 .spinner {
-  width: 16px; height: 16px;
-  border: 2px solid rgba(6,16,24,0.3);
-  border-top-color: #061018;
-  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 2px solid rgba(255,255,255,.35);
+  border-top-color: white;
   animation: spin .7s linear infinite;
 }
 
-.form-meta {
-  display: flex; align-items: center; gap: 14px;
-  flex-wrap: wrap;
-  margin-top: 14px;
-  font-size: 13px;
-  color: var(--text-2);
-}
-.coupon {
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 5px 10px 5px 5px;
-  background: rgba(34,211,238,0.06);
-  border: 1px solid rgba(34,211,238,0.22);
-  border-radius: 999px;
-}
-.coupon-tag {
-  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: linear-gradient(180deg, rgba(34,211,238,0.25), rgba(59,130,246,0.25));
-  color: #BAF6FE;
-  border: 1px solid rgba(34,211,238,0.35);
-}
-.coupon-text { color: var(--text-1); }
-.coupon-text b { color: var(--text-1); font-weight: 600; }
-.coupon-dim { color: var(--text-2); }
-.form-hint { color: var(--text-3); font-size: 12.5px; }
-.form-error {
-  display: inline-flex; align-items: center; gap: 6px;
-  color: var(--err);
-  font-size: 13px;
-  font-weight: 500;
-}
-.form-error svg { flex-shrink: 0; }
-
-/* ============================================================== */
-/*  Scene                                                          */
-/* ============================================================== */
-
-.scene {
-  position: relative;
-  width: 100%;
-  min-height: 460px;
+.waitlistMeta {
   display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 18px;
-  padding: 24px 0 32px;
-}
-.scene-glow {
-  position: absolute; inset: -10% -10% 0 -10%;
-  background:
-    radial-gradient(ellipse 60% 50% at 50% 50%, rgba(34,211,238,0.18), transparent 70%),
-    radial-gradient(ellipse 70% 50% at 80% 70%, rgba(59,130,246,0.15), transparent 70%);
-  filter: blur(20px);
-  z-index: 0;
-  pointer-events: none;
-}
-
-/* ---------- floating cards ---------- */
-.float {
-  position: absolute;
-  z-index: 6;
-  border-radius: 14px;
-  border: 1px solid var(--border-strong);
-  background: linear-gradient(180deg, rgba(20,28,46,0.85), rgba(12,18,32,0.85));
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  box-shadow:
-    0 1px 0 rgba(255,255,255,0.08) inset,
-    0 30px 60px -20px rgba(0,0,0,0.6),
-    0 0 0 1px rgba(255,255,255,0.02);
-}
-.float-coupon {
-  top: 14px; left: 0;
-  padding: 10px 14px;
-  display: flex; flex-direction: column; gap: 6px;
-  min-width: 168px;
-  animation: floatY 5s ease-in-out infinite;
-}
-.float-coupon-row {
-  display: flex; align-items: center; gap: 8px;
-  justify-content: space-between;
-}
-.float-coupon-tag {
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  padding: 3px 7px;
-  border-radius: 6px;
-  background: linear-gradient(180deg, rgba(34,211,238,0.22), rgba(59,130,246,0.22));
-  border: 1px solid rgba(34,211,238,0.3);
-  color: #BAF6FE;
-}
-.float-coupon-meta {
-  font-size: 10.5px;
-  font-weight: 500;
-  color: var(--text-2);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-.float-coupon-price {
-  display: flex; align-items: baseline; gap: 8px;
-  font-weight: 600;
-  font-size: 22px;
-  letter-spacing: -0.02em;
-  color: var(--text-1);
-}
-.float-coupon-sub {
-  font-size: 11.5px;
-  font-weight: 500;
-  color: var(--text-2);
-  text-transform: lowercase;
-}
-
-.float-gorki {
-  bottom: 30px; left: -8px;
-  padding: 10px 14px 10px 10px;
-  display: flex; align-items: center; gap: 10px;
-  max-width: 220px;
-  animation: floatY 5s ease-in-out infinite reverse .8s;
-}
-.gorki-orb-sm {
-  width: 30px; height: 30px;
-  border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-weight: 700; font-size: 13px;
-  color: #061018;
-  background: conic-gradient(from 200deg, #5BE5F5, #3B82F6, #818CF8, #5BE5F5);
-  box-shadow: 0 0 0 1px rgba(255,255,255,0.15) inset, 0 0 16px rgba(34,211,238,0.5);
-  flex-shrink: 0;
-}
-.float-gorki-text {
-  display: flex; flex-direction: column;
-  font-size: 12.5px;
-  line-height: 1.35;
-}
-.float-gorki-text strong {
-  font-weight: 600;
-  color: var(--text-1);
-  font-size: 12.5px;
-}
-.float-gorki-text span {
-  color: var(--text-2);
-  font-size: 12px;
-}
-
-/* ============================================================== */
-/*  Laptop                                                         */
-/* ============================================================== */
-
-.laptop {
-  position: relative;
-  z-index: 2;
-  width: 100%;
-  max-width: 540px;
-  margin-left: -12px;
-}
-.laptop-lid {
-  position: relative;
-  background: linear-gradient(180deg, #2A3145 0%, #161B2C 100%);
-  border-radius: 14px 14px 4px 4px;
-  padding: 12px 12px 14px;
-  box-shadow:
-    0 1px 0 rgba(255,255,255,0.08) inset,
-    0 0 0 1px rgba(0,0,0,0.6),
-    0 50px 80px -30px rgba(0,0,0,0.7);
-}
-.laptop-cam {
-  width: 5px; height: 5px;
-  border-radius: 50%;
-  background: #050913;
-  margin: 0 auto 6px;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05);
-}
-.laptop-screen {
-  position: relative;
-  background: #0A1124;
-  border-radius: 6px;
-  aspect-ratio: 16 / 10;
-  overflow: hidden;
-  box-shadow:
-    0 0 0 1px rgba(255,255,255,0.04) inset,
-    0 0 80px rgba(34,211,238,0.05) inset;
-}
-.laptop-base {
-  position: relative;
-  height: 12px;
-  margin: 0 -16px;
-  background:
-    linear-gradient(180deg, #2A3145 0%, #1A1F2E 60%, #0E1220 100%);
-  border-radius: 0 0 14px 14px;
-  box-shadow:
-    0 14px 30px -10px rgba(0,0,0,0.6);
-}
-.laptop-base-notch {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 90px; height: 5px;
-  background: #050913;
-  border-radius: 0 0 8px 8px;
-}
-
-/* ---------- topbar ---------- */
-.topbar {
-  display: flex; align-items: center;
-  padding: 8px 12px;
-  background: rgba(255,255,255,0.025);
-  border-bottom: 1px solid rgba(255,255,255,0.05);
-  gap: 12px;
-}
-.dots { display: flex; gap: 5px; }
-.dots span {
-  width: 9px; height: 9px;
-  border-radius: 50%;
-  background: rgba(255,255,255,0.18);
-}
-.dots span:nth-child(1) { background: #FF6058; }
-.dots span:nth-child(2) { background: #FFBD2E; }
-.dots span:nth-child(3) { background: #29C940; }
-.urlbar {
-  flex: 1;
-  max-width: 280px;
-  margin: 0 auto;
-  display: flex; align-items: center; gap: 6px;
-  padding: 4px 10px;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.05);
-  border-radius: 6px;
-  font-size: 10.5px;
-  color: var(--text-2);
-}
-.urlbar svg { color: var(--text-2); }
-.topbar-spacer { width: 50px; }
-
-/* ---------- OS body ---------- */
-.osBody {
-  display: grid;
-  grid-template-columns: 138px 1fr;
-  height: calc(100% - 31px);
-}
-.sidebar {
-  display: flex; flex-direction: column;
-  background: rgba(255,255,255,0.02);
-  border-right: 1px solid rgba(255,255,255,0.05);
-  padding: 12px 8px;
-  gap: 14px;
-}
-.sidebar-brand {
-  display: flex; align-items: center; gap: 8px;
-  padding: 4px 8px;
-  font-size: 12px; font-weight: 600;
-  letter-spacing: -0.005em;
-}
-.sidebar-brand img { width: 18px; height: 18px; border-radius: 5px; }
-.sidebar-nav {
-  display: flex; flex-direction: column; gap: 2px;
-  flex: 1;
-}
-.side-item {
-  position: relative;
-  display: flex; align-items: center; gap: 8px;
-  padding: 7px 9px;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  border-radius: 7px;
-  font-size: 11.5px;
-  font-weight: 500;
-  color: var(--text-2);
-  text-align: left;
-  transition: all .15s ease;
-}
-.side-item:hover {
-  background: rgba(255,255,255,0.04);
-  color: var(--text-1);
-}
-.side-item.is-active {
-  background: rgba(34,211,238,0.08);
-  color: var(--text-1);
-}
-.side-bullet {
-  width: 5px; height: 5px;
-  border-radius: 50%;
-  background: rgba(255,255,255,0.18);
-  flex-shrink: 0;
-}
-.side-item.is-active .side-bullet {
-  background: var(--accent);
-  box-shadow: 0 0 8px var(--accent);
-}
-.side-active {
-  position: absolute;
-  left: 0; top: 7px; bottom: 7px;
-  width: 2px;
-  background: linear-gradient(180deg, var(--accent), var(--accent-2));
-  border-radius: 0 2px 2px 0;
-}
-.sidebar-foot {
-  margin-top: auto;
-  padding-top: 10px;
-  border-top: 1px solid rgba(255,255,255,0.05);
-}
-.user-chip {
-  display: flex; align-items: center; gap: 8px;
-  padding: 5px 6px;
-  border-radius: 8px;
-}
-.user-avatar {
-  width: 22px; height: 22px;
-  display: flex; align-items: center; justify-content: center;
-  border-radius: 50%;
-  background: linear-gradient(180deg, var(--accent), var(--accent-2));
-  color: #061018;
-  font-size: 10.5px; font-weight: 700;
-}
-.user-meta { display: flex; flex-direction: column; line-height: 1.15; }
-.user-meta b { font-size: 11px; font-weight: 600; color: var(--text-1); }
-.user-meta em { font-size: 10px; color: var(--text-3); font-style: normal; }
-
-.osMain {
-  padding: 14px 16px;
-  overflow: hidden;
-  position: relative;
-}
-
-/* ---------- view ---------- */
-.view {
-  display: flex; flex-direction: column;
-  gap: 12px;
-  height: 100%;
-  animation: viewIn .35s cubic-bezier(.22,1,.36,1);
-}
-.view-head {
-  display: flex; align-items: flex-start; justify-content: space-between;
-  gap: 12px;
-}
-.view-title {
-  font-size: 14.5px;
-  font-weight: 600;
-  letter-spacing: -0.015em;
-  color: var(--text-1);
-}
-.view-sub {
-  font-size: 11px;
-  color: var(--text-2);
-  margin-top: 1px;
-}
-.view-pill {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-size: 10.5px;
-  font-weight: 600;
-  padding: 4px 9px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: rgba(255,255,255,0.03);
-  color: var(--text-1);
-  letter-spacing: 0.01em;
-}
-.live-dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--ok);
-  box-shadow: 0 0 8px var(--ok);
-  animation: pulse 2s ease-in-out infinite;
-}
-.ai-dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 8px var(--accent);
-  animation: pulse 2s ease-in-out infinite;
-}
-
-/* ---------- stat grid ---------- */
-.stats {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-}
-.stat {
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: rgba(255,255,255,0.02);
-  display: flex; flex-direction: column;
-  gap: 3px;
-  animation: rowIn .4s cubic-bezier(.22,1,.36,1) both;
-}
-.stat-label {
-  font-size: 10px;
-  font-weight: 500;
-  color: var(--text-2);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-.stat-value {
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  color: var(--text-1);
-  font-variant-numeric: tabular-nums;
-}
-.stat-trend {
-  font-size: 10.5px;
-  font-weight: 500;
-  color: var(--ok);
-}
-.stat-trend.is-muted { color: var(--text-2); }
-
-/* ---------- chart ---------- */
-.chart {
-  padding: 12px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: rgba(255,255,255,0.02);
-  flex: 1;
-  display: flex; flex-direction: column;
-  min-height: 0;
-}
-.chart-head {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 8px;
-}
-.chart-title {
-  font-size: 11.5px; font-weight: 600;
-  color: var(--text-1);
-}
-.chart-meta {
-  font-size: 10px;
-  color: var(--text-2);
-  margin-top: 1px;
-}
-.chart-legend {
-  display: flex; gap: 10px;
-  font-size: 10px;
-  color: var(--text-2);
-}
-.legend {
-  display: inline-flex; align-items: center; gap: 5px;
-}
-.legend::before {
-  content: '';
-  width: 8px; height: 2px;
-  border-radius: 2px;
-  background: currentColor;
-}
-.legend.cyan { color: var(--accent); }
-.legend.dim { color: var(--text-3); }
-.spark {
-  width: 100%;
-  height: 100%;
-  flex: 1;
-  min-height: 70px;
-}
-.spk-line {
-  stroke-dasharray: 1200;
-  stroke-dashoffset: 1200;
-  animation: drawLine 1.6s cubic-bezier(.22,1,.36,1) forwards;
-}
-.spk-area { opacity: 0; animation: fadeArea .9s ease forwards .5s; }
-
-/* ---------- activity ---------- */
-.activity {
-  display: flex; flex-direction: column; gap: 4px;
-}
-.act-row {
-  display: flex; align-items: center; gap: 8px;
-  padding: 5px 8px;
-  font-size: 11px;
-  color: var(--text-1);
-  border-radius: 6px;
-  transition: background .15s ease;
-}
-.act-row:hover { background: rgba(255,255,255,0.03); }
-.act-dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.dot-cyan { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
-.dot-green { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
-.dot-amber { background: var(--warn); box-shadow: 0 0 6px var(--warn); }
-.act-text { flex: 1; }
-.act-time { color: var(--text-3); font-size: 10.5px; font-variant-numeric: tabular-nums; }
-
-/* ---------- table ---------- */
-.table {
-  display: flex; flex-direction: column;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  overflow: hidden;
-  background: rgba(255,255,255,0.015);
-  flex: 1;
-  min-height: 0;
-}
-.thead, .trow {
-  display: grid;
-  grid-template-columns: 60px 1fr 84px 90px 72px;
-  gap: 8px;
-  padding: 8px 12px;
-  font-size: 11px;
   align-items: center;
-}
-.thead {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-2);
-  background: rgba(255,255,255,0.02);
-  border-bottom: 1px solid var(--border);
-  font-weight: 600;
-}
-.trow {
-  border-bottom: 1px solid rgba(255,255,255,0.04);
-  animation: rowIn .4s cubic-bezier(.22,1,.36,1) both;
-}
-.trow:last-child { border-bottom: none; }
-.trow:hover { background: rgba(255,255,255,0.025); }
-.mono { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 10.5px; color: var(--text-1); font-variant-numeric: tabular-nums; }
-.dim { color: var(--text-2); }
-.ta-r { text-align: right; }
-
-.badge {
-  display: inline-flex; align-items: center;
-  padding: 2px 7px;
-  font-size: 10px;
-  font-weight: 600;
-  border-radius: 999px;
-  white-space: nowrap;
-  letter-spacing: 0.005em;
-}
-.badge-ok { background: rgba(52,211,153,0.12); color: #6EE7B7; border: 1px solid rgba(52,211,153,0.25); }
-.badge-warn { background: rgba(245,181,71,0.12); color: #FBC97D; border: 1px solid rgba(245,181,71,0.28); }
-.badge-info { background: rgba(96,165,250,0.13); color: #93C5FD; border: 1px solid rgba(96,165,250,0.28); }
-.badge-err { background: rgba(248,113,113,0.13); color: #FCA5A5; border: 1px solid rgba(248,113,113,0.28); }
-.badge-muted { background: rgba(255,255,255,0.05); color: var(--text-2); border: 1px solid var(--border); }
-
-/* ---------- customers ---------- */
-.customers {
-  display: flex; flex-direction: column;
-  gap: 4px;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-  position: relative;
-  mask-image: linear-gradient(180deg, #000 85%, transparent 100%);
-}
-.cust-row {
-  display: flex; align-items: center; gap: 10px;
-  padding: 7px 10px;
-  border-radius: 8px;
-  background: rgba(255,255,255,0.02);
-  border: 1px solid var(--border);
-  animation: rowIn .4s cubic-bezier(.22,1,.36,1) both;
-  transition: all .15s ease;
-}
-.cust-row:hover {
-  background: rgba(255,255,255,0.04);
-  border-color: var(--border-strong);
-}
-.cust-avatar {
-  width: 24px; height: 24px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
-  display: flex; align-items: center; justify-content: center;
-  font-size: 9.5px;
-  font-weight: 700;
-  color: #061018;
-  flex-shrink: 0;
-}
-.cust-info { flex: 1; min-width: 0; }
-.cust-name {
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--text-1);
-  letter-spacing: -0.005em;
-}
-.cust-meta {
-  font-size: 10.5px;
-  color: var(--text-2);
-  margin-top: 1px;
-}
-
-/* ---------- markets ---------- */
-.markets {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  flex: 1;
-  min-height: 0;
-}
-.market-card {
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: rgba(255,255,255,0.02);
-  animation: rowIn .4s cubic-bezier(.22,1,.36,1) both;
-  transition: all .2s ease;
-}
-.market-card:hover {
-  border-color: var(--border-strong);
-  background: rgba(255,255,255,0.04);
-  transform: translateY(-1px);
-}
-.market-logo {
-  width: 30px; height: 30px;
-  border-radius: 7px;
-  background: rgba(255,255,255,0.06);
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
-  padding: 4px;
-}
-.market-logo img {
-  max-width: 100%; max-height: 100%;
-  object-fit: contain;
-}
-.market-info { flex: 1; min-width: 0; }
-.market-name {
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--text-1);
-  margin-bottom: 4px;
-}
-.market-arrow {
-  color: var(--text-3);
-  display: flex;
-  transition: transform .2s ease;
-}
-.market-card:hover .market-arrow {
-  color: var(--accent);
-  transform: translateX(2px);
-}
-
-/* ---------- gorki ---------- */
-.gorki-card {
-  flex: 1;
-  display: flex; flex-direction: column;
-  gap: 12px;
-  padding: 12px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background:
-    radial-gradient(circle at 0% 0%, rgba(34,211,238,0.08), transparent 60%),
-    rgba(255,255,255,0.02);
-}
-.gorki-head {
-  display: flex; align-items: center; gap: 10px;
-}
-.gorki-orb {
-  width: 32px; height: 32px;
-  border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-weight: 700; font-size: 13px;
-  color: #061018;
-  background: conic-gradient(from 200deg, #5BE5F5, #3B82F6, #818CF8, #5BE5F5);
-  box-shadow: 0 0 0 1px rgba(255,255,255,0.15) inset, 0 0 16px rgba(34,211,238,0.45);
-  animation: orbSpin 12s linear infinite;
-}
-.gorki-title { font-size: 12px; font-weight: 600; color: var(--text-1); }
-.gorki-meta { font-size: 10.5px; color: var(--text-2); margin-top: 1px; }
-.gorki-list { display: flex; flex-direction: column; gap: 6px; }
-.gi-row {
-  display: flex; align-items: center; gap: 8px;
-  padding: 7px 9px;
-  border-radius: 8px;
-  background: rgba(255,255,255,0.025);
-  border: 1px solid var(--border);
-  font-size: 11px;
-  color: var(--text-1);
-  animation: rowIn .4s cubic-bezier(.22,1,.36,1) both;
-}
-.gi-icon {
-  width: 22px; height: 22px;
-  border-radius: 6px;
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
-}
-.gi-up { background: rgba(52,211,153,0.15); color: #6EE7B7; }
-.gi-warn { background: rgba(245,181,71,0.15); color: #FBC97D; }
-.gi-info { background: rgba(96,165,250,0.15); color: #93C5FD; }
-.gi-text { line-height: 1.45; }
-.gorki-foot {
-  display: flex; gap: 8px;
-  margin-top: auto;
-}
-.ghost-btn, .primary-btn {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 7px 12px;
-  border-radius: 8px;
-  cursor: pointer;
-  display: inline-flex; align-items: center; gap: 6px;
-  border: 1px solid var(--border-strong);
-}
-.ghost-btn {
-  color: var(--text-1);
-  background: rgba(255,255,255,0.04);
-}
-.primary-btn {
-  color: #061018;
-  background: linear-gradient(180deg, #5BE5F5, #22D3EE 50%, #3B82F6);
-  border-color: rgba(34,211,238,0.4);
-  box-shadow: 0 4px 14px -4px rgba(34,211,238,0.55);
-}
-
-/* ============================================================== */
-/*  Phone                                                          */
-/* ============================================================== */
-
-.phone {
-  position: relative;
-  z-index: 3;
-  width: 168px;
-  flex-shrink: 0;
-  margin-bottom: 32px;
-  filter: drop-shadow(0 30px 60px rgba(0,0,0,0.55));
-}
-.phone-frame {
-  position: relative;
-  aspect-ratio: 9 / 19;
-  background: linear-gradient(160deg, #2A3145 0%, #161B2C 100%);
-  border-radius: 30px;
-  padding: 5px;
-  box-shadow:
-    0 0 0 1px rgba(255,255,255,0.08) inset,
-    0 0 0 1px rgba(0,0,0,0.6);
-}
-.phone-island {
-  position: absolute;
-  top: 12px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 56px;
-  height: 14px;
-  background: #050913;
-  border-radius: 8px;
-  z-index: 5;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04);
-}
-.phone-screen {
-  width: 100%; height: 100%;
-  background: #0A1124;
-  border-radius: 26px;
-  overflow: hidden;
-  padding: 24px 10px 10px;
-  display: flex; flex-direction: column;
-  gap: 10px;
-}
-.phone-status {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0 4px;
-  font-size: 9px;
-  font-weight: 600;
-  color: var(--text-1);
-  margin-top: -2px;
-}
-.phone-bars { display: inline-flex; gap: 1.5px; align-items: flex-end; }
-.phone-bars span {
-  width: 2px; height: 5px;
-  background: var(--text-1);
-  border-radius: 1px;
-}
-.phone-bars span:nth-child(2) { height: 6px; }
-.phone-bars span:nth-child(3) { height: 7px; }
-.phone-bars span:nth-child(4) { height: 8px; }
-
-.phone-greet {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 8px;
-  padding: 0 4px;
-}
-.phone-hi {
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 13px;
+  color: var(--muted2);
   font-size: 12px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--text-1);
+  font-weight: 740;
 }
-.phone-day {
-  font-size: 9.5px;
-  color: var(--text-2);
-  margin-top: 1px;
+
+.waitlistMeta b {
+  color: #fecaca;
 }
-.phone-avatar {
-  width: 22px; height: 22px;
+
+.couponBadge {
+  display: inline-flex;
+  min-height: 25px;
+  align-items: center;
+  padding: 0 9px;
+  border-radius: 999px;
+  color: #baf6fe;
+  background: rgba(34,211,238,.1);
+  border: 1px solid rgba(34,211,238,.28);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 900;
+}
+
+.trustLine {
+  width: min(660px, 100%);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.trustLine span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.trustLine svg {
+  width: 16px;
+  height: 16px;
+  color: var(--green);
+}
+
+.heroRight {
+  min-height: 750px;
+  position: relative;
+}
+
+.studio {
+  position: relative;
+  width: 100%;
+  min-height: 735px;
+  border-radius: 44px;
+  background: radial-gradient(circle at 50% 0%, rgba(34,211,238,.16), transparent 36%),
+    linear-gradient(145deg, rgba(255,255,255,.09), rgba(255,255,255,.035));
+  border: 1px solid var(--line);
+  box-shadow: 0 34px 100px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.08);
+  backdrop-filter: blur(18px);
+  overflow: hidden;
+}
+
+.studioGlow {
+  position: absolute;
+  width: 720px;
+  height: 460px;
+  left: 50%;
+  top: 48%;
+  transform: translate(-50%, -50%) rotate(-8deg);
   border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
-  color: #061018;
-  font-size: 9.5px;
-  font-weight: 700;
+  background: radial-gradient(ellipse at center, rgba(34,211,238,.24), transparent 66%);
+  filter: blur(4px);
 }
 
-.phone-tabs {
-  display: flex; gap: 4px;
-  padding: 3px;
-  background: rgba(255,255,255,0.03);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-}
-.phone-tab {
-  flex: 1;
-  text-align: center;
-  font-size: 9px;
-  font-weight: 600;
-  padding: 4px 0;
-  border-radius: 5px;
-  color: var(--text-2);
-  transition: all .15s ease;
-}
-.phone-tab.is-active {
-  background: linear-gradient(180deg, rgba(34,211,238,0.18), rgba(34,211,238,0.06));
-  color: var(--text-1);
-  box-shadow: 0 0 0 1px rgba(34,211,238,0.3) inset;
+.macbookScene {
+  position: absolute;
+  left: 6%;
+  right: 7%;
+  top: 50%;
+  transform: translateY(-50%);
+  perspective: 1600px;
+  z-index: 4;
 }
 
-.phone-content {
-  display: flex; flex-direction: column; gap: 8px;
-  flex: 1;
-  min-height: 0;
-  animation: viewIn .35s cubic-bezier(.22,1,.36,1);
+.macbook {
+  position: relative;
+  height: 445px;
+  transform: rotateX(7deg) rotateY(-10deg) rotateZ(-1deg);
+  transform-style: preserve-3d;
 }
-.phone-metrics {
+
+.macLid {
+  position: relative;
+  height: 100%;
+  border-radius: 34px 34px 24px 24px;
+  padding: 16px 16px 30px;
+  background: linear-gradient(135deg, rgba(255,255,255,.34), rgba(255,255,255,.06) 45%, rgba(255,255,255,.22)),
+    linear-gradient(180deg, #2f3a50, #111827 64%, #070b12);
+  border: 1px solid rgba(255,255,255,.16);
+  box-shadow: 0 64px 120px rgba(0,0,0,.48), inset 0 1px 0 rgba(255,255,255,.32);
+}
+
+.macCamera {
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  width: 82px;
+  height: 12px;
+  transform: translateX(-50%);
+  border-radius: 0 0 12px 12px;
+  background: #050914;
+  z-index: 3;
+}
+
+.macBase {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  bottom: -25px;
+  height: 34px;
+  border-radius: 0 0 46px 46px;
+  background: linear-gradient(180deg, #d3deee, #69768b 80%);
+  box-shadow: 0 24px 50px rgba(0,0,0,.34);
+}
+
+.macBase span {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 92px;
+  height: 7px;
+  transform: translateX(-50%);
+  border-radius: 0 0 12px 12px;
+  background: rgba(5,9,20,.7);
+}
+
+.macScreen {
+  height: 100%;
+  overflow: hidden;
+  border-radius: 24px;
+  background: radial-gradient(circle at 76% 14%, rgba(11,99,255,.18), transparent 34%),
+    linear-gradient(180deg, #081225, #020817);
+  border: 1px solid rgba(255,255,255,.1);
+  box-shadow: inset 0 0 60px rgba(11,99,255,.08), inset 0 1px 0 rgba(255,255,255,.06);
+}
+
+.browserBar {
+  height: 50px;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  background: rgba(255,255,255,.035);
+  border-bottom: 1px solid rgba(255,255,255,.07);
+}
+
+.browserDots {
+  display: flex;
   gap: 6px;
 }
-.pm {
-  padding: 8px;
-  background: rgba(255,255,255,0.025);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-}
-.pm-label {
-  font-size: 8.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-2);
-  font-weight: 500;
-}
-.pm-value {
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  margin: 2px 0 1px;
-  font-variant-numeric: tabular-nums;
-}
-.pm-trend {
-  font-size: 9px;
-  font-weight: 600;
-  color: var(--ok);
-}
-.pm-trend.muted { color: var(--text-2); }
 
-.phone-list {
-  flex: 1;
-  min-height: 0;
-  padding: 8px;
-  background: rgba(255,255,255,0.025);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  display: flex; flex-direction: column;
-  gap: 4px;
-}
-.phone-list-head {
-  display: flex; align-items: center; justify-content: space-between;
-  font-size: 9.5px;
-  font-weight: 600;
-  color: var(--text-1);
-  margin-bottom: 2px;
-}
-.phone-list-meta { color: var(--accent); font-weight: 500; }
-.phone-row {
-  display: flex; align-items: center; gap: 6px;
-  padding: 4px 2px;
-  font-size: 10px;
-  color: var(--text-1);
-}
-.phone-dot {
-  width: 5px; height: 5px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.phone-row-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.phone-row-time { color: var(--text-3); font-size: 9px; font-variant-numeric: tabular-nums; }
-
-.phone-gorki {
-  display: flex; align-items: center; gap: 8px;
-  padding: 7px 8px;
-  background:
-    radial-gradient(circle at 0 0, rgba(34,211,238,0.16), transparent 60%),
-    rgba(255,255,255,0.025);
-  border: 1px solid rgba(34,211,238,0.2);
-  border-radius: 8px;
-}
-.pg-orb {
-  width: 22px; height: 22px;
-  border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-weight: 700; font-size: 10px;
-  color: #061018;
-  background: conic-gradient(from 200deg, #5BE5F5, #3B82F6, #818CF8, #5BE5F5);
-  flex-shrink: 0;
-  animation: orbSpin 12s linear infinite;
-}
-.pg-title { font-size: 9.5px; font-weight: 600; color: var(--text-1); }
-.pg-text { font-size: 9.5px; color: var(--text-2); margin-top: 1px; line-height: 1.35; }
-
-/* ============================================================== */
-/*  Modal                                                          */
-/* ============================================================== */
-
-.modal-overlay {
-  position: fixed; inset: 0;
-  z-index: 100;
-  background: rgba(4,7,16,0.65);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  display: flex; align-items: center; justify-content: center;
-  padding: 24px;
-  animation: overlayIn .25s ease;
-}
-.modal {
-  position: relative;
-  width: 100%;
-  max-width: 440px;
-  padding: 36px 28px 28px;
-  background:
-    radial-gradient(circle at 50% 0%, rgba(34,211,238,0.18), transparent 60%),
-    linear-gradient(180deg, rgba(20,28,46,0.95), rgba(12,18,32,0.95));
-  border: 1px solid var(--border-strong);
-  border-radius: 22px;
-  box-shadow:
-    0 1px 0 rgba(255,255,255,0.08) inset,
-    0 60px 100px -20px rgba(0,0,0,0.7),
-    0 0 0 1px rgba(255,255,255,0.02);
-  animation: modalIn .35s cubic-bezier(.22,1,.36,1);
-  text-align: center;
-}
-.modal-close {
-  position: absolute;
-  top: 14px; right: 14px;
-  width: 30px; height: 30px;
-  display: flex; align-items: center; justify-content: center;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  cursor: pointer;
-  color: var(--text-2);
-  transition: all .15s ease;
-}
-.modal-close:hover {
-  background: rgba(255,255,255,0.1);
-  color: var(--text-1);
-}
-.modal-orb-wrap {
-  position: relative;
-  width: 56px; height: 56px;
-  margin: 0 auto 18px;
-}
-.modal-orb-glow {
-  position: absolute; inset: -16px;
-  background: radial-gradient(circle, rgba(34,211,238,0.5), transparent 65%);
-  filter: blur(8px);
-  animation: pulse 2.5s ease-in-out infinite;
-}
-.modal-orb {
-  position: relative;
-  width: 56px; height: 56px;
-  border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 22px;
-  font-weight: 700;
-  color: #061018;
-  background: conic-gradient(from 200deg, #5BE5F5, #3B82F6, #818CF8, #5BE5F5);
-  box-shadow:
-    0 0 0 1px rgba(255,255,255,0.18) inset,
-    0 0 30px rgba(34,211,238,0.5);
-  animation: orbSpin 12s linear infinite;
-}
-.modal-eyebrow {
-  display: inline-flex; align-items: center; gap: 7px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--accent);
-  padding: 5px 12px;
-  border: 1px solid rgba(34,211,238,0.3);
-  background: rgba(34,211,238,0.08);
+.browserDots i {
+  width: 9px;
+  height: 9px;
   border-radius: 999px;
+  background: rgba(255,255,255,.25);
+}
+
+.browserDots i:nth-child(1) { background: #ff6058; }
+.browserDots i:nth-child(2) { background: #ffbd2e; }
+.browserDots i:nth-child(3) { background: #29c940; }
+
+.urlBox {
+  justify-self: center;
+  min-width: 260px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-radius: 8px;
+  color: var(--muted2);
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.055);
+  font-size: 11px;
+  font-weight: 720;
+}
+
+.urlBox svg { width: 13px; height: 13px; }
+
+.barRight { width: 48px; }
+
+.dashboard {
+  height: calc(100% - 50px);
+  display: grid;
+  grid-template-columns: 168px 1fr;
+}
+
+.dashboardSide {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 12px;
+  background: rgba(0,0,0,.16);
+  border-right: 1px solid rgba(255,255,255,.07);
+}
+
+.dashBrand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: white;
+  font-size: 13px;
   margin-bottom: 14px;
 }
-.modal-dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 8px var(--accent);
-}
-.modal-title {
-  font-size: 28px;
-  font-weight: 600;
-  letter-spacing: -0.025em;
-  margin: 0 0 8px;
-  color: var(--text-1);
-}
-.modal-sub {
-  font-size: 14.5px;
-  color: var(--text-2);
-  line-height: 1.55;
-  margin: 0 0 20px;
-  max-width: 340px;
-  margin-left: auto;
-  margin-right: auto;
-}
-.modal-list {
-  list-style: none;
-  margin: 0 0 22px;
-  padding: 0;
-  display: flex; flex-direction: column;
-  gap: 8px;
-  text-align: left;
-}
-.modal-list li {
-  display: flex; align-items: center; gap: 12px;
-  padding: 12px 14px;
-  background: rgba(255,255,255,0.03);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  font-size: 13.5px;
-  color: var(--text-1);
-  line-height: 1.4;
-  animation: rowIn .45s cubic-bezier(.22,1,.36,1) both;
-}
-.modal-list li:nth-child(1) { animation-delay: .1s; }
-.modal-list li:nth-child(2) { animation-delay: .18s; }
-.modal-list li:nth-child(3) { animation-delay: .26s; }
-.modal-list b { font-weight: 600; color: var(--text-1); }
-.check-badge {
-  width: 22px; height: 22px;
-  border-radius: 50%;
-  background: linear-gradient(180deg, var(--ok), #10B981);
-  color: #052B1B;
-  display: inline-flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
-  box-shadow: 0 0 0 4px rgba(52,211,153,0.12);
-}
-.modal-cta {
-  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  width: 100%;
-  padding: 14px 18px;
-  font-size: 14.5px;
-  font-weight: 600;
-  color: #061018;
-  background: linear-gradient(180deg, #5BE5F5, #22D3EE 50%, #3B82F6);
-  border: none;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all .2s ease;
-  box-shadow:
-    0 1px 0 rgba(255,255,255,0.4) inset,
-    0 8px 22px -6px rgba(34,211,238,0.55);
-}
-.modal-cta:hover {
-  transform: translateY(-1px);
-  filter: brightness(1.05);
+
+.dashBrand img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
 }
 
-/* ============================================================== */
-/*  Animations                                                     */
-/* ============================================================== */
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+.dashboardSide nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
+
+.dashboardSide button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 11px;
+  color: var(--muted);
+  background: rgba(255,255,255,.055);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.dashboardSide button span {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.22);
+}
+
+.dashboardSide button.active {
+  color: white;
+  background: linear-gradient(135deg, rgba(11,99,255,.95), rgba(34,211,238,.7));
+  box-shadow: 0 16px 30px rgba(11,99,255,.22);
+}
+
+.dashboardSide button.active span {
+  background: white;
+  box-shadow: 0 0 12px white;
+}
+
+.sideGorki {
+  margin-top: auto;
+  padding: 13px;
+  border-radius: 17px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.07);
+}
+
+.sideGorki strong {
+  display: block;
+  color: white;
+  font-size: 13px;
+  margin-bottom: 5px;
+}
+
+.sideGorki small {
+  display: block;
+  color: var(--muted2);
+  line-height: 1.45;
+  font-weight: 650;
+}
+
+.dashboardMain {
+  padding: 16px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.tabView {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: viewIn .35s cubic-bezier(.22,1,.36,1);
+}
+
+.viewHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.viewHeader h3 {
+  margin: 0;
+  color: white;
+  font-size: 21px;
+  letter-spacing: -.7px;
+}
+
+.viewHeader span {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted2);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.viewRight {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  border-radius: 999px;
+  color: var(--muted);
+  background: rgba(255,255,255,.055);
+  border: 1px solid rgba(255,255,255,.07);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.liveDot,
+.aiDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--green);
+  box-shadow: 0 0 10px var(--green);
+}
+
+.aiDot {
+  background: var(--cyan);
+  box-shadow: 0 0 10px var(--cyan);
+}
+
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.statCard,
+.chartPanel,
+.activityPanel,
+.dataTable,
+.customerRow,
+.marketDashCard,
+.gorkiDashboard {
+  background: rgba(255,255,255,.055);
+  border: 1px solid rgba(255,255,255,.08);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+}
+
+.statCard {
+  min-height: 92px;
+  border-radius: 18px;
+  padding: 12px;
+}
+
+.statCard span {
+  display: block;
+  color: #8fd7ff;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  margin-bottom: 9px;
+}
+
+.statCard b {
+  display: block;
+  color: white;
+  font-size: 20px;
+  letter-spacing: -.4px;
+}
+
+.statCard em {
+  display: block;
+  color: var(--green);
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 950;
+  margin-top: 7px;
+}
+
+.statCard em.muted { color: var(--muted2); }
+
+.overviewLower {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1.25fr .92fr;
+  gap: 12px;
+}
+
+.chartPanel,
+.activityPanel {
+  border-radius: 22px;
+  overflow: hidden;
+}
+
+.chartPanel {
+  padding: 13px;
+  display: flex;
+  flex-direction: column;
+}
+
+.chartTop {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.chartTop b {
+  font-size: 12px;
+  color: white;
+}
+
+.chartTop span {
+  color: var(--muted2);
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.chartSvg {
+  flex: 1;
+  min-height: 118px;
+  width: 100%;
+}
+
+.chartLine {
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
+  animation: drawLine 1.8s cubic-bezier(.22,1,.36,1) forwards;
+}
+
+.chartArea {
+  opacity: 0;
+  animation: fadeIn .9s ease forwards .45s;
+}
+
+.activityPanel {
+  padding: 13px;
+}
+
+.activityPanel b {
+  display: block;
+  font-size: 13px;
+  color: white;
+  margin-bottom: 12px;
+}
+
+.activityRow {
+  min-height: 34px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  border-radius: 12px;
+  padding: 0 9px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 780;
+  background: rgba(255,255,255,.045);
+  margin-bottom: 8px;
+}
+
+.activityRow em {
+  color: var(--muted2);
+  font-style: normal;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+}
+
+.dot.cyan { background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+.dot.green { background: var(--green); box-shadow: 0 0 8px var(--green); }
+.dot.amber { background: var(--amber); box-shadow: 0 0 8px var(--amber); }
+
+.dataTable {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 18px;
+}
+
+.tableHead,
+.tableRow {
+  display: grid;
+  grid-template-columns: .72fr 1.1fr 1fr 1fr .8fr;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 12px;
+}
+
+.tableHead {
+  color: var(--muted2);
+  font-size: 9px;
+  font-weight: 950;
+  letter-spacing: .6px;
+  text-transform: uppercase;
+  border-bottom: 1px solid rgba(255,255,255,.07);
+}
+
+.tableRow {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 780;
+  animation: rowIn .38s ease both;
+}
+
+.tableRow:hover {
+  background: rgba(255,255,255,.045);
+}
+
+.tableRow b,
+.tableRow em {
+  color: white;
+  font-style: normal;
+}
+
+.badge {
+  width: max-content;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.badge.ok { color: #bbf7d0; background: rgba(52,211,153,.12); border: 1px solid rgba(52,211,153,.22); }
+.badge.warn { color: #fde68a; background: rgba(245,181,71,.12); border: 1px solid rgba(245,181,71,.22); }
+.badge.info { color: #bfdbfe; background: rgba(96,165,250,.13); border: 1px solid rgba(96,165,250,.23); }
+.badge.muted { color: var(--muted); background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.09); }
+.badge.err { color: #fecaca; background: rgba(248,113,113,.13); border: 1px solid rgba(248,113,113,.23); }
+
+.customerList {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: grid;
+  gap: 8px;
+  mask-image: linear-gradient(180deg, black 0%, black 82%, transparent 100%);
+}
+
+.customerRow {
+  min-height: 54px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  border-radius: 16px;
+  padding: 8px 10px;
+  animation: rowIn .38s ease both;
+}
+
+.avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  color: #06101f;
+  background: linear-gradient(135deg, var(--cyan), var(--blue));
+  font-size: 11px;
+  font-weight: 950;
+}
+
+.customerRow b {
+  display: block;
+  color: white;
+  font-size: 12px;
+}
+
+.customerRow span {
+  display: block;
+  color: var(--muted2);
+  font-size: 10px;
+  font-weight: 720;
+  margin-top: 2px;
+}
+
+.marketGrid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.marketDashCard {
+  --accent: #0b63ff;
+  min-height: 136px;
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  padding: 12px;
+  animation: rowIn .38s ease both;
+}
+
+.marketDashCard:after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 4px;
+  background: var(--accent);
+}
+
+.marketLogo {
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: rgba(255,255,255,.92);
+  margin-bottom: 10px;
+}
+
+.marketLogo img {
+  max-width: 116px;
+  max-height: 30px;
+  object-fit: contain;
+}
+
+.marketDashCard b {
+  display: block;
+  color: white;
+  font-size: 13px;
+}
+
+.marketDashCard span {
+  display: block;
+  color: var(--muted2);
+  font-size: 10px;
+  margin: 3px 0 8px;
+  font-weight: 720;
+}
+
+.marketDashCard em {
+  color: var(--accent);
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 950;
+}
+
+.gorkiDashboard {
+  flex: 1;
+  min-height: 0;
+  border-radius: 22px;
+  padding: 15px;
+}
+
+.gorkiDashTop {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.gorkiDashTop img {
+  width: 58px;
+  height: 58px;
+  object-fit: contain;
+  border-radius: 18px;
+  background: rgba(255,255,255,.07);
+}
+
+.gorkiDashTop b {
+  display: block;
+  color: white;
+  font-size: 16px;
+}
+
+.gorkiDashTop span {
+  color: var(--muted2);
+  font-size: 12px;
+  font-weight: 740;
+}
+
+.suggestionList {
+  display: grid;
+  gap: 9px;
+}
+
+.suggestion {
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 9px;
+  align-items: center;
+  padding: 9px;
+  border-radius: 14px;
+  background: rgba(255,255,255,.045);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 760;
+  animation: rowIn .38s ease both;
+}
+
+.gorkiActions {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.gorkiActions button {
+  height: 38px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.06);
+  color: white;
+  padding: 0 12px;
+  font-weight: 850;
+}
+
+.gorkiActions button:last-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: linear-gradient(135deg, var(--blue), var(--cyan));
+  border: 0;
+}
+
+.iphone {
+  position: absolute;
+  right: -42px;
+  bottom: -34px;
+  width: 190px;
+  height: 390px;
+  padding: 10px;
+  border-radius: 42px;
+  background: linear-gradient(135deg, rgba(255,255,255,.32), rgba(255,255,255,.06) 38%, rgba(255,255,255,.2)), #070b12;
+  border: 1px solid rgba(255,255,255,.16);
+  box-shadow: 0 46px 90px rgba(0,0,0,.48);
+  z-index: 9;
+}
+
+.phoneFrame {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 33px;
+  padding: 26px 11px 12px;
+  background: radial-gradient(circle at 70% 0%, rgba(11,99,255,.22), transparent 42%),
+    linear-gradient(180deg, #091429, #040814);
+  border: 1px solid rgba(255,255,255,.08);
+}
+
+.dynamicIsland {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  width: 68px;
+  height: 18px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: #050914;
+  z-index: 2;
+}
+
+.phoneStatus {
+  display: flex;
+  justify-content: space-between;
+  color: white;
+  font-size: 11px;
+  font-weight: 950;
+  margin-bottom: 13px;
+}
+
+.phoneStatus i {
+  width: 20px;
+  height: 10px;
+  border-radius: 4px;
+  background: rgba(255,255,255,.75);
+}
+
+.phoneContent {
+  animation: viewIn .34s ease;
+}
+
+.phoneGreeting {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.phoneGreeting b {
+  display: block;
+  color: white;
+  font-size: 13px;
+}
+
+.phoneGreeting span {
+  color: #8fd7ff;
+  font-size: 10px;
+  font-weight: 780;
+}
+
+.phoneAvatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  color: #06101f;
+  background: linear-gradient(135deg, var(--cyan), var(--blue));
+  font-size: 11px;
+  font-weight: 950;
+}
+
+.phoneTabs {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.phoneTabs span {
+  min-height: 27px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: var(--muted);
+  background: rgba(255,255,255,.07);
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.phoneTabs span.active {
+  color: white;
+  background: linear-gradient(135deg, var(--blue), var(--cyan));
+}
+
+.phoneMetrics {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 7px;
+  margin-bottom: 11px;
+}
+
+.phoneMetrics div {
+  min-height: 70px;
+  padding: 9px;
+  border-radius: 15px;
+  background: rgba(255,255,255,.07);
+  border: 1px solid rgba(255,255,255,.07);
+}
+
+.phoneMetrics span {
+  display: block;
+  color: #8fd7ff;
+  font-size: 9px;
+  margin-bottom: 6px;
+  font-weight: 750;
+}
+
+.phoneMetrics b {
+  display: block;
+  color: white;
+  font-size: 13px;
+}
+
+.phoneMetrics em {
+  display: block;
+  color: var(--green);
+  margin-top: 5px;
+  font-style: normal;
+  font-size: 9px;
+  font-weight: 950;
+}
+
+.phoneList {
+  border-radius: 15px;
+  padding: 9px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.07);
+}
+
+.phoneListHead {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.phoneListHead b {
+  color: white;
+  font-size: 10px;
+}
+
+.phoneListHead span {
+  color: #8fd7ff;
+  font-size: 9px;
+  font-weight: 850;
+}
+
+.phoneRow {
+  min-height: 24px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 6px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 780;
+}
+
+.phoneRow i {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+}
+
+.phoneRow i.cyan { background: var(--cyan); }
+.phoneRow i.green { background: var(--green); }
+.phoneRow i.amber { background: var(--amber); }
+
+.phoneRow em {
+  color: var(--muted2);
+  font-style: normal;
+}
+
+.phoneGorki {
+  margin-top: 10px;
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 7px;
+  align-items: center;
+  padding: 8px;
+  border-radius: 15px;
+  color: var(--muted);
+  background: rgba(255,255,255,.07);
+  border: 1px solid rgba(255,255,255,.07);
+  font-size: 9px;
+  line-height: 1.35;
+  font-weight: 760;
+}
+
+.phoneGorki img {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+}
+
+.floatingMetric {
+  position: absolute;
+  z-index: 12;
+  min-width: 178px;
+  min-height: 68px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 14px;
+  border-radius: 20px;
+  background: rgba(255,255,255,.1);
+  border: 1px solid var(--line);
+  box-shadow: 0 24px 54px rgba(0,0,0,.28);
+  backdrop-filter: blur(18px);
+  animation: floatY 5s ease-in-out infinite;
+}
+
+.floatingMetric svg {
+  width: 27px;
+  height: 27px;
+  color: #8fd7ff;
+}
+
+.floatingMetric b {
+  display: block;
+  color: white;
+  font-size: 15px;
+}
+
+.floatingMetric span {
+  display: block;
+  color: var(--muted2);
+  font-size: 12px;
+  font-weight: 760;
+  margin-top: 3px;
+}
+
+.floatingMetric em {
+  color: var(--green);
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 950;
+}
+
+.metricOne {
+  top: 58px;
+  left: 34px;
+}
+
+.metricTwo {
+  top: 62px;
+  right: 34px;
+  animation-delay: .7s;
+}
+
+.gorkiPanel {
+  position: absolute;
+  left: 34px;
+  bottom: 32px;
+  width: 292px;
+  z-index: 13;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 13px;
+  padding: 14px;
+  border-radius: 26px;
+  background: rgba(255,255,255,.1);
+  border: 1px solid var(--line);
+  box-shadow: 0 28px 64px rgba(0,0,0,.34);
+  backdrop-filter: blur(18px);
+}
+
+.gorkiVisual {
+  width: 66px;
+  height: 66px;
+  border-radius: 20px;
+  background: rgba(255,255,255,.08);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.gorkiVisual img {
+  width: 62px;
+  height: 62px;
+  object-fit: contain;
+}
+
+.gorkiPanel b {
+  display: block;
+  color: white;
+  font-size: 16px;
+}
+
+.gorkiPanel span {
+  display: block;
+  color: var(--muted2);
+  font-size: 12px;
+  font-weight: 760;
+  margin: 3px 0 8px;
+}
+
+.gorkiPanel p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.couponMini {
+  position: absolute;
+  right: 34px;
+  bottom: 35px;
+  z-index: 14;
+  width: 148px;
+  min-height: 116px;
+  padding: 14px;
+  border-radius: 24px;
+  color: white;
+  background: radial-gradient(circle at 50% 0%, rgba(34,211,238,.22), transparent 50%), rgba(6,16,31,.84);
+  border: 1px solid var(--line);
+  box-shadow: 0 26px 56px rgba(0,0,0,.34);
+  backdrop-filter: blur(18px);
+}
+
+.couponMini span {
+  display: block;
+  color: #8fd7ff;
+  font-size: 10px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.couponMini b {
+  display: block;
+  color: white;
+  font-size: 17px;
+  margin: 10px 0 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.couponMini em {
+  display: block;
+  color: var(--muted);
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.featureBand {
+  width: min(1500px, 100%);
+  margin: 24px auto 0;
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.featureCard {
+  min-height: 158px;
+  padding: 24px;
+  border-radius: 30px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: 0 24px 70px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.06);
+  backdrop-filter: blur(18px);
+  transition: transform .22s ease, border-color .22s ease;
+}
+
+.featureCard:hover {
+  transform: translateY(-4px);
+  border-color: rgba(34,211,238,.3);
+}
+
+.featureCard div {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 15px;
+  color: #8fd7ff;
+  background: rgba(34,211,238,.09);
+  margin-bottom: 16px;
+}
+
+.featureCard svg {
+  width: 24px;
+  height: 24px;
+}
+
+.featureCard b {
+  display: block;
+  color: white;
+  font-size: 19px;
+  letter-spacing: -.4px;
+  margin-bottom: 8px;
+}
+
+.featureCard span {
+  display: block;
+  color: var(--muted);
+  line-height: 1.6;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0,0,0,.62);
+  backdrop-filter: blur(16px);
+  animation: fadeIn .18s ease;
+}
+
+.successModal {
+  width: min(470px, 100%);
+  position: relative;
+  padding: 28px;
+  border-radius: 32px;
+  background: radial-gradient(circle at 50% 0%, rgba(34,211,238,.18), transparent 42%), rgba(6,16,31,.94);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  animation: modalIn .28s cubic-bezier(.22,1,.36,1);
+}
+
+.modalClose {
+  position: absolute;
+  right: 16px;
+  top: 16px;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.06);
+  color: white;
+}
+
+.modalClose svg {
+  width: 18px;
+  height: 18px;
+}
+
+.modalGorki {
+  width: 86px;
+  height: 86px;
+  display: grid;
+  place-items: center;
+  border-radius: 26px;
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.09);
+  margin-bottom: 18px;
+}
+
+.modalGorki img {
+  width: 82px;
+  height: 82px;
+  object-fit: contain;
+}
+
+.modalPill {
+  width: max-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  color: #a8d8ff;
+  background: rgba(11,99,255,.16);
+  border: 1px solid rgba(147,197,253,.14);
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+}
+
+.modalPill i {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--green);
+  box-shadow: 0 0 10px var(--green);
+}
+
+.successModal h3 {
+  margin: 16px 0 8px;
+  color: white;
+  font-size: 34px;
+  line-height: 1;
+  letter-spacing: -1.5px;
+}
+
+.successModal p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.modalList {
+  display: grid;
+  gap: 10px;
+  margin: 20px 0;
+}
+
+.modalList span {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-weight: 750;
+}
+
+.modalList svg {
+  width: 17px;
+  height: 17px;
+  color: var(--green);
+}
+
+.modalButton {
+  width: 100%;
+}
+
 @keyframes viewIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(10px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
+
 @keyframes rowIn {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
 @keyframes drawLine {
   to { stroke-dashoffset: 0; }
 }
-@keyframes fadeArea {
-  to { opacity: 1; }
-}
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.55; }
-}
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-@keyframes orbSpin {
-  to { transform: rotate(360deg); }
-}
-@keyframes floatY {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-6px); }
-}
-@keyframes overlayIn {
+
+@keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
 @keyframes modalIn {
-  from { opacity: 0; transform: translateY(14px) scale(0.96); }
+  from { opacity: 0; transform: translateY(18px) scale(.96); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-/* ============================================================== */
-/*  Responsive                                                     */
-/* ============================================================== */
-@media (max-width: 1100px) {
-  .hero-grid { gap: 36px; }
-  .laptop { max-width: 480px; margin-left: 0; }
-  .phone { width: 150px; }
-  .float-coupon, .float-gorki { display: none; }
+@keyframes floatY {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
 }
 
-@media (max-width: 880px) {
-  .nav { padding: 16px 16px 0; }
-  .hero { padding: 36px 16px 64px; }
-  .hero-grid {
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 1460px) {
+  .hero {
     grid-template-columns: 1fr;
-    gap: 50px;
+    gap: 28px;
   }
-  .hero-right { order: 2; }
-  .hero-left { order: 1; }
-  .title { margin: 18px 0 14px; }
-  .scene { min-height: 420px; padding: 0; }
-  .laptop { max-width: 460px; margin: 0 auto; margin-left: -20px; }
-  .phone { width: 140px; margin-bottom: 22px; }
-  .rail-track { grid-template-columns: 1fr 1fr; }
-  .rail-cell { height: 60px; }
-  .form-field { flex-direction: column; align-items: stretch; padding: 10px; gap: 8px; }
-  .form-icon { display: none; }
-  .form-input { padding: 10px 12px; }
-  .form-btn { width: 100%; min-width: 0; height: 50px; border-radius: 10px; }
-  .form-meta { flex-direction: column; align-items: flex-start; gap: 10px; }
-  .modal { padding: 30px 22px 22px; }
-  .modal-title { font-size: 24px; }
+
+  .heroLeft {
+    max-width: 860px;
+  }
+
+  .heroRight {
+    min-height: 780px;
+  }
+
+  .studio {
+    min-height: 760px;
+  }
 }
 
-@media (max-width: 540px) {
-  .nav-cta {
-    padding: 7px 12px;
-    font-size: 12.5px;
+@media (max-width: 1100px) {
+  .takipioV8 {
+    padding: 18px 14px 92px;
   }
-  .scene { gap: 8px; min-height: 380px; }
-  .laptop { max-width: 320px; margin-left: -10px; }
-  .phone { width: 110px; margin-bottom: 14px; }
-  .osBody { grid-template-columns: 90px 1fr; }
-  .sidebar { padding: 8px 6px; gap: 10px; }
-  .sidebar-foot { display: none; }
-  .side-item { font-size: 10px; padding: 6px 7px; }
-  .stats { grid-template-columns: 1fr 1fr; }
-  .thead, .trow { grid-template-columns: 50px 1fr 70px 60px; gap: 4px; padding: 6px 8px; font-size: 10px; }
-  .thead span:nth-child(3), .trow span:nth-child(3) { display: none; }
-  .markets { grid-template-columns: 1fr; }
+
+  .topNav {
+    top: 12px;
+    width: calc(100% - 24px);
+    grid-template-columns: 1fr auto;
+  }
+
+  .desktopNav {
+    display: none;
+  }
+
+  .brand {
+    width: 166px;
+    height: 54px;
+  }
+
+  .brand img {
+    width: 138px;
+  }
+
+  .navCta {
+    height: 52px;
+    padding: 0 16px;
+  }
+
+  .mobileDock {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    z-index: 60;
+    height: 58px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 7px;
+    padding: 7px;
+    border-radius: 24px;
+    background: rgba(6,16,31,.86);
+    border: 1px solid var(--line);
+    box-shadow: 0 20px 44px rgba(0,0,0,.34);
+    backdrop-filter: blur(18px);
+  }
+
+  .mobileDock a {
+    display: grid;
+    place-items: center;
+    border-radius: 17px;
+    color: var(--muted);
+    background: rgba(255,255,255,.06);
+    font-size: 12px;
+    font-weight: 900;
+  }
+
+  .mobileDock a:last-child {
+    color: white;
+    background: linear-gradient(135deg, var(--blue), var(--cyan));
+  }
+
+  .hero {
+    padding-top: 112px;
+    min-height: auto;
+  }
+
+  .railLogos {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .macbookScene {
+    left: 5%;
+    right: 5%;
+  }
+
+  .floatingMetric {
+    min-width: 160px;
+  }
+
+  .metricOne { top: 38px; left: 24px; }
+  .metricTwo { top: 38px; right: 24px; }
+
+  .gorkiPanel { left: 24px; bottom: 24px; }
+  .couponMini { right: 24px; bottom: 26px; }
+
+  .featureBand {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 780px) {
+  .navCta {
+    display: none;
+  }
+
+  .topNav {
+    display: flex;
+    justify-content: center;
+  }
+
+  .hero h1 {
+    font-size: clamp(42px, 13vw, 62px);
+    line-height: .98;
+    letter-spacing: -2.6px;
+  }
+
+  .heroText {
+    font-size: 16px;
+    line-height: 1.72;
+  }
+
+  .railHeader,
+  .waitlistHeader {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .railHeader b {
+    text-align: left;
+    max-width: none;
+  }
+
+  .emailRow {
+    grid-template-columns: 1fr;
+  }
+
+  .trustLine {
+    flex-direction: column;
+  }
+
+  .heroRight {
+    min-height: 700px;
+  }
+
+  .studio {
+    min-height: 670px;
+    border-radius: 32px;
+  }
+
+  .floatingMetric {
+    display: none;
+  }
+
+  .macbookScene {
+    left: 14px;
+    right: 14px;
+    top: 300px;
+  }
+
+  .macbook {
+    height: 350px;
+    transform: none;
+  }
+
+  .macLid {
+    border-radius: 26px 26px 18px 18px;
+    padding: 11px 11px 22px;
+  }
+
+  .browserBar {
+    height: 46px;
+    padding: 0 11px;
+  }
+
+  .urlBox {
+    min-width: 160px;
+    font-size: 9px;
+  }
+
+  .dashboard {
+    grid-template-columns: 82px 1fr;
+    height: calc(100% - 46px);
+  }
+
+  .dashboardSide {
+    padding: 9px 7px;
+  }
+
+  .dashBrand b,
+  .sideGorki {
+    display: none;
+  }
+
+  .dashboardSide button {
+    min-height: 29px;
+    font-size: 0;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .dashboardSide button span {
+    width: 50%;
+    height: 7px;
+    border-radius: 999px;
+  }
+
+  .dashboardMain {
+    padding: 9px;
+  }
+
+  .viewHeader h3 {
+    font-size: 15px;
+  }
+
+  .viewHeader span,
+  .viewRight {
+    font-size: 9px;
+  }
+
+  .statGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .statGrid .statCard:nth-child(n + 2) {
+    display: none;
+  }
+
+  .statCard {
+    min-height: 62px;
+  }
+
+  .overviewLower {
+    grid-template-columns: 1fr;
+  }
+
+  .activityPanel {
+    display: none;
+  }
+
+  .chartSvg {
+    min-height: 110px;
+  }
+
+  .tableHead,
+  .tableRow {
+    grid-template-columns: .8fr 1fr 1fr;
+  }
+
+  .tableHead span:nth-child(3),
+  .tableHead span:nth-child(4),
+  .tableRow > span:nth-child(3),
+  .tableRow .badge {
+    display: none;
+  }
+
+  .customerRow {
+    grid-template-columns: auto 1fr;
+  }
+
+  .customerRow .badge {
+    display: none;
+  }
+
+  .marketGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .marketDashCard:nth-child(n + 3) {
+    display: none;
+  }
+
+  .gorkiDashboard {
+    padding: 11px;
+  }
+
+  .gorkiDashTop img {
+    width: 48px;
+    height: 48px;
+  }
+
+  .iphone {
+    width: 132px;
+    height: 270px;
+    right: -4px;
+    bottom: -30px;
+    border-radius: 32px;
+  }
+
+  .phoneFrame {
+    border-radius: 24px;
+    padding: 23px 8px 9px;
+  }
+
+  .phoneGreeting {
+    display: none;
+  }
+
+  .phoneTabs {
+    grid-template-columns: 1fr 1fr;
+    gap: 5px;
+  }
+
+  .phoneMetrics {
+    grid-template-columns: 1fr;
+  }
+
+  .phoneMetrics div:nth-child(2) {
+    display: none;
+  }
+
+  .phoneGorki {
+    font-size: 9px;
+  }
+
+  .gorkiPanel {
+    width: calc(100% - 48px);
+    left: 24px;
+    right: 24px;
+    bottom: 125px;
+  }
+
+  .couponMini {
+    width: 132px;
+    right: 24px;
+    bottom: 20px;
+    min-height: 96px;
+  }
+
+  .couponMini b {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 460px) {
+  .takipioV8 {
+    padding: 16px 12px 92px;
+  }
+
+  .brand {
+    width: 156px;
+  }
+
+  .brand img {
+    width: 130px;
+  }
+
+  .statusPill {
+    font-size: 11px;
+    line-height: 1.25;
+    white-space: normal;
+  }
+
+  .hero h1 {
+    font-size: 42px;
+  }
+
+  .integrationRail,
+  .waitlistCard {
+    padding: 16px;
+    border-radius: 24px;
+  }
+
+  .railLogoCard {
+    min-height: 68px;
+  }
+
+  .railLogoCard img {
+    max-width: 112px;
+    max-height: 34px;
+  }
+
+  .heroRight {
+    min-height: 640px;
+  }
+
+  .studio {
+    min-height: 620px;
+  }
+
+  .macbookScene {
+    top: 282px;
+  }
+
+  .macbook {
+    height: 316px;
+  }
+
+  .iphone {
+    scale: .9;
+    right: -18px;
+    bottom: -32px;
+  }
+
+  .gorkiPanel {
+    bottom: 116px;
+  }
+
+  .couponMini {
+    right: 16px;
+  }
 }
 `;
