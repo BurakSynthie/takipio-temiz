@@ -30,10 +30,38 @@ type ReturnItem = {
 };
 
 const marketplaces = [
-  { key: "trendyol", name: "Trendyol", desc: "Sipariş, stok, iade ve kargo senkronu.", status: "Hazırlanıyor" },
-  { key: "hepsiburada", name: "Hepsiburada", desc: "Pazaryeri siparişleri ve kargo operasyonları.", status: "Hazırlanıyor" },
-  { key: "amazon", name: "Amazon", desc: "Satış, iade ve ürün veri takibi.", status: "Yakında" },
-  { key: "ciceksepeti", name: "ÇiçekSepeti", desc: "Sipariş, teslimat ve iade karşılaştırması.", status: "Yakında" },
+  {
+    key: "trendyol",
+    name: "Trendyol",
+    short: "TY",
+    color: "from-orange-500 to-amber-300",
+    desc: "Sipariş, stok, iade ve kargo senkronu.",
+    status: "Hazırlanıyor",
+  },
+  {
+    key: "hepsiburada",
+    name: "Hepsiburada",
+    short: "HB",
+    color: "from-orange-600 to-yellow-400",
+    desc: "Pazaryeri siparişleri ve kargo operasyonları.",
+    status: "Hazırlanıyor",
+  },
+  {
+    key: "amazon",
+    name: "Amazon",
+    short: "AZ",
+    color: "from-slate-700 to-amber-300",
+    desc: "Satış, iade ve ürün veri takibi.",
+    status: "Yakında",
+  },
+  {
+    key: "ciceksepeti",
+    name: "ÇiçekSepeti",
+    short: "ÇS",
+    color: "from-pink-600 to-rose-300",
+    desc: "Sipariş, teslimat ve iade karşılaştırması.",
+    status: "Yakında",
+  },
 ];
 
 function normalizeEmail(email: string | null | undefined) {
@@ -252,9 +280,14 @@ export default function IntegrationsPage() {
             </p>
           </div>
 
-          <button onClick={fetchData} className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-500">
-            Yenile
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={fetchData} className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-black text-slate-200 transition hover:bg-white/15">
+              Yenile
+            </button>
+            <button className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-500">
+              API Bağlantılarını Hazırla
+            </button>
+          </div>
         </div>
       </div>
 
@@ -294,9 +327,14 @@ export default function IntegrationsPage() {
             return (
               <div key={marketplace.key} className="rounded-[24px] border border-white/10 bg-[#0b1220] p-5 transition hover:-translate-y-1 hover:bg-[#101a31]">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div>
-                    <h3 className="text-2xl font-black">{marketplace.name}</h3>
-                    <p className="mt-2 text-sm text-slate-400">{marketplace.desc}</p>
+                  <div className="flex items-center gap-4">
+                    <div className={`flex h-16 w-16 items-center justify-center rounded-[24px] bg-gradient-to-br ${marketplace.color} text-lg font-black text-white shadow-lg shadow-black/30`}>
+                      {marketplace.short}
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-black">{marketplace.name}</h3>
+                      <p className="mt-1 text-sm text-slate-400">{marketplace.desc}</p>
+                    </div>
                   </div>
                   <span className="rounded-full bg-white/8 px-3 py-1 text-xs font-black text-slate-300">{marketplace.status}</span>
                 </div>
