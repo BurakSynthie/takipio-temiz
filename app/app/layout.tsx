@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 type IconName =
   | "dashboard"
@@ -17,7 +17,14 @@ type IconName =
   | "integration"
   | "gorki"
   | "settings"
-  | "menu";
+  | "menu"
+  | "send"
+  | "spark";
+
+type GorkiMessage = {
+  role: "gorki" | "user";
+  text: string;
+};
 
 const primaryNavItems = [
   { href: "/app", label: "Dashboard", shortLabel: "Panel", icon: "dashboard" as IconName, desc: "Genel durum" },
@@ -38,7 +45,20 @@ const categoryItems = [
 
 const desktopGroups = [
   { title: "Kontrol", items: primaryNavItems },
-  { title: "İşletme", items: categoryItems },
+  { title: "Operasyon", items: categoryItems },
+];
+
+const initialMessages: GorkiMessage[] = [
+  {
+    role: "gorki",
+    text: "Bugün sana nasıl yardımcı olabilirim? Satış, stok, ürün, fatura veya QR etiket tarafında hızlıca yönlendirebilirim.",
+  },
+];
+
+const quickQuestions = [
+  "Bugün neye bakmalıyım?",
+  "Stok riski var mı?",
+  "QR etiketi nasıl basarım?",
 ];
 
 function Icon({ name, className = "" }: { name: IconName; className?: string }) {
@@ -145,6 +165,22 @@ function Icon({ name, className = "" }: { name: IconName; className?: string }) 
     );
   }
 
+  if (name === "send") {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" className={common}>
+        <path d="M21 3L10.5 13.5M21 3L14.5 21L10.5 13.5M21 3L3 9.5L10.5 13.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+
+  if (name === "spark") {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" className={common}>
+        <path d="M12 2L14.4 8.6L21 11L14.4 13.4L12 20L9.6 13.4L3 11L9.6 8.6L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+
   return (
     <svg viewBox="0 0 24 24" fill="none" className={common}>
       <path d="M5 7H19M5 12H19M5 17H19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -163,50 +199,99 @@ function getPageTitle(pathname: string) {
   return current?.label ?? "Takipio";
 }
 
+function createGorkiReply(text: string) {
+  const lower = text.toLowerCase();
+
+  if (lower.includes("stok")) {
+    return "Stok tarafında önce kritik ürünleri kontrol etmelisin. Ürünler sayfasındaki kırmızı kritik etiketleri ve minimum stok değerlerini takip edebilirsin.";
+  }
+
+  if (lower.includes("qr") || lower.includes("barkod")) {
+    return "QR için ürün kartındaki QR Gör butonuna bas. Oradan Yazdır / PDF veya QR PNG indir seçenekleriyle etiketi alabilirsin.";
+  }
+
+  if (lower.includes("satış") || lower.includes("ciro")) {
+    return "Satış tarafında bekleyen ödeme, fatura durumu ve stok etkisini birlikte görmek önemli. Sonraki adımda satış modülünü canlı hale getireceğiz.";
+  }
+
+  if (lower.includes("fatura")) {
+    return "Fatura modülünde taslak, kesildi, ödendi ve gecikti durumlarını ayrı göstereceğiz. Böylece tahsilat takibi çok daha net olur.";
+  }
+
+  return "Bunu not aldım. Şu an demo moddayım; yakında gerçek panel verilerini okuyup sana canlı öneriler sunacağım.";
+}
+
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [categoriesOpen, setCategoriesOpen] = useState(false);
+  const [gorkiOpen, setGorkiOpen] = useState(false);
+  const [gorkiInput, setGorkiInput] = useState("");
+  const [messages, setMessages] = useState<GorkiMessage[]>(initialMessages);
+
   const pageTitle = getPageTitle(pathname);
 
+  const currentGroupText = useMemo(() => {
+    if (pathname.includes("products")) return "Ürün yönetimi açık";
+    if (pathname.includes("sales")) return "Satış ekranındasın";
+    if (pathname.includes("qr")) return "QR modülü açık";
+    if (pathname.includes("invoices")) return "Fatura alanındasın";
+    return "Panelde geziniyorsun";
+  }, [pathname]);
+
+  function sendGorkiMessage(text?: string) {
+    const cleanText = (text ?? gorkiInput).trim();
+
+    if (!cleanText) return;
+
+    setMessages((currentMessages) => [
+      ...currentMessages,
+      { role: "user", text: cleanText },
+      { role: "gorki", text: createGorkiReply(cleanText) },
+    ]);
+
+    setGorkiInput("");
+    setGorkiOpen(true);
+  }
+
   return (
-    <div className="min-h-screen overflow-hidden bg-[#f4f7fb] text-slate-950">
+    <div className="min-h-screen overflow-hidden bg-[#060815] text-slate-950">
       <div className="pointer-events-none fixed inset-0">
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,#ffffff_0%,#f2f7ff_42%,#eef5ff_100%)]" />
-        <div className="absolute -left-40 -top-40 h-[520px] w-[520px] rounded-full bg-blue-200/35 blur-3xl" />
-        <div className="absolute right-[-160px] top-24 h-[520px] w-[520px] rounded-full bg-cyan-200/35 blur-3xl" />
-        <div className="absolute bottom-[-180px] left-1/3 h-[520px] w-[520px] rounded-full bg-indigo-200/30 blur-3xl" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.38),transparent_32%),radial-gradient(circle_at_top_right,rgba(14,165,233,0.22),transparent_30%),linear-gradient(180deg,#0a1024_0%,#10172d_38%,#eef5ff_38%,#f6f8fc_100%)] lg:bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.35),transparent_28%),radial-gradient(circle_at_top_right,rgba(14,165,233,0.20),transparent_28%),linear-gradient(180deg,#0a1024_0%,#10172d_100%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.08)_1px,transparent_0)] [background-size:30px_30px] opacity-40" />
       </div>
 
       <div className="relative flex min-h-screen">
         <aside className="hidden w-[328px] shrink-0 p-5 lg:block">
-          <div className="flex h-full flex-col overflow-hidden rounded-[34px] border border-slate-200/80 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
+          <div className="flex h-full flex-col overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.08] shadow-[0_24px_90px_rgba(0,0,0,0.32)] backdrop-blur-2xl">
             <div className="p-5">
-              <div className="flex items-center gap-3 rounded-[26px] bg-slate-950 p-4 text-white">
-                <div className="relative h-12 w-12 overflow-hidden rounded-2xl bg-white">
-                  <Image src="/takipio-logo.png" alt="Takipio" fill className="object-contain p-2" priority />
+              <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-slate-950 p-4 text-white shadow-2xl">
+                <div className="absolute -right-12 -top-12 h-32 w-32 rounded-full bg-blue-500/30 blur-3xl" />
+
+                <div className="relative flex items-center gap-3">
+                  <div className="relative h-12 w-12 overflow-hidden rounded-2xl bg-white">
+                    <Image src="/takipio-logo.png" alt="Takipio" fill className="object-contain p-2" priority />
+                  </div>
+
+                  <div className="min-w-0">
+                    <div className="text-xl font-black tracking-[-0.04em]">Takipio</div>
+                    <p className="mt-0.5 text-xs text-slate-300">Premium işletme merkezi</p>
+                  </div>
                 </div>
 
-                <div className="min-w-0">
-                  <div className="text-xl font-black tracking-[-0.04em]">Takipio</div>
-                  <p className="mt-0.5 text-xs text-slate-300">İşletme yönetim paneli</p>
+                <div className="relative mt-5 grid grid-cols-2 gap-3">
+                  <div className="rounded-2xl bg-white/10 p-3 ring-1 ring-white/10">
+                    <p className="text-[11px] font-bold text-slate-300">Bugün</p>
+                    <p className="mt-1 text-lg font-black">₺24.8K</p>
+                  </div>
+                  <div className="rounded-2xl bg-white/10 p-3 ring-1 ring-white/10">
+                    <p className="text-[11px] font-bold text-slate-300">Açık</p>
+                    <p className="mt-1 text-lg font-black">19</p>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="px-5">
-              <div className="grid grid-cols-2 gap-3 rounded-[26px] border border-slate-100 bg-slate-50 p-3">
-                <div className="rounded-2xl bg-white p-3 shadow-sm">
-                  <p className="text-[11px] font-bold text-slate-400">Bugün</p>
-                  <p className="mt-1 text-lg font-black text-slate-950">₺24.8K</p>
-                </div>
-                <div className="rounded-2xl bg-white p-3 shadow-sm">
-                  <p className="text-[11px] font-bold text-slate-400">Açık</p>
-                  <p className="mt-1 text-lg font-black text-slate-950">19</p>
-                </div>
-              </div>
-            </div>
-
-            <nav className="flex-1 space-y-6 overflow-y-auto px-5 py-5">
+            <nav className="flex-1 space-y-6 overflow-y-auto px-5 py-2">
               {desktopGroups.map((group) => (
                 <div key={group.title}>
                   <div className="mb-2 px-2 text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
@@ -222,16 +307,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                           key={item.href}
                           href={item.href}
                           className={[
-                            "group flex items-center gap-3 rounded-[20px] px-3 py-3 transition-all duration-300",
+                            "group relative flex items-center gap-3 rounded-[20px] px-3 py-3 transition-all duration-300",
                             active
-                              ? "bg-blue-600 text-white shadow-[0_14px_35px_rgba(37,99,235,0.25)]"
-                              : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
+                              ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-[0_14px_36px_rgba(37,99,235,0.34)]"
+                              : "text-slate-300 hover:bg-white/10 hover:text-white",
                           ].join(" ")}
                         >
                           <span
                             className={[
                               "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl transition",
-                              active ? "bg-white/18 text-white" : "bg-white text-slate-500 shadow-sm group-hover:text-blue-600",
+                              active ? "bg-white/18 text-white" : "bg-white/8 text-slate-300 group-hover:text-cyan-200",
                             ].join(" ")}
                           >
                             <Icon name={item.icon} />
@@ -239,7 +324,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
                           <span className="min-w-0 flex-1">
                             <span className="block truncate text-sm font-black">{item.label}</span>
-                            <span className={["mt-0.5 block truncate text-xs", active ? "text-blue-100" : "text-slate-400"].join(" ")}>
+                            <span className={["mt-0.5 block truncate text-xs", active ? "text-blue-100" : "text-slate-500 group-hover:text-slate-300"].join(" ")}>
                               {item.desc}
                             </span>
                           </span>
@@ -251,24 +336,28 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               ))}
             </nav>
 
-            <div className="border-t border-slate-100 p-5">
-              <Link href="/app/gorki-ai" className="block rounded-[26px] bg-slate-950 p-4 text-white transition hover:-translate-y-0.5">
+            <div className="border-t border-white/10 p-5">
+              <button
+                type="button"
+                onClick={() => setGorkiOpen(true)}
+                className="block w-full rounded-[26px] bg-white/10 p-4 text-left text-white ring-1 ring-white/10 transition hover:-translate-y-0.5 hover:bg-white/15"
+              >
                 <div className="flex items-center gap-3">
-                  <div className="relative h-14 w-14 overflow-hidden rounded-2xl bg-white/10">
+                  <div className="relative h-14 w-14 overflow-hidden rounded-2xl bg-slate-950">
                     <Image src="/gorki-hero.png" alt="Gorki AI" fill className="object-contain object-bottom" />
                   </div>
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-black">Gorki AI</p>
-                    <p className="mt-0.5 text-xs text-slate-300">İşletme asistanı</p>
+                    <p className="truncate text-sm font-black">Gorki canlı</p>
+                    <p className="mt-0.5 text-xs text-slate-400">Panelde gezerken konuş.</p>
                   </div>
                 </div>
-              </Link>
+              </button>
             </div>
           </div>
         </aside>
 
-        <main className="min-w-0 flex-1 p-3 pb-28 sm:p-4 sm:pb-28 lg:p-6">
-          <div className="sticky top-3 z-30 mb-4 rounded-[26px] border border-slate-200/80 bg-white/95 p-3 shadow-[0_18px_50px_rgba(15,23,42,0.08)] backdrop-blur-2xl lg:hidden">
+        <main className="min-w-0 flex-1 p-3 pb-28 sm:p-4 sm:pb-28 lg:p-6 lg:pl-0">
+          <div className="sticky top-3 z-30 mb-4 rounded-[26px] border border-white/15 bg-white/95 p-3 shadow-[0_18px_70px_rgba(0,0,0,0.18)] backdrop-blur-2xl lg:hidden">
             <div className="flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-3">
                 <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-100">
@@ -281,13 +370,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 </div>
               </div>
 
-              <Link href="/app/gorki-ai" className="relative h-11 w-11 overflow-hidden rounded-2xl bg-slate-950 shadow-lg">
+              <button
+                type="button"
+                onClick={() => setGorkiOpen(true)}
+                className="relative h-11 w-11 overflow-hidden rounded-2xl bg-slate-950 shadow-lg"
+              >
                 <Image src="/gorki-hero.png" alt="Gorki" fill className="object-contain object-bottom" />
-              </Link>
+              </button>
             </div>
           </div>
 
-          {children}
+          <div className="lg:rounded-[38px] lg:border lg:border-white/10 lg:bg-white/[0.06] lg:p-4 lg:shadow-[0_24px_90px_rgba(0,0,0,0.24)] lg:backdrop-blur-2xl">
+            {children}
+          </div>
         </main>
       </div>
 
@@ -296,13 +391,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           type="button"
           aria-label="Kategoriler menüsünü kapat"
           onClick={() => setCategoriesOpen(false)}
-          className="fixed inset-0 z-40 bg-slate-950/25 backdrop-blur-[3px] lg:hidden"
+          className="fixed inset-0 z-40 bg-slate-950/35 backdrop-blur-[3px] lg:hidden"
         />
       ) : null}
 
       <div
         className={[
-          "fixed bottom-[92px] left-3 right-3 z-50 origin-bottom overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.24)] transition-all duration-300 lg:hidden",
+          "fixed bottom-[92px] left-3 right-3 z-50 origin-bottom overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.28)] transition-all duration-300 lg:hidden",
           categoriesOpen
             ? "translate-y-0 scale-100 opacity-100"
             : "pointer-events-none translate-y-8 scale-95 opacity-0",
@@ -357,7 +452,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </div>
 
-      <nav className="fixed bottom-3 left-3 right-3 z-50 rounded-[30px] border border-slate-200 bg-white p-2 shadow-[0_20px_70px_rgba(15,23,42,0.20)] lg:hidden">
+      <nav className="fixed bottom-3 left-3 right-3 z-50 rounded-[30px] border border-slate-200 bg-white p-2 shadow-[0_20px_70px_rgba(15,23,42,0.24)] lg:hidden">
         <div className="grid grid-cols-5 gap-1">
           {primaryNavItems.map((item) => {
             const active = isActivePath(pathname, item.href);
@@ -391,6 +486,124 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </button>
         </div>
       </nav>
+
+      {!gorkiOpen ? (
+        <button
+          type="button"
+          onClick={() => setGorkiOpen(true)}
+          className="fixed bottom-[98px] right-4 z-50 hidden max-w-[280px] items-center gap-3 rounded-[26px] border border-white/20 bg-slate-950 p-3 text-left text-white shadow-[0_22px_70px_rgba(15,23,42,0.40)] transition hover:-translate-y-1 lg:flex"
+        >
+          <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-2xl bg-white/10">
+            <Image src="/gorki-hero.png" alt="Gorki" fill className="object-contain object-bottom" />
+          </div>
+
+          <div>
+            <p className="text-sm font-black">Bugün sana nasıl yardımcı olabilirim?</p>
+            <p className="mt-1 text-xs text-slate-400">{currentGroupText}</p>
+          </div>
+        </button>
+      ) : null}
+
+      {!gorkiOpen ? (
+        <button
+          type="button"
+          onClick={() => setGorkiOpen(true)}
+          className="fixed bottom-[92px] right-4 z-50 flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl bg-slate-950 shadow-[0_18px_55px_rgba(15,23,42,0.36)] lg:hidden"
+        >
+          <Image src="/gorki-hero.png" alt="Gorki" fill className="object-contain object-bottom" />
+        </button>
+      ) : null}
+
+      <div
+        className={[
+          "fixed z-[60] overflow-hidden border border-white/15 bg-slate-950 text-white shadow-[0_28px_90px_rgba(0,0,0,0.45)] transition-all duration-300",
+          "bottom-[92px] left-3 right-3 rounded-[30px] lg:bottom-6 lg:left-auto lg:right-6 lg:w-[420px] lg:rounded-[34px]",
+          gorkiOpen
+            ? "translate-y-0 scale-100 opacity-100"
+            : "pointer-events-none translate-y-8 scale-95 opacity-0",
+        ].join(" ")}
+      >
+        <div className="relative overflow-hidden p-4">
+          <div className="absolute -right-12 -top-12 h-36 w-36 rounded-full bg-blue-500/30 blur-3xl" />
+
+          <div className="relative flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-2xl bg-white/10">
+                <Image src="/gorki-hero.png" alt="Gorki" fill className="object-contain object-bottom" />
+              </div>
+
+              <div className="min-w-0">
+                <p className="truncate text-base font-black">Gorki AI</p>
+                <p className="truncate text-xs text-slate-400">{currentGroupText}</p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setGorkiOpen(false)}
+              className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-lg font-black"
+            >
+              ×
+            </button>
+          </div>
+
+          <div className="relative mt-4 flex flex-wrap gap-2">
+            {quickQuestions.map((question) => (
+              <button
+                key={question}
+                type="button"
+                onClick={() => sendGorkiMessage(question)}
+                className="rounded-full bg-white/10 px-3 py-2 text-xs font-black text-slate-200 ring-1 ring-white/10 transition hover:bg-blue-600"
+              >
+                {question}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="max-h-[340px] space-y-3 overflow-y-auto bg-white/[0.04] p-4">
+          {messages.map((message, index) => {
+            const isUser = message.role === "user";
+
+            return (
+              <div key={`${message.role}-${index}`} className={["flex", isUser ? "justify-end" : "justify-start"].join(" ")}>
+                <div
+                  className={[
+                    "max-w-[86%] rounded-[22px] px-4 py-3 text-sm leading-6",
+                    isUser
+                      ? "bg-blue-600 text-white"
+                      : "bg-white/10 text-slate-100 ring-1 ring-white/10",
+                  ].join(" ")}
+                >
+                  {message.text}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex gap-2 border-t border-white/10 p-3">
+          <input
+            value={gorkiInput}
+            onChange={(event) => setGorkiInput(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                sendGorkiMessage();
+              }
+            }}
+            placeholder="Gorki’ye sor..."
+            className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-blue-400"
+          />
+
+          <button
+            type="button"
+            onClick={() => sendGorkiMessage()}
+            className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-white transition hover:bg-blue-500"
+          >
+            <Icon name="send" />
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
