@@ -12,6 +12,8 @@ type Product = { id: string; name: string; product_code: string; category: strin
 type Sale = { id: string; product_code: string | null; product_name: string | null; customer_name: string | null; quantity: number | null; total_price: number | null; payment_status: string | null; created_at: string };
 type StockMovement = { id: string; product_code: string | null; product_name: string | null; movement_type: string | null; quantity: number | null; note: string | null; created_at: string };
 type Note = { id: string; title: string; note: string | null; is_done: boolean | null; created_at: string };
+type Order = { id: string; order_no: string; order_status: string | null; shipping_status: string | null; total_amount: number | null; created_at: string };
+type ReturnItem = { id: string; status: string | null; amount: number | null; created_at: string };
 
 function formatCurrency(value: number | null | undefined) {
   return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 }).format(Number(value ?? 0));
@@ -34,23 +36,29 @@ export default function DashboardPage() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [returns, setReturns] = useState<ReturnItem[]>([]);
   const [noteTitle, setNoteTitle] = useState("");
   const [loading, setLoading] = useState(true);
 
   async function fetchData() {
     setLoading(true);
 
-    const [p, s, m, n] = await Promise.all([
+    const [productsResult, salesResult, movementsResult, notesResult, ordersResult, returnsResult] = await Promise.all([
       supabase.from("products").select("id, name, product_code, category, price, stock, min_stock, created_at").order("created_at", { ascending: false }),
       supabase.from("sales").select("*").order("created_at", { ascending: false }),
       supabase.from("stock_movements").select("*").order("created_at", { ascending: false }).limit(20),
       supabase.from("app_notes").select("*").order("created_at", { ascending: false }).limit(8),
+      supabase.from("orders").select("id, order_no, order_status, shipping_status, total_amount, created_at").order("created_at", { ascending: false }),
+      supabase.from("returns").select("id, status, amount, created_at").order("created_at", { ascending: false }),
     ]);
 
-    setProducts(p.data ?? []);
-    setSales(s.data ?? []);
-    setMovements(m.data ?? []);
-    setNotes(n.data ?? []);
+    setProducts(productsResult.data ?? []);
+    setSales(salesResult.data ?? []);
+    setMovements(movementsResult.data ?? []);
+    setNotes(notesResult.data ?? []);
+    setOrders(ordersResult.data ?? []);
+    setReturns(returnsResult.data ?? []);
     setLoading(false);
   }
 
@@ -60,6 +68,7 @@ export default function DashboardPage() {
 
   async function addNote(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
     const cleanTitle = noteTitle.trim();
     if (!cleanTitle) return;
 
@@ -90,6 +99,10 @@ export default function DashboardPage() {
   const soldQty = sales.reduce((sum, s) => sum + Number(s.quantity ?? 0), 0);
   const paidRatio = totalRevenue > 0 ? Math.round((paidRevenue / totalRevenue) * 100) : 0;
 
+  const waitingOrders = orders.filter((order) => order.order_status === "new" || order.order_status === "preparing").length;
+  const unshippedOrders = orders.filter((order) => order.shipping_status !== "shipped" && order.shipping_status !== "delivered").length;
+  const activeReturns = returns.filter((item) => item.status !== "refunded" && item.status !== "rejected").length;
+
   const weeklyBars = useMemo(() => {
     const labels = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
     const totals = [0, 0, 0, 0, 0, 0, 0];
@@ -117,26 +130,26 @@ export default function DashboardPage() {
 
             <div className="flex gap-2">
               <button onClick={fetchData} className="rounded-xl bg-white/10 px-3 py-2 text-xs font-black transition hover:-translate-y-0.5">Yenile</button>
-              <Link href="/app/sales" className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-black transition hover:-translate-y-0.5">Yeni Satış</Link>
+              <Link href="/app/orders" className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-black transition hover:-translate-y-0.5">Yeni Sipariş</Link>
             </div>
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-2 rounded-[20px] border border-white/10 bg-[#111a2e] p-3">
+          <Quick href="/app/orders" label="Sipariş" />
+          <Quick href="/app/shipments" label="Kargo" />
+          <Quick href="/app/returns" label="İade" />
           <Quick href="/app/products" label="Ürün" />
-          <Quick href="/app/sales" label="Satış" />
-          <Quick href="/app/stock" label="Stok" />
-          <Quick href="/app/profile" label="Kullanıcı" />
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-6">
         <Metric label="Bugün" value={loading ? "..." : formatCurrency(todayRevenue)} sub="Günlük satış" />
         <Metric label="Ciro" value={loading ? "..." : formatCurrency(totalRevenue)} sub={`${sales.length} satış`} />
-        <Metric label="Bekleyen" value={loading ? "..." : formatCurrency(pendingRevenue)} sub={`${pendingSales.length} kayıt`} />
-        <Metric label="Kritik" value={loading ? "..." : String(criticalProducts.length)} sub="stok uyarısı" />
-        <Metric label="Ürün" value={loading ? "..." : String(totalProducts)} sub={`${totalStock} adet stok`} />
-        <Metric label="Stok Değeri" value={loading ? "..." : formatCurrency(stockValue)} sub={`${soldQty} adet satıldı`} />
+        <Metric label="Bekleyen" value={loading ? "..." : formatCurrency(pendingRevenue)} sub={`${pendingSales.length} ödeme`} />
+        <Metric label="Sipariş" value={loading ? "..." : String(waitingOrders)} sub="hazırlık bekleyen" />
+        <Metric label="Kargo" value={loading ? "..." : String(unshippedOrders)} sub="çıkış bekleyen" />
+        <Metric label="İade" value={loading ? "..." : String(activeReturns)} sub="aktif talep" />
       </div>
 
       <div className="grid gap-3 xl:grid-cols-[1.2fr_0.8fr_0.7fr]">
@@ -222,53 +235,31 @@ export default function DashboardPage() {
           </div>
         </Panel>
 
-        <Panel title="Uyarılar">
+        <Panel title="Kritik Uyarılar">
           <Alert label="Kritik stok" value={`${criticalProducts.length} ürün`} tone="red" href="/app/products" />
           <Alert label="Bekleyen ödeme" value={formatCurrency(pendingRevenue)} tone="amber" href="/app/sales" />
-          <Alert label="Yetkiler" value="Ekip yönetimi" tone="blue" href="/app/settings" />
-          <Alert label="Profil" value="Fotoğraf yükle" tone="green" href="/app/profile" />
+          <Alert label="Hazırlık bekleyen" value={`${waitingOrders} sipariş`} tone="blue" href="/app/orders" />
+          <Alert label="Kargoya verilmeyen" value={`${unshippedOrders} sipariş`} tone="red" href="/app/shipments" />
+          <Alert label="Aktif iade" value={`${activeReturns} talep`} tone="green" href="/app/returns" />
         </Panel>
       </div>
 
       <div className="grid gap-3 lg:grid-cols-2">
         <div className="rounded-[20px] border border-white/10 bg-[#111a2e] p-4">
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
-            Destek
-          </p>
-          <h2 className="mt-2 text-lg font-black">
-            Öneri, şikayet veya destek talebin mi var?
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-slate-400">
-            Takipio ile ilgili geri bildirim, hata bildirimi veya geliştirme önerileri için iletişim sayfasından bize ulaşabilirsin.
-          </p>
-          <Link
-            href="/app/contact"
-            className="mt-4 inline-flex rounded-2xl bg-blue-600 px-4 py-3 text-sm font-black transition hover:-translate-y-0.5 hover:bg-blue-500"
-          >
-            İletişime Geç
-          </Link>
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Destek</p>
+          <h2 className="mt-2 text-lg font-black">Öneri, şikayet veya destek talebin mi var?</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-400">Takipio ile ilgili geri bildirim, hata bildirimi veya geliştirme önerileri için iletişim sayfasından bize ulaşabilirsin.</p>
+          <Link href="/app/contact" className="mt-4 inline-flex rounded-2xl bg-blue-600 px-4 py-3 text-sm font-black transition hover:bg-blue-500">İletişime Geç</Link>
         </div>
 
         <div className="rounded-[20px] border border-white/10 bg-[#111a2e] p-4">
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
-            Rehber
-          </p>
-          <h2 className="mt-2 text-lg font-black">
-            Takipio nasıl kullanılır?
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-slate-400">
-            Ürün ekleme, stok yönetimi, satış oluşturma, QR etiket, müşteri, fatura ve ekip yetkilerini adım adım öğren.
-          </p>
-          <Link
-            href="/app/help"
-            className="mt-4 inline-flex rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-blue-200 ring-1 ring-white/10 transition hover:-translate-y-0.5 hover:bg-white/15"
-          >
-            Tıkla, Öğren
-          </Link>
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Rehber</p>
+          <h2 className="mt-2 text-lg font-black">Takipio nasıl kullanılır?</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-400">Ürün, stok, sipariş, kargo, iade, müşteri, fatura ve ekip yetkilerini adım adım öğren.</p>
+          <Link href="/app/help" className="mt-4 inline-flex rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-blue-200 ring-1 ring-white/10 transition hover:bg-white/15">Tıkla, Öğren</Link>
         </div>
       </div>
-
-</section>
+    </section>
   );
 }
 
@@ -295,7 +286,7 @@ function Panel({ title, children, actionHref }: { title: string; children: React
 }
 
 function Quick({ href, label }: { href: string; label: string }) {
-  return <Link href={href} className="rounded-[14px] bg-[#0b1220] px-3 py-2.5 text-center text-xs font-black ring-1 ring-white/8 transition hover:-translate-y-0.5 hover:bg-[#111d31]">{label}</Link>;
+  return <Link href={href} className="rounded-[14px] bg-[#0b1220] px-3 py-2.5 text-center text-xs font-black ring-1 ring-white/8 transition hover:bg-[#111d31]">{label}</Link>;
 }
 
 function SmallBar({ label, value, width, color }: { label: string; value: string; width: number; color: string }) {
