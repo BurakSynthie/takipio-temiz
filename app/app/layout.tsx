@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "next/link";a
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
@@ -238,6 +238,24 @@ function iconPath(icon: string) {
         <path d="M12 8h.01" />
       </>
     ),
+    sun: (
+      <>
+        <circle cx="12" cy="12" r="4" />
+        <path d="M12 2v2" />
+        <path d="M12 20v2" />
+        <path d="m4.93 4.93 1.41 1.41" />
+        <path d="m17.66 17.66 1.41 1.41" />
+        <path d="M2 12h2" />
+        <path d="M20 12h2" />
+        <path d="m6.34 17.66-1.41 1.41" />
+        <path d="m19.07 4.93-1.41 1.41" />
+      </>
+    ),
+    moon: (
+      <>
+        <path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.5 6.5 0 1 0 9.8 9.8Z" />
+      </>
+    ),
   };
 
   return paths[icon] ?? paths.dashboard;
@@ -251,40 +269,57 @@ function Icon({ name, className = "" }: { name: string; className?: string }) {
   );
 }
 
-function LogoBox({ src, name, size = "md" }: { src?: string | null; name?: string | null; size?: "sm" | "md" | "lg" }) {
-  const [failed, setFailed] = useState(false);
-  const resolvedSrc = src || "/logo.png";
-  const showImage = resolvedSrc && !failed;
+function SmartImage({
+  sources,
+  alt,
+  className,
+  fallback,
+}: {
+  sources: Array<string | null | undefined>;
+  alt: string;
+  className: string;
+  fallback: React.ReactNode;
+}) {
+  const validSources = sources.filter(Boolean) as string[];
+  const [index, setIndex] = useState(0);
 
+  if (validSources.length === 0 || index >= validSources.length) {
+    return <>{fallback}</>;
+  }
+
+  return (
+    <img
+      src={validSources[index]}
+      alt={alt}
+      className={className}
+      onError={() => setIndex((current) => current + 1)}
+    />
+  );
+}
+
+function LogoBox({ src, name, size = "md" }: { src?: string | null; name?: string | null; size?: "sm" | "md" | "lg" }) {
   const sizeClass = size === "lg" ? "h-12 w-12 rounded-2xl" : size === "sm" ? "h-9 w-9 rounded-xl" : "h-11 w-11 rounded-2xl";
 
   return (
-    <div className={`relative flex shrink-0 items-center justify-center overflow-hidden bg-white ring-1 ring-blue-400/20 ${sizeClass}`}>
-      {showImage ? (
-        <img
-          src={resolvedSrc}
-          alt={name || "Takipio"}
-          className="h-full w-full object-contain p-1"
-          onError={() => setFailed(true)}
-        />
-      ) : (
-        <span className="text-base font-black text-blue-600">{(name || "T").slice(0, 1).toUpperCase()}</span>
-      )}
+    <div className={`flex shrink-0 items-center justify-center overflow-hidden bg-white ring-1 ring-blue-400/20 ${sizeClass}`}>
+      <SmartImage
+        sources={[src, "/takipio-logo.png", "/logo.png", "/Logo.png", "/takipio.png"]}
+        alt={name || "Takipio"}
+        className="h-full w-full object-contain p-1"
+        fallback={<span className="text-base font-black text-blue-600">{(name || "T").slice(0, 1).toUpperCase()}</span>}
+      />
     </div>
   );
 }
 
 function GorkiImage() {
-  const [failed, setFailed] = useState(false);
-
   return (
-    <div className="relative flex h-full w-full items-center justify-center overflow-hidden">
-      {!failed ? (
-        <img src="/gorki.png" alt="Gorki" className="h-full w-full object-cover" onError={() => setFailed(true)} />
-      ) : (
-        <span className="text-xl font-black text-white">G</span>
-      )}
-    </div>
+    <SmartImage
+      sources={["/gorki.png", "/Gorki.png", "/gorki-ai.png", "/gorki_ai.png", "/robot.png"]}
+      alt="Gorki"
+      className="h-full w-full object-cover"
+      fallback={<span className="text-xl font-black text-white">G</span>}
+    />
   );
 }
 
@@ -303,6 +338,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [gorkiOpen, setGorkiOpen] = useState(false);
+  const [gorkiInput, setGorkiInput] = useState("");
+  const [gorkiMessages, setGorkiMessages] = useState([
+    { role: "assistant", text: "Merhaba, ben Gorki. Bugün panelde sana nasıl yardımcı olabilirim?" },
+  ]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -405,6 +444,23 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     else router.push("/app");
   }
 
+  function sendGorkiMessage(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const clean = gorkiInput.trim();
+    if (!clean) return;
+
+    setGorkiMessages((current) => [
+      ...current,
+      { role: "user", text: clean },
+      {
+        role: "assistant",
+        text: "Şimdilik demo sohbet ekranındayım. Bir sonraki AI paketinde sipariş, stok, iade ve fatura verilerine bakarak canlı cevap vereceğim.",
+      },
+    ]);
+    setGorkiInput("");
+  }
+
   async function signOut() {
     await supabase.auth.signOut();
     window.location.href = "/login";
@@ -448,23 +504,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <button onClick={() => setSidebarOpen(false)} className="rounded-xl bg-white/10 px-2 py-1 text-xs font-black lg:hidden">×</button>
         </div>
 
-        <div className="custom-scrollbar h-[calc(100vh-104px)] overflow-y-auto pr-1">
+        <div className="custom-scrollbar h-[calc(100vh-92px)] overflow-y-auto pr-1">
           <NavGroup title="Operasyon" items={visibleOperationItems} pathname={pathname} onNavigate={() => setSidebarOpen(false)} />
           <NavGroup title="İşletme" items={visibleBusinessItems} pathname={pathname} onNavigate={() => setSidebarOpen(false)} />
           <NavGroup title="Merkez" items={visibleCenterItems} pathname={pathname} onNavigate={() => setSidebarOpen(false)} />
-
-          <div className="mt-4 rounded-[20px] bg-white/5 p-3 ring-1 ring-white/10">
-            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Hesap</p>
-            <p className="mt-2 truncate text-xs font-bold text-slate-300">{userEmail || "Oturum yok"}</p>
-            <div className="mt-3 flex gap-2">
-              <button onClick={toggleTheme} className="flex-1 rounded-xl bg-white/10 px-3 py-2 text-xs font-black text-slate-200">
-                {theme === "dark" ? "Light" : "Dark"}
-              </button>
-              <button onClick={signOut} className="flex-1 rounded-xl bg-red-500/15 px-3 py-2 text-xs font-black text-red-300">
-                Çıkış
-              </button>
-            </div>
-          </div>
         </div>
       </aside>
 
@@ -472,7 +515,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <header className="sticky top-0 z-40 border-b border-white/10 bg-[#07111f]/85 px-3 py-3 backdrop-blur-xl">
           <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-3">
             <div className="flex min-w-0 flex-1 items-center gap-3">
-              <button onClick={() => setSidebarOpen(true)} className="rounded-2xl bg-white/10 px-3 py-2 text-sm font-black lg:hidden">☰</button>
+              <button onClick={() => setSidebarOpen(true)} className="hidden rounded-2xl bg-white/10 px-3 py-2 text-sm font-black lg:hidden">
+                ☰
+              </button>
 
               <div className="hidden min-w-[120px] sm:block">
                 <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-300">
@@ -493,6 +538,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
 
             <div className="relative flex items-center gap-2">
+              <div className="hidden items-center gap-3 rounded-2xl bg-white/8 px-3 py-2 ring-1 ring-white/10 xl:flex">
+                <LogoBox src={business?.logo_url} name={business?.name || "Takipio"} size="sm" />
+                <div className="min-w-0">
+                  <p className="max-w-[150px] truncate text-xs font-black">{business?.name || "Takipio"}</p>
+                  <p className="text-[10px] text-slate-500">{member?.role_name || "Panel"}</p>
+                </div>
+              </div>
+
               <TopIconButton
                 label="Bildirim"
                 icon="invoices"
@@ -513,15 +566,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 }}
               />
 
-              <Link href="/app/profile" className="hidden items-center gap-2 rounded-2xl bg-white/10 px-3 py-2 text-xs font-black text-slate-200 ring-1 ring-white/10 sm:flex">
-                <span className="flex h-6 w-6 items-center justify-center rounded-xl bg-blue-500/80">
-                  <Icon name="profile" className="h-3.5 w-3.5" />
-                </span>
-                {member?.role_name || "Kullanıcı"}
-              </Link>
-
-              <button onClick={toggleTheme} className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-slate-200 ring-1 ring-white/10 transition hover:bg-white/15">
-                {theme === "dark" ? "☾" : "☀"}
+              <button
+                onClick={toggleTheme}
+                title={theme === "dark" ? "Light mode" : "Dark mode"}
+                className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-slate-200 ring-1 ring-white/10 transition hover:bg-white/15"
+              >
+                <Icon name={theme === "dark" ? "sun" : "moon"} className="h-4 w-4" />
               </button>
 
               <button onClick={signOut} className="hidden rounded-2xl bg-red-500/15 px-3 py-2 text-xs font-black text-red-300 ring-1 ring-red-400/20 sm:block">
@@ -599,25 +649,41 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       <div className="fixed bottom-24 right-4 z-[80] lg:bottom-6">
         {gorkiOpen ? (
-          <div className="mb-3 w-[310px] rounded-[28px] border border-white/10 bg-[#0b1220]/95 p-4 shadow-2xl backdrop-blur-xl">
-            <div className="mb-3 flex items-start justify-between gap-3">
+          <div className="mb-3 w-[340px] overflow-hidden rounded-[28px] border border-white/10 bg-[#0b1220]/95 shadow-2xl backdrop-blur-xl">
+            <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-white/5 p-4">
               <div className="flex items-center gap-3">
                 <div className="h-12 w-12 overflow-hidden rounded-2xl bg-blue-600">
                   <GorkiImage />
                 </div>
                 <div>
                   <p className="text-sm font-black">Gorki AI</p>
-                  <p className="mt-1 text-xs text-slate-400">Bugün sana nasıl yardımcı olabilirim?</p>
+                  <p className="mt-1 text-xs text-slate-400">Canlı panel asistanı</p>
                 </div>
               </div>
               <button onClick={() => setGorkiOpen(false)} className="rounded-xl bg-white/10 px-3 py-1 text-sm font-black">×</button>
             </div>
 
-            <div className="space-y-2">
-              <Link href="/app/help" className="block rounded-2xl bg-white/10 p-3 text-xs font-black text-slate-200 hover:bg-white/15">Takipio nasıl kullanılır?</Link>
-              <Link href="/app/orders" className="block rounded-2xl bg-white/10 p-3 text-xs font-black text-slate-200 hover:bg-white/15">Yeni sipariş oluştur</Link>
-              <Link href="/app/contact" className="block rounded-2xl bg-blue-600 p-3 text-xs font-black text-white hover:bg-blue-500">Destek al</Link>
+            <div className="max-h-[320px] space-y-3 overflow-y-auto p-4">
+              {gorkiMessages.map((message, index) => (
+                <div key={`${message.role}-${index}`} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
+                  <div className={`max-w-[82%] rounded-2xl px-3 py-2 text-xs leading-5 ${
+                    message.role === "user" ? "bg-blue-600 text-white" : "bg-white/10 text-slate-200"
+                  }`}>
+                    {message.text}
+                  </div>
+                </div>
+              ))}
             </div>
+
+            <form onSubmit={sendGorkiMessage} className="flex gap-2 border-t border-white/10 p-3">
+              <input
+                value={gorkiInput}
+                onChange={(event) => setGorkiInput(event.target.value)}
+                placeholder="Gorki'ye yaz..."
+                className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-[#07111f] px-3 py-2 text-xs font-bold text-white outline-none placeholder:text-slate-500"
+              />
+              <button className="rounded-2xl bg-blue-600 px-4 py-2 text-xs font-black text-white">Gönder</button>
+            </form>
           </div>
         ) : null}
 
