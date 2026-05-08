@@ -33,6 +33,24 @@ type Business = {
   logo_url: string | null;
 };
 
+type NotificationItem = {
+  id: string;
+  title: string | null;
+  message: string | null;
+  type: string | null;
+  is_read: boolean | null;
+  created_at: string;
+};
+
+type MessageItem = {
+  id: string;
+  title: string | null;
+  message: string | null;
+  sender_name: string | null;
+  is_read: boolean | null;
+  created_at: string;
+};
+
 type NavItem = {
   href: string;
   label: string;
@@ -55,7 +73,7 @@ const mainItems: NavItem[] = [
 ];
 
 const systemItems: NavItem[] = [
-  { href: "/app/help", label: "Kullanım Rehberi", icon: "about", permission: "can_view_dashboard" },
+  { href: "/app/help", label: "Kullanım Rehberi", icon: "help", permission: "can_view_dashboard" },
   { href: "/app/billing", label: "Abonelik", icon: "billing", permission: "can_manage_billing" },
   { href: "/app/business-setup", label: "İşletme", icon: "business", permission: "can_manage_settings" },
   { href: "/app/downloads", label: "Mobil Uygulama", icon: "downloads", permission: "can_view_dashboard" },
@@ -69,9 +87,9 @@ function normalizeEmail(email: string | null | undefined) {
   return (email ?? "").trim().toLowerCase();
 }
 
-function itemIcon(icon: string) {
-  const map: Record<string, string> = {
-    dashboard: "⌁",
+function iconFor(icon: string) {
+  const icons: Record<string, string> = {
+    dashboard: "⌘",
     products: "▦",
     stock: "↕",
     sales: "₺",
@@ -80,18 +98,24 @@ function itemIcon(icon: string) {
     returns: "↩",
     customers: "◉",
     invoices: "▤",
-    integrations: "⌘",
+    integrations: "∞",
     qr: "▣",
-    about: "?",
+    help: "?",
     billing: "₺",
     business: "◆",
     downloads: "⇩",
     profile: "●",
     settings: "⚙",
     contact: "✉",
+    about: "i",
   };
 
-  return map[icon] ?? "•";
+  return icons[icon] ?? "•";
+}
+
+function pageTitle(pathname: string) {
+  const current = [...mainItems, ...systemItems].find((item) => item.href === pathname);
+  return current?.label ?? "İşletme Paneli";
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -100,8 +124,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [business, setBusiness] = useState<Business | null>(null);
   const [member, setMember] = useState<Member | null>(null);
   const [userEmail, setUserEmail] = useState("");
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [messages, setMessages] = useState<MessageItem[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [theme, setTheme] = useState("dark");
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [messagesOpen, setMessagesOpen] = useState(false);
+  const [gorkiOpen, setGorkiOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const isOwner = normalizeEmail(userEmail) === normalizeEmail(business?.owner_email);
@@ -136,6 +165,24 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         .single();
 
       setBusiness(businessData ?? null);
+
+      const [notificationResult, messageResult] = await Promise.all([
+        supabase
+          .from("app_notifications")
+          .select("id, title, message, type, is_read, created_at")
+          .eq("business_id", memberData.business_id)
+          .order("created_at", { ascending: false })
+          .limit(8),
+        supabase
+          .from("app_messages")
+          .select("id, title, message, sender_name, is_read, created_at")
+          .eq("business_id", memberData.business_id)
+          .order("created_at", { ascending: false })
+          .limit(8),
+      ]);
+
+      setNotifications(notificationResult.data ?? []);
+      setMessages(messageResult.data ?? []);
     }
 
     setLoading(false);
@@ -152,12 +199,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   function canSee(item: NavItem) {
     if (!item.permission) return true;
     if (isOwner) return true;
-    if (!member) return false;
+    if (!member) return true;
     return Boolean(member[item.permission]);
   }
 
   const visibleMainItems = useMemo(() => mainItems.filter(canSee), [member, isOwner]);
   const visibleSystemItems = useMemo(() => systemItems.filter(canSee), [member, isOwner]);
+
+  const unreadNotifications = notifications.filter((item) => !item.is_read).length;
+  const unreadMessages = messages.filter((item) => !item.is_read).length;
 
   function toggleTheme() {
     const next = theme === "dark" ? "light" : "dark";
@@ -171,23 +221,50 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     window.location.href = "/login";
   }
 
+  async function clearNotification(id: string) {
+    if (!business) return;
+
+    setNotifications((current) => current.filter((item) => item.id !== id));
+
+    await supabase
+      .from("app_notifications")
+      .delete()
+      .eq("business_id", business.id)
+      .eq("id", id);
+  }
+
+  async function clearMessage(id: string) {
+    if (!business) return;
+
+    setMessages((current) => current.filter((item) => item.id !== id));
+
+    await supabase
+      .from("app_messages")
+      .delete()
+      .eq("business_id", business.id)
+      .eq("id", id);
+  }
+
   return (
     <div className="min-h-screen bg-[#07111f] text-white">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.18),transparent_35%),radial-gradient(circle_at_bottom_right,rgba(14,165,233,0.12),transparent_35%)]" />
 
-      <aside className={`fixed inset-y-0 left-0 z-50 w-[255px] border-r border-white/10 bg-[#0b1220]/95 p-3 backdrop-blur-xl transition lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 w-[248px] border-r border-white/10 bg-[#0b1220]/95 p-3 backdrop-blur-xl transition lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="mb-4 flex items-center justify-between rounded-[20px] bg-white/5 p-3 ring-1 ring-white/10">
           <Link href="/app" className="flex min-w-0 items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-blue-500/15 ring-1 ring-blue-400/20">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-blue-500/15 ring-1 ring-blue-400/20">
               {business?.logo_url ? (
-                <img src={business.logo_url} alt="Logo" className="h-full w-full object-contain p-1" />
+                <img src={business.logo_url} alt="Logo" className="h-full w-full object-contain p-1.5" />
               ) : (
-                <span className="text-lg font-black text-blue-300">{(business?.name || "T").slice(0, 1).toUpperCase()}</span>
+                <img src="/logo.png" alt="Takipio" className="h-full w-full object-contain p-1.5" onError={(event) => { event.currentTarget.style.display = "none"; }} />
               )}
+              {!business?.logo_url ? (
+                <span className="absolute text-lg font-black text-blue-300">{(business?.name || "T").slice(0, 1).toUpperCase()}</span>
+              ) : null}
             </div>
             <div className="min-w-0">
               <p className="truncate text-sm font-black">{business?.name || "Takipio"}</p>
-              <p className="truncate text-[10px] text-slate-500">{member?.role_name || "Panel"}</p>
+              <p className="truncate text-[10px] text-slate-500">{member?.role_name || "İşletme Paneli"}</p>
             </div>
           </Link>
 
@@ -213,7 +290,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <div className="lg:pl-[255px]">
+      <div className="lg:pl-[248px]">
         <header className="sticky top-0 z-40 border-b border-white/10 bg-[#07111f]/80 px-3 py-3 backdrop-blur-xl">
           <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-3">
             <div className="flex items-center gap-3">
@@ -222,22 +299,77 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-300">
                   {loading ? "Yükleniyor" : business?.name || "Takipio"}
                 </p>
-                <h1 className="text-base font-black tracking-[-0.03em] sm:text-xl">
-                  {pathname === "/app" ? "Dashboard" : "İşletme Paneli"}
-                </h1>
+                <h1 className="text-base font-black tracking-[-0.03em] sm:text-xl">{pageTitle(pathname)}</h1>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="relative flex items-center gap-2">
+              <button
+                onClick={() => {
+                  setNotificationsOpen((value) => !value);
+                  setMessagesOpen(false);
+                }}
+                className="relative rounded-2xl bg-white/10 px-3 py-2 text-xs font-black text-slate-200"
+              >
+                Bildirim
+                {unreadNotifications ? <span className="absolute -right-1 -top-1 rounded-full bg-red-500 px-1.5 py-0.5 text-[9px] text-white">{unreadNotifications}</span> : null}
+              </button>
+
+              <button
+                onClick={() => {
+                  setMessagesOpen((value) => !value);
+                  setNotificationsOpen(false);
+                }}
+                className="relative rounded-2xl bg-white/10 px-3 py-2 text-xs font-black text-slate-200"
+              >
+                Mesaj
+                {unreadMessages ? <span className="absolute -right-1 -top-1 rounded-full bg-blue-500 px-1.5 py-0.5 text-[9px] text-white">{unreadMessages}</span> : null}
+              </button>
+
               <Link href="/app/profile" className="hidden rounded-2xl bg-white/10 px-3 py-2 text-xs font-black text-slate-200 sm:inline-flex">
                 {member?.role_name || "Kullanıcı"}
               </Link>
+
               <button onClick={toggleTheme} className="rounded-2xl bg-white/10 px-3 py-2 text-xs font-black text-slate-200">
                 {theme === "dark" ? "☾" : "☀"}
               </button>
+
               <button onClick={signOut} className="rounded-2xl bg-red-500/15 px-3 py-2 text-xs font-black text-red-300">
                 Çıkış
               </button>
+
+              {notificationsOpen ? (
+                <FloatingPanel title="Bildirimler" emptyText="Bildirim yok">
+                  {notifications.map((item) => (
+                    <div key={item.id} className="rounded-2xl bg-[#0b1220] p-3 ring-1 ring-white/10">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-black">{item.title || "Bildirim"}</p>
+                          <p className="mt-1 text-xs leading-5 text-slate-400">{item.message || "-"}</p>
+                        </div>
+                        <button onClick={() => clearNotification(item.id)} className="rounded-lg bg-red-500/15 px-2 py-1 text-[10px] font-black text-red-300">Sil</button>
+                      </div>
+                    </div>
+                  ))}
+                </FloatingPanel>
+              ) : null}
+
+              {messagesOpen ? (
+                <FloatingPanel title="Mesaj Kutusu" emptyText="Mesaj yok">
+                  {messages.map((item) => (
+                    <div key={item.id} className="rounded-2xl bg-[#0b1220] p-3 ring-1 ring-white/10">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-black">{item.title || "Mesaj"}</p>
+                          <p className="mt-1 text-xs text-slate-500">{item.sender_name || "Takipio"}</p>
+                          <p className="mt-1 text-xs leading-5 text-slate-400">{item.message || "-"}</p>
+                        </div>
+                        <button onClick={() => clearMessage(item.id)} className="rounded-lg bg-red-500/15 px-2 py-1 text-[10px] font-black text-red-300">Sil</button>
+                      </div>
+                    </div>
+                  ))}
+                </FloatingPanel>
+              ) : null}
             </div>
           </div>
         </header>
@@ -257,13 +389,38 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   href={item.href}
                   className={`rounded-2xl px-2 py-2 text-center text-[10px] font-black transition ${active ? "bg-blue-600 text-white" : "text-slate-400"}`}
                 >
-                  <span className="block text-base">{itemIcon(item.icon)}</span>
+                  <span className="block text-base">{iconFor(item.icon)}</span>
                   <span className="mt-0.5 block truncate">{item.label}</span>
                 </Link>
               );
             })}
           </div>
         </nav>
+      </div>
+
+      <div className="fixed bottom-24 right-4 z-[80] lg:bottom-6">
+        {gorkiOpen ? (
+          <div className="mb-3 w-[310px] rounded-[28px] border border-white/10 bg-[#0b1220]/95 p-4 shadow-2xl backdrop-blur-xl">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-black">Gorki AI</p>
+                <p className="mt-1 text-xs text-slate-400">Bugün sana nasıl yardımcı olabilirim?</p>
+              </div>
+              <button onClick={() => setGorkiOpen(false)} className="rounded-xl bg-white/10 px-3 py-1 text-sm font-black">×</button>
+            </div>
+
+            <div className="space-y-2">
+              <Link href="/app/help" className="block rounded-2xl bg-white/10 p-3 text-xs font-black text-slate-200 hover:bg-white/15">Takipio nasıl kullanılır?</Link>
+              <Link href="/app/orders" className="block rounded-2xl bg-white/10 p-3 text-xs font-black text-slate-200 hover:bg-white/15">Yeni sipariş oluştur</Link>
+              <Link href="/app/contact" className="block rounded-2xl bg-blue-600 p-3 text-xs font-black text-white hover:bg-blue-500">Destek al</Link>
+            </div>
+          </div>
+        ) : null}
+
+        <button onClick={() => setGorkiOpen((value) => !value)} className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-[24px] border border-blue-400/30 bg-blue-600 shadow-2xl shadow-blue-950/40 transition hover:-translate-y-1">
+          <img src="/gorki.png" alt="Gorki" className="h-full w-full object-cover" onError={(event) => { event.currentTarget.style.display = "none"; }} />
+          <span className="absolute text-xl font-black text-white">G</span>
+        </button>
       </div>
 
       {sidebarOpen ? <div onClick={() => setSidebarOpen(false)} className="fixed inset-0 z-40 bg-slate-950/60 lg:hidden" /> : null}
@@ -291,12 +448,29 @@ function NavGroup({ title, items, pathname, onNavigate }: { title: string; items
               }`}
             >
               <span className={`flex h-7 w-7 items-center justify-center rounded-xl text-xs ${active ? "bg-white/20" : "bg-white/5 group-hover:bg-white/10"}`}>
-                {itemIcon(item.icon)}
+                {iconFor(item.icon)}
               </span>
               <span className="truncate">{item.label}</span>
             </Link>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function FloatingPanel({ title, emptyText, children }: { title: string; emptyText: string; children: React.ReactNode }) {
+  const list = Array.isArray(children) ? children.filter(Boolean) : children;
+
+  return (
+    <div className="absolute right-0 top-12 z-[90] w-[330px] rounded-[26px] border border-white/10 bg-[#111a2e]/95 p-4 shadow-2xl backdrop-blur-xl">
+      <h3 className="mb-3 text-sm font-black">{title}</h3>
+      <div className="max-h-[360px] space-y-2 overflow-y-auto">
+        {Array.isArray(list) && list.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-xs text-slate-500">{emptyText}</div>
+        ) : (
+          children
+        )}
       </div>
     </div>
   );
