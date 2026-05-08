@@ -91,6 +91,7 @@ const systemItems: NavItem[] = [
   { href: "/app/settings", label: "Ayarlar", icon: "settings" },
   { href: "/app/contact", label: "İletişim", icon: "contact" },
   { href: "/app/about", label: "Hakkımızda", icon: "about" },
+  { href: "/app/business-setup", label: "İşletme", icon: "settings" },
 ];
 
 const initialMessages: GorkiMessage[] = [
