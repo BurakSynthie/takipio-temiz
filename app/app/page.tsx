@@ -56,18 +56,25 @@ type ModalType =
   | "recent-movements"
   | null;
 
-const quickActions = [
-  { href: "/app/products", label: "Ürün Ekle", icon: "◈" },
-  { href: "/app/sales", label: "Satış", icon: "₺" },
-  { href: "/app/stock", label: "Stok", icon: "▤" },
-  { href: "/app/qr", label: "QR", icon: "⌗" },
-];
-
 const integrations = [
   { name: "Trendyol", logo: "/trendyol.png", status: "Hazır", score: "92%" },
   { name: "Hepsiburada", logo: "/hepsiburada.png", status: "Kontrol", score: "76%" },
   { name: "Amazon", logo: "/amazon.png", status: "Plan", score: "48%" },
   { name: "ÇiçekSepeti", logo: "/ciceksepeti.png", status: "Yakında", score: "34%" },
+];
+
+const tasks = [
+  { title: "Kritik stokları kontrol et", done: false, tone: "amber" },
+  { title: "Bugünkü satışları kapat", done: false, tone: "blue" },
+  { title: "QR etiket çıktısını test et", done: true, tone: "green" },
+  { title: "Bekleyen ödemeleri ara", done: false, tone: "red" },
+];
+
+const quickActions = [
+  { href: "/app/products", label: "Ürün", icon: "◈" },
+  { href: "/app/sales", label: "Satış", icon: "₺" },
+  { href: "/app/stock", label: "Stok", icon: "▤" },
+  { href: "/app/qr", label: "QR", icon: "⌗" },
 ];
 
 function formatCurrency(value: number | null | undefined) {
@@ -104,10 +111,10 @@ function paymentLabel(status: string | null) {
 }
 
 function paymentClass(status: string | null) {
-  if (status === "paid") return "bg-emerald-50 text-emerald-700";
-  if (status === "partial") return "bg-amber-50 text-amber-700";
-  if (status === "cancelled") return "bg-red-50 text-red-600";
-  return "bg-blue-50 text-blue-700";
+  if (status === "paid") return "bg-emerald-400/15 text-emerald-300 ring-emerald-400/20";
+  if (status === "partial") return "bg-amber-400/15 text-amber-300 ring-amber-400/20";
+  if (status === "cancelled") return "bg-red-400/15 text-red-300 ring-red-400/20";
+  return "bg-blue-400/15 text-blue-300 ring-blue-400/20";
 }
 
 function movementLabel(type: string | null) {
@@ -229,7 +236,7 @@ export default function DashboardPage() {
       return sum + Number(movement.quantity ?? 0);
     }, 0);
 
-  const recentSales = sales.slice(0, 4);
+  const recentSales = sales.slice(0, 5);
   const recentMovements = movements.slice(0, 5);
 
   const weeklyBars = useMemo(() => {
@@ -249,31 +256,31 @@ export default function DashboardPage() {
     return labels.map((label, index) => ({
       label,
       total: totals[index],
-      height: Math.max((totals[index] / max) * 100, totals[index] > 0 ? 12 : 4),
+      height: Math.max((totals[index] / max) * 100, totals[index] > 0 ? 14 : 4),
     }));
   }, [sales]);
 
-  const stockValueBarWidth = stockValue > 0 ? Math.min((stockValue / Math.max(stockValue, 1)) * 100, 100) : 0;
-  const totalProductsBarWidth = totalProducts > 0 ? Math.min(totalProducts * 8, 100) : 0;
-  const totalStockBarWidth = totalStock > 0 ? Math.min(totalStock * 3, 100) : 0;
-  const soldQuantityBarWidth = soldQuantity > 0 ? Math.min(soldQuantity * 4, 100) : 0;
+  const cashRatio = totalRevenue > 0 ? Math.round((paidRevenue / totalRevenue) * 100) : 0;
+  const stockHealth = totalProducts > 0 ? Math.max(0, Math.round(((totalProducts - criticalProducts.length) / totalProducts) * 100)) : 100;
 
   return (
-    <section className="mx-auto w-full max-w-[1520px] space-y-4 pb-8">
-      <div className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_16px_50px_rgba(15,23,42,0.06)] sm:p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <section className="mx-auto w-full max-w-[1540px] space-y-4 pb-8 text-white">
+      <div className="relative overflow-hidden rounded-[24px] border border-white/10 bg-[#101a2f] p-4 shadow-[0_20px_70px_rgba(2,6,23,0.28)]">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.22),transparent_32%),radial-gradient(circle_at_top_right,rgba(20,184,166,0.14),transparent_28%)]" />
+
+        <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-slate-950 px-3 py-1.5 text-[11px] font-black text-white">
+            <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-black text-cyan-100 ring-1 ring-white/10">
               <span className="h-2 w-2 rounded-full bg-emerald-400" />
-              Canlı Supabase Dashboard
+              Canlı Takipio Dashboard
             </div>
 
-            <h1 className="text-[30px] font-black leading-none tracking-[-0.055em] text-slate-950 sm:text-4xl">
-              İşletme kontrol merkezi
+            <h1 className="text-[28px] font-black leading-none tracking-[-0.055em] sm:text-4xl">
+              İşletme yönetim ekranı
             </h1>
 
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-              Tüm kritik bilgiler tek ekranda. Kartlara tıklayarak detayları pop-up içinde gör.
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+              Satış, stok, QR, tahsilat ve entegrasyon durumlarını tek yoğun ekranda takip et.
             </p>
           </div>
 
@@ -281,14 +288,14 @@ export default function DashboardPage() {
             <button
               type="button"
               onClick={fetchDashboardData}
-              className="rounded-2xl bg-slate-100 px-4 py-2.5 text-xs font-black text-slate-700 transition hover:-translate-y-0.5 hover:bg-slate-200"
+              className="rounded-2xl bg-white/10 px-4 py-2.5 text-xs font-black text-white ring-1 ring-white/10 transition hover:-translate-y-0.5 hover:bg-white/15"
             >
               Yenile
             </button>
 
             <Link
               href="/app/sales"
-              className="rounded-2xl bg-blue-600 px-4 py-2.5 text-xs font-black text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5 hover:bg-blue-700"
+              className="rounded-2xl bg-blue-600 px-4 py-2.5 text-xs font-black text-white shadow-lg shadow-blue-950/30 transition hover:-translate-y-0.5 hover:bg-blue-500"
             >
               Yeni Satış
             </Link>
@@ -297,234 +304,289 @@ export default function DashboardPage() {
       </div>
 
       {message ? (
-        <div className="rounded-[22px] border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
+        <div className="rounded-[20px] border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm font-bold text-red-200">
           {message}
         </div>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-6">
-        <button
-          type="button"
-          onClick={() => setActiveModal("today-sales")}
-          className="rounded-[24px] border border-slate-200 bg-white p-4 text-left shadow-[0_12px_40px_rgba(15,23,42,0.055)] transition hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/50 xl:col-span-1"
-        >
-          <p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">
-            Bugünkü Satış
-          </p>
-          <p className="mt-2 text-2xl font-black tracking-[-0.04em] text-slate-950">
-            {loading ? "..." : formatCurrency(todayRevenue)}
-          </p>
-          <span className="mt-3 inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-700">
-            {todaySales.length} kayıt
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveModal("total-revenue")}
-          className="rounded-[24px] border border-slate-200 bg-white p-4 text-left shadow-[0_12px_40px_rgba(15,23,42,0.055)] transition hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/50 xl:col-span-1"
-        >
-          <p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">
-            Toplam Ciro
-          </p>
-          <p className="mt-2 text-2xl font-black tracking-[-0.04em] text-slate-950">
-            {loading ? "..." : formatCurrency(totalRevenue)}
-          </p>
-          <span className="mt-3 inline-flex rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-black text-blue-700">
-            {sales.length} satış
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveModal("pending-payments")}
-          className="rounded-[24px] border border-slate-200 bg-white p-4 text-left shadow-[0_12px_40px_rgba(15,23,42,0.055)] transition hover:-translate-y-0.5 hover:border-amber-200 hover:bg-amber-50/50 xl:col-span-1"
-        >
-          <p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">
-            Bekleyen Ödeme
-          </p>
-          <p className="mt-2 text-2xl font-black tracking-[-0.04em] text-slate-950">
-            {loading ? "..." : formatCurrency(pendingRevenue)}
-          </p>
-          <span className="mt-3 inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-black text-amber-700">
-            Tahsilat
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveModal("critical-stock")}
-          className="rounded-[24px] border border-slate-200 bg-white p-4 text-left shadow-[0_12px_40px_rgba(15,23,42,0.055)] transition hover:-translate-y-0.5 hover:border-red-200 hover:bg-red-50/50 xl:col-span-1"
-        >
-          <p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">
-            Kritik Stok
-          </p>
-          <p className="mt-2 text-2xl font-black tracking-[-0.04em] text-slate-950">
-            {loading ? "..." : criticalProducts.length}
-          </p>
-          <span className="mt-3 inline-flex rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-black text-red-600">
-            Acil
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveModal("stock-summary")}
-          className="rounded-[24px] border border-slate-200 bg-white p-4 text-left shadow-[0_12px_40px_rgba(15,23,42,0.055)] transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 xl:col-span-1"
-        >
-          <p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">
-            Stok Değeri
-          </p>
-          <p className="mt-2 text-2xl font-black tracking-[-0.04em] text-slate-950">
-            {loading ? "..." : formatCurrency(stockValue)}
-          </p>
-          <span className="mt-3 inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black text-slate-700">
-            {totalStock} adet
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveModal("recent-movements")}
-          className="rounded-[24px] border border-slate-200 bg-white p-4 text-left shadow-[0_12px_40px_rgba(15,23,42,0.055)] transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 xl:col-span-1"
-        >
-          <p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">
-            Stok Hareketi
-          </p>
-          <p className="mt-2 text-2xl font-black tracking-[-0.04em] text-slate-950">
-            {loading ? "..." : movements.length}
-          </p>
-          <span className="mt-3 inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black text-slate-700">
-            +{stockInTotal} / -{stockOutTotal}
-          </span>
-        </button>
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
-        <div className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_16px_50px_rgba(15,23,42,0.06)] sm:p-5">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-xl font-black tracking-[-0.04em] text-slate-950">
-                Haftalık satış grafiği
-              </h2>
-              <p className="mt-1 text-xs text-slate-500">
-                Sales tablosundan hesaplanır.
-              </p>
-            </div>
-
-            <Link
-              href="/app/sales"
-              className="rounded-2xl bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 transition hover:bg-blue-600 hover:text-white"
+      <div className="grid gap-4 xl:grid-cols-[1fr_290px]">
+        <div className="grid gap-4">
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+            <button
+              type="button"
+              onClick={() => setActiveModal("today-sales")}
+              className="group rounded-[22px] border border-white/10 bg-[#151f33] p-4 text-left shadow-[0_12px_40px_rgba(2,6,23,0.20)] transition hover:-translate-y-0.5 hover:border-blue-400/40 hover:bg-[#192640]"
             >
-              Satışlar
-            </Link>
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <span className="rounded-xl bg-blue-500/15 px-2.5 py-1 text-[10px] font-black text-blue-200 ring-1 ring-blue-400/20">
+                  Revenue
+                </span>
+                <span className="text-xs text-slate-500">•••</span>
+              </div>
+              <p className="text-xs font-black text-slate-400">Bugünkü Satış</p>
+              <p className="mt-2 text-2xl font-black tracking-[-0.04em]">{loading ? "..." : formatCurrency(todayRevenue)}</p>
+              <p className="mt-2 text-xs font-bold text-blue-200">{todaySales.length} kayıt</p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveModal("total-revenue")}
+              className="group rounded-[22px] border border-white/10 bg-[#151f33] p-4 text-left shadow-[0_12px_40px_rgba(2,6,23,0.20)] transition hover:-translate-y-0.5 hover:border-emerald-400/40 hover:bg-[#192640]"
+            >
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <span className="rounded-xl bg-emerald-500/15 px-2.5 py-1 text-[10px] font-black text-emerald-200 ring-1 ring-emerald-400/20">
+                  Total
+                </span>
+                <span className="text-xs text-slate-500">•••</span>
+              </div>
+              <p className="text-xs font-black text-slate-400">Toplam Ciro</p>
+              <p className="mt-2 text-2xl font-black tracking-[-0.04em]">{loading ? "..." : formatCurrency(totalRevenue)}</p>
+              <p className="mt-2 text-xs font-bold text-emerald-200">{sales.length} satış</p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveModal("pending-payments")}
+              className="group rounded-[22px] border border-white/10 bg-[#151f33] p-4 text-left shadow-[0_12px_40px_rgba(2,6,23,0.20)] transition hover:-translate-y-0.5 hover:border-amber-400/40 hover:bg-[#192640]"
+            >
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <span className="rounded-xl bg-amber-500/15 px-2.5 py-1 text-[10px] font-black text-amber-200 ring-1 ring-amber-400/20">
+                  Pending
+                </span>
+                <span className="text-xs text-slate-500">•••</span>
+              </div>
+              <p className="text-xs font-black text-slate-400">Bekleyen Ödeme</p>
+              <p className="mt-2 text-2xl font-black tracking-[-0.04em]">{loading ? "..." : formatCurrency(pendingRevenue)}</p>
+              <p className="mt-2 text-xs font-bold text-amber-200">Tahsilat bekliyor</p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveModal("critical-stock")}
+              className="group rounded-[22px] border border-white/10 bg-[#151f33] p-4 text-left shadow-[0_12px_40px_rgba(2,6,23,0.20)] transition hover:-translate-y-0.5 hover:border-red-400/40 hover:bg-[#192640]"
+            >
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <span className="rounded-xl bg-red-500/15 px-2.5 py-1 text-[10px] font-black text-red-200 ring-1 ring-red-400/20">
+                  Alert
+                </span>
+                <span className="text-xs text-slate-500">•••</span>
+              </div>
+              <p className="text-xs font-black text-slate-400">Kritik Stok</p>
+              <p className="mt-2 text-2xl font-black tracking-[-0.04em]">{loading ? "..." : criticalProducts.length}</p>
+              <p className="mt-2 text-xs font-bold text-red-200">Acil kontrol</p>
+            </button>
           </div>
 
-          <div className="relative h-[260px] overflow-hidden rounded-[24px] border border-slate-100 bg-gradient-to-b from-slate-50 to-white p-4">
-            <div className="absolute inset-x-4 top-1/4 border-t border-dashed border-slate-200" />
-            <div className="absolute inset-x-4 top-1/2 border-t border-dashed border-slate-200" />
-            <div className="absolute inset-x-4 top-3/4 border-t border-dashed border-slate-200" />
+          <div className="grid gap-4 xl:grid-cols-[1.3fr_0.7fr]">
+            <div className="rounded-[24px] border border-white/10 bg-[#151f33] p-4 shadow-[0_16px_50px_rgba(2,6,23,0.22)]">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-black tracking-[-0.03em]">Satış Performansı</h2>
+                  <p className="mt-1 text-xs text-slate-500">Haftalık canlı satış grafiği</p>
+                </div>
 
-            <div className="relative flex h-full items-end gap-3">
-              {weeklyBars.map((bar) => (
+                <div className="flex gap-2 text-[10px] font-black">
+                  <span className="rounded-full bg-blue-500/15 px-3 py-1 text-blue-200 ring-1 ring-blue-400/20">Satış</span>
+                </div>
+              </div>
+
+              <div className="relative h-[260px] overflow-hidden rounded-[20px] border border-white/8 bg-[#101827] p-4">
+                <div className="absolute inset-x-4 top-1/4 border-t border-dashed border-white/10" />
+                <div className="absolute inset-x-4 top-1/2 border-t border-dashed border-white/10" />
+                <div className="absolute inset-x-4 top-3/4 border-t border-dashed border-white/10" />
+
+                <div className="relative flex h-full items-end gap-3">
+                  {weeklyBars.map((bar) => (
+                    <button
+                      key={bar.label}
+                      type="button"
+                      onClick={() => setActiveModal("total-revenue")}
+                      className="group flex min-w-0 flex-1 flex-col items-center justify-end gap-2"
+                    >
+                      <div className="hidden rounded-xl bg-white px-2 py-1 text-[11px] font-black text-slate-700 shadow-sm group-hover:block">
+                        {formatCurrency(bar.total)}
+                      </div>
+
+                      <div className="flex h-[180px] w-full items-end justify-center">
+                        <div
+                          className="w-5 rounded-t-full bg-gradient-to-t from-blue-700 to-cyan-300 shadow-[0_10px_30px_rgba(37,99,235,0.30)] transition group-hover:scale-y-105 sm:w-7"
+                          style={{ height: `${bar.height}%` }}
+                        />
+                      </div>
+
+                      <span className="text-[10px] font-black text-slate-500 sm:text-xs">
+                        {bar.label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-[24px] border border-white/10 bg-[#151f33] p-4 shadow-[0_16px_50px_rgba(2,6,23,0.22)]">
+              <div className="mb-4">
+                <h2 className="text-lg font-black tracking-[-0.03em]">Finans Nabzı</h2>
+                <p className="mt-1 text-xs text-slate-500">Tahsilat oranı ve stok sağlığı</p>
+              </div>
+
+              <div className="grid gap-3">
                 <button
-                  key={bar.label}
                   type="button"
-                  onClick={() => setActiveModal("total-revenue")}
-                  className="group flex min-w-0 flex-1 flex-col items-center justify-end gap-2"
+                  onClick={() => setActiveModal("pending-payments")}
+                  className="rounded-[20px] border border-white/8 bg-[#101827] p-4 text-left transition hover:bg-[#111d31]"
                 >
-                  <div className="hidden rounded-xl bg-white px-2 py-1 text-[11px] font-black text-slate-500 shadow-sm group-hover:block">
-                    {formatCurrency(bar.total)}
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-black text-slate-400">Tahsilat Oranı</p>
+                    <p className="text-xl font-black text-emerald-300">{cashRatio}%</p>
                   </div>
-
-                  <div className="flex h-[185px] w-full items-end justify-center">
-                    <div
-                      className="w-5 rounded-t-full bg-blue-600 shadow-[0_10px_24px_rgba(36,99,255,0.24)] transition group-hover:scale-y-105 sm:w-7"
-                      style={{ height: `${bar.height}%` }}
-                    />
+                  <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-white/8">
+                    <div className="h-full rounded-full bg-emerald-400" style={{ width: `${cashRatio}%` }} />
                   </div>
-
-                  <span className="text-[10px] font-black text-slate-400 sm:text-xs">
-                    {bar.label}
-                  </span>
+                  <p className="mt-2 text-xs text-slate-500">{formatCurrency(paidRevenue)} tahsil edildi</p>
                 </button>
-              ))}
+
+                <button
+                  type="button"
+                  onClick={() => setActiveModal("critical-stock")}
+                  className="rounded-[20px] border border-white/8 bg-[#101827] p-4 text-left transition hover:bg-[#111d31]"
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-black text-slate-400">Stok Sağlığı</p>
+                    <p className="text-xl font-black text-blue-300">{stockHealth}%</p>
+                  </div>
+                  <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-white/8">
+                    <div className="h-full rounded-full bg-blue-500" style={{ width: `${stockHealth}%` }} />
+                  </div>
+                  <p className="mt-2 text-xs text-slate-500">{criticalProducts.length} kritik ürün</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveModal("stock-summary")}
+                  className="rounded-[20px] border border-white/8 bg-[#101827] p-4 text-left transition hover:bg-[#111d31]"
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-black text-slate-400">Stok Değeri</p>
+                    <p className="text-xl font-black text-amber-300">{formatCurrency(stockValue)}</p>
+                  </div>
+                  <p className="mt-2 text-xs text-slate-500">{totalProducts} ürün · {totalStock} adet</p>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+            <div className="rounded-[24px] border border-white/10 bg-[#151f33] p-4 shadow-[0_16px_50px_rgba(2,6,23,0.22)]">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-black tracking-[-0.03em]">Son Satışlar</h2>
+                  <p className="mt-1 text-xs text-slate-500">Son 5 satış kaydı</p>
+                </div>
+                <Link href="/app/sales" className="rounded-xl bg-blue-500/15 px-3 py-2 text-xs font-black text-blue-200 ring-1 ring-blue-400/20">
+                  Tümü
+                </Link>
+              </div>
+
+              {recentSales.length === 0 ? (
+                <EmptyDarkState title="Henüz satış yok" desc="Satış oluşturunca burada görünür." />
+              ) : (
+                <div className="space-y-2">
+                  {recentSales.map((sale) => (
+                    <div key={sale.id} className="rounded-[18px] border border-white/8 bg-[#101827] p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-black">{sale.product_name || "Ürün yok"}</p>
+                          <p className="mt-1 text-xs text-slate-500">{sale.customer_name || "Müşteri yok"}</p>
+                        </div>
+
+                        <div className="text-right">
+                          <p className="text-sm font-black">{formatCurrency(sale.total_price)}</p>
+                          <span className={["mt-1 inline-flex rounded-full px-2 py-1 text-[10px] font-black ring-1", paymentClass(sale.payment_status)].join(" ")}>
+                            {paymentLabel(sale.payment_status)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-[24px] border border-white/10 bg-[#151f33] p-4 shadow-[0_16px_50px_rgba(2,6,23,0.22)]">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-black tracking-[-0.03em]">Stok Hareketleri</h2>
+                  <p className="mt-1 text-xs text-slate-500">Giriş / çıkış akışı</p>
+                </div>
+                <Link href="/app/stock" className="rounded-xl bg-white/10 px-3 py-2 text-xs font-black text-slate-200 ring-1 ring-white/10">
+                  Stok
+                </Link>
+              </div>
+
+              {recentMovements.length === 0 ? (
+                <EmptyDarkState title="Hareket yok" desc="Stok değişince burada görünür." />
+              ) : (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {recentMovements.map((movement) => {
+                    const isIn = movement.movement_type === "stock_in";
+
+                    return (
+                      <div key={movement.id} className="rounded-[18px] border border-white/8 bg-[#101827] p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-black">{movement.product_name || "Ürün yok"}</p>
+                            <p className="mt-1 text-xs text-slate-500">{movement.note || movementLabel(movement.movement_type)}</p>
+                          </div>
+
+                          <span
+                            className={[
+                              "shrink-0 rounded-full px-2.5 py-1 text-xs font-black",
+                              isIn ? "bg-emerald-400/15 text-emerald-300" : "bg-red-400/15 text-red-300",
+                            ].join(" ")}
+                          >
+                            {isIn ? "+" : "-"}
+                            {movement.quantity ?? 0}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_16px_50px_rgba(15,23,42,0.06)] sm:p-5">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-xl font-black tracking-[-0.04em] text-slate-950">
-                  Operasyon
-                </h2>
-                <p className="mt-1 text-xs text-slate-500">Canlı özet.</p>
-              </div>
-              <Link href="/app/products" className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-700">
-                Ürün
-              </Link>
+        <aside className="grid gap-4">
+          <div className="rounded-[24px] border border-white/10 bg-[#151f33] p-4 shadow-[0_16px_50px_rgba(2,6,23,0.22)]">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-black tracking-[-0.03em]">Gorki AI</h2>
+              <span className="rounded-full bg-emerald-400/15 px-2.5 py-1 text-[10px] font-black text-emerald-300 ring-1 ring-emerald-400/20">
+                Aktif
+              </span>
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <p className="text-sm font-black text-slate-700">Toplam ürün</p>
-                  <p className="text-sm font-black text-slate-950">{totalProducts}</p>
-                </div>
-                <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
-                  <div className="h-full rounded-full bg-blue-600" style={{ width: `${totalProductsBarWidth}%` }} />
-                </div>
+            <div className="flex gap-3">
+              <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-[22px] bg-[#101827]">
+                <Image src="/gorki-hero.png" alt="Gorki AI" fill className="object-contain object-bottom" />
               </div>
 
-              <div>
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <p className="text-sm font-black text-slate-700">Toplam stok</p>
-                  <p className="text-sm font-black text-slate-950">{totalStock}</p>
-                </div>
-                <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
-                  <div className="h-full rounded-full bg-emerald-500" style={{ width: `${totalStockBarWidth}%` }} />
-                </div>
-              </div>
-
-              <div>
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <p className="text-sm font-black text-slate-700">Stok değeri</p>
-                  <p className="text-sm font-black text-slate-950">{formatCurrency(stockValue)}</p>
-                </div>
-                <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
-                  <div className="h-full rounded-full bg-amber-500" style={{ width: `${stockValueBarWidth}%` }} />
-                </div>
-              </div>
-
-              <div>
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <p className="text-sm font-black text-slate-700">Satılan adet</p>
-                  <p className="text-sm font-black text-slate-950">{soldQuantity}</p>
-                </div>
-                <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
-                  <div className="h-full rounded-full bg-slate-950" style={{ width: `${soldQuantityBarWidth}%` }} />
-                </div>
+              <div className="min-w-0">
+                <p className="text-sm font-black">Bugünkü öneri</p>
+                <p className="mt-2 text-xs leading-5 text-slate-400">
+                  {criticalProducts.length > 0
+                    ? `${criticalProducts.length} kritik stok ürünü var. Önce stok panelini kontrol et.`
+                    : "Kritik stok yok. Satış ve tahsilat akışını kontrol edebilirsin."}
+                </p>
               </div>
             </div>
           </div>
 
-          <div className="rounded-[28px] bg-[#111827] p-4 text-white shadow-[0_16px_50px_rgba(15,23,42,0.14)] sm:p-5">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-black tracking-[-0.04em]">Hızlı işlemler</h2>
-                <p className="mt-1 text-xs text-slate-400">Kompakt menü.</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-[24px] border border-white/10 bg-[#151f33] p-4 shadow-[0_16px_50px_rgba(2,6,23,0.22)]">
+            <h2 className="text-lg font-black tracking-[-0.03em]">Hızlı İşlemler</h2>
+            <div className="mt-4 grid grid-cols-2 gap-2">
               {quickActions.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="rounded-[18px] bg-white/10 p-3 ring-1 ring-white/10 transition hover:-translate-y-0.5 hover:bg-white/15"
-                >
+                <Link key={item.href} href={item.href} className="rounded-[18px] bg-[#101827] p-3 ring-1 ring-white/8 transition hover:-translate-y-0.5 hover:bg-[#111d31]">
                   <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl bg-white text-base font-black text-slate-950">
                     {item.icon}
                   </div>
@@ -533,168 +595,56 @@ export default function DashboardPage() {
               ))}
             </div>
           </div>
-        </div>
-      </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1fr_0.9fr_0.8fr]">
-        <div className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_16px_50px_rgba(15,23,42,0.06)] sm:p-5">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-xl font-black tracking-[-0.04em] text-slate-950">
-                Son satışlar
-              </h2>
-              <p className="mt-1 text-xs text-slate-500">
-                Son 4 kayıt.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setActiveModal("total-revenue")}
-              className="rounded-2xl bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 transition hover:bg-blue-600 hover:text-white"
-            >
-              Detay
-            </button>
-          </div>
-
-          {recentSales.length === 0 ? (
-            <div className="rounded-[22px] border border-dashed border-slate-200 bg-slate-50 p-6 text-center">
-              <h3 className="text-base font-black text-slate-950">Henüz satış yok</h3>
-              <p className="mt-2 text-sm text-slate-500">
-                Satış oluşturunca burada görünür.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {recentSales.map((sale) => (
-                <div
-                  key={sale.id}
-                  className="rounded-[18px] border border-slate-100 bg-slate-50 p-3 transition hover:bg-blue-50/60"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-black text-slate-950">
-                        {sale.product_name || "Ürün yok"}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-500">
-                        {sale.customer_name || "Müşteri yok"}
-                      </p>
-                    </div>
-
-                    <div className="text-right">
-                      <p className="text-sm font-black text-slate-950">
-                        {formatCurrency(sale.total_price)}
-                      </p>
-                      <span className={["mt-1 inline-flex rounded-full px-2 py-1 text-[10px] font-black", paymentClass(sale.payment_status)].join(" ")}>
-                        {paymentLabel(sale.payment_status)}
-                      </span>
-                    </div>
-                  </div>
+          <div className="rounded-[24px] border border-white/10 bg-[#151f33] p-4 shadow-[0_16px_50px_rgba(2,6,23,0.22)]">
+            <h2 className="text-lg font-black tracking-[-0.03em]">Görevler</h2>
+            <div className="mt-4 space-y-2">
+              {tasks.map((task) => (
+                <div key={task.title} className="flex items-center gap-3 rounded-[16px] bg-[#101827] p-3 ring-1 ring-white/8">
+                  <span
+                    className={[
+                      "flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-black",
+                      task.done ? "bg-emerald-400 text-slate-950" : "bg-white/10 text-slate-400",
+                    ].join(" ")}
+                  >
+                    {task.done ? "✓" : ""}
+                  </span>
+                  <p className={["text-xs font-bold", task.done ? "text-slate-500 line-through" : "text-slate-200"].join(" ")}>
+                    {task.title}
+                  </p>
                 </div>
               ))}
             </div>
-          )}
-        </div>
-
-        <div className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_16px_50px_rgba(15,23,42,0.06)] sm:p-5">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-xl font-black tracking-[-0.04em] text-slate-950">
-                Stok hareketleri
-              </h2>
-              <p className="mt-1 text-xs text-slate-500">
-                Son 5 kayıt.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setActiveModal("recent-movements")}
-              className="rounded-2xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-700 transition hover:bg-slate-950 hover:text-white"
-            >
-              Detay
-            </button>
           </div>
 
-          {recentMovements.length === 0 ? (
-            <div className="rounded-[22px] border border-dashed border-slate-200 bg-slate-50 p-6 text-center">
-              <h3 className="text-base font-black text-slate-950">Hareket yok</h3>
-              <p className="mt-2 text-sm text-slate-500">
-                Stok değiştirince görünür.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {recentMovements.map((movement) => {
-                const isIn = movement.movement_type === "stock_in";
+          <div className="rounded-[24px] border border-white/10 bg-[#151f33] p-4 shadow-[0_16px_50px_rgba(2,6,23,0.22)]">
+            <h2 className="text-lg font-black tracking-[-0.03em]">Entegrasyonlar</h2>
+            <div className="mt-4 space-y-2">
+              {integrations.map((item) => (
+                <div key={item.name} className="flex items-center justify-between gap-3 rounded-[16px] bg-[#101827] p-3 ring-1 ring-white/8">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-xl bg-white p-1.5">
+                      <Image src={item.logo} alt={item.name} fill className="object-contain p-1.5" />
+                    </div>
 
-                return (
-                  <div
-                    key={movement.id}
-                    className="rounded-[18px] border border-slate-100 bg-slate-50 p-3"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-black text-slate-950">
-                          {movement.product_name || "Ürün yok"}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {movement.note || movementLabel(movement.movement_type)}
-                        </p>
-                      </div>
-
-                      <span
-                        className={[
-                          "shrink-0 rounded-full px-2.5 py-1 text-xs font-black",
-                          isIn ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600",
-                        ].join(" ")}
-                      >
-                        {isIn ? "+" : "-"}
-                        {movement.quantity ?? 0}
-                      </span>
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-black">{item.name}</p>
+                      <p className="text-[10px] text-slate-500">{item.status}</p>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
 
-        <div className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_16px_50px_rgba(15,23,42,0.06)] sm:p-5">
-          <div className="mb-4">
-            <h2 className="text-xl font-black tracking-[-0.04em] text-slate-950">
-              Entegrasyonlar
-            </h2>
-            <p className="mt-1 text-xs text-slate-500">Demo bağlantılar.</p>
-          </div>
-
-          <div className="grid gap-2">
-            {integrations.map((item) => (
-              <div
-                key={item.name}
-                className="flex items-center justify-between gap-3 rounded-[18px] border border-slate-100 bg-slate-50 p-3"
-              >
-                <div className="flex min-w-0 items-center gap-3">
-                  <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-xl bg-white p-1.5 shadow-sm">
-                    <Image src={item.logo} alt={item.name} fill className="object-contain p-1.5" />
-                  </div>
-
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-black text-slate-950">{item.name}</p>
-                    <p className="text-xs text-slate-500">{item.status}</p>
-                  </div>
+                  <span className="text-xs font-black text-blue-300">{item.score}</span>
                 </div>
-
-                <span className="text-xs font-black text-blue-700">{item.score}</span>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        </aside>
       </div>
 
       {activeModal ? (
-        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-950/45 p-3 backdrop-blur-sm sm:items-center">
-          <div className="max-h-[88vh] w-full max-w-4xl overflow-hidden rounded-[30px] bg-white shadow-[0_30px_100px_rgba(15,23,42,0.32)]">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-100 bg-slate-950 p-5 text-white">
+        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-950/60 p-3 backdrop-blur-sm sm:items-center">
+          <div className="max-h-[88vh] w-full max-w-4xl overflow-hidden rounded-[30px] border border-white/10 bg-[#111827] text-white shadow-[0_30px_100px_rgba(0,0,0,0.45)]">
+            <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-[#0b1220] p-5">
               <div>
                 <h2 className="text-2xl font-black tracking-[-0.04em]">
                   {activeModal === "today-sales" ? "Bugünkü satış detayları" : null}
@@ -704,7 +654,7 @@ export default function DashboardPage() {
                   {activeModal === "stock-summary" ? "Stok özeti" : null}
                   {activeModal === "recent-movements" ? "Stok hareketleri" : null}
                 </h2>
-                <p className="mt-1 text-sm text-slate-400">
+                <p className="mt-1 text-sm text-slate-500">
                   Bu pencere sadece bilgi gösterir; işlem için ilgili sayfaya geçebilirsin.
                 </p>
               </div>
@@ -722,7 +672,7 @@ export default function DashboardPage() {
               {activeModal === "today-sales" ? (
                 <div className="space-y-3">
                   {todaySales.length === 0 ? (
-                    <EmptyModalState title="Bugün satış yok" desc="Bugün satış oluşturulduğunda burada görünür." />
+                    <EmptyDarkState title="Bugün satış yok" desc="Bugün satış oluşturulduğunda burada görünür." />
                   ) : (
                     todaySales.map((sale) => <SaleRow key={sale.id} sale={sale} />)
                   )}
@@ -732,7 +682,7 @@ export default function DashboardPage() {
               {activeModal === "total-revenue" ? (
                 <div className="space-y-3">
                   {sales.length === 0 ? (
-                    <EmptyModalState title="Satış yok" desc="Satış oluşturulduğunda burada görünür." />
+                    <EmptyDarkState title="Satış yok" desc="Satış oluşturulduğunda burada görünür." />
                   ) : (
                     sales.map((sale) => <SaleRow key={sale.id} sale={sale} />)
                   )}
@@ -742,7 +692,7 @@ export default function DashboardPage() {
               {activeModal === "pending-payments" ? (
                 <div className="space-y-3">
                   {pendingSales.length === 0 ? (
-                    <EmptyModalState title="Bekleyen ödeme yok" desc="Tüm satışlar ödenmiş görünüyor." />
+                    <EmptyDarkState title="Bekleyen ödeme yok" desc="Tüm satışlar ödenmiş görünüyor." />
                   ) : (
                     pendingSales.map((sale) => <SaleRow key={sale.id} sale={sale} />)
                   )}
@@ -752,7 +702,7 @@ export default function DashboardPage() {
               {activeModal === "critical-stock" ? (
                 <div className="space-y-3">
                   {criticalProducts.length === 0 ? (
-                    <EmptyModalState title="Kritik stok yok" desc="Minimum stok altına düşen ürün bulunmuyor." />
+                    <EmptyDarkState title="Kritik stok yok" desc="Minimum stok altına düşen ürün bulunmuyor." />
                   ) : (
                     criticalProducts.map((product) => {
                       const stock = Number(product.stock ?? 0);
@@ -760,27 +710,27 @@ export default function DashboardPage() {
                       const missing = Math.max(minStock - stock, 0);
 
                       return (
-                        <div key={product.id} className="rounded-[22px] border border-red-100 bg-red-50/60 p-4">
+                        <div key={product.id} className="rounded-[22px] border border-red-400/15 bg-red-400/10 p-4">
                           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                              <p className="text-lg font-black text-slate-950">{product.name}</p>
-                              <p className="mt-1 text-sm text-slate-500">
+                              <p className="text-lg font-black">{product.name}</p>
+                              <p className="mt-1 text-sm text-slate-400">
                                 {product.product_code} · {product.category || "Kategori yok"}
                               </p>
                             </div>
 
                             <div className="grid grid-cols-3 gap-2 text-center">
-                              <div className="rounded-2xl bg-white px-3 py-2">
-                                <p className="text-[10px] font-black text-slate-400">Stok</p>
-                                <p className="font-black text-red-600">{stock}</p>
+                              <div className="rounded-2xl bg-white/8 px-3 py-2">
+                                <p className="text-[10px] font-black text-slate-500">Stok</p>
+                                <p className="font-black text-red-300">{stock}</p>
                               </div>
-                              <div className="rounded-2xl bg-white px-3 py-2">
-                                <p className="text-[10px] font-black text-slate-400">Min</p>
-                                <p className="font-black text-slate-950">{minStock}</p>
+                              <div className="rounded-2xl bg-white/8 px-3 py-2">
+                                <p className="text-[10px] font-black text-slate-500">Min</p>
+                                <p className="font-black">{minStock}</p>
                               </div>
-                              <div className="rounded-2xl bg-white px-3 py-2">
-                                <p className="text-[10px] font-black text-slate-400">Eksik</p>
-                                <p className="font-black text-red-600">{missing}</p>
+                              <div className="rounded-2xl bg-white/8 px-3 py-2">
+                                <p className="text-[10px] font-black text-slate-500">Eksik</p>
+                                <p className="font-black text-red-300">{missing}</p>
                               </div>
                             </div>
                           </div>
@@ -805,7 +755,7 @@ export default function DashboardPage() {
               {activeModal === "recent-movements" ? (
                 <div className="space-y-3">
                   {movements.length === 0 ? (
-                    <EmptyModalState title="Stok hareketi yok" desc="Stok giriş/çıkış olduğunda burada görünür." />
+                    <EmptyDarkState title="Stok hareketi yok" desc="Stok giriş/çıkış olduğunda burada görünür." />
                   ) : (
                     movements.map((movement) => <MovementRow key={movement.id} movement={movement} />)
                   )}
@@ -813,30 +763,21 @@ export default function DashboardPage() {
               ) : null}
             </div>
 
-            <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 bg-slate-50 p-4">
+            <div className="flex flex-wrap justify-end gap-2 border-t border-white/10 bg-[#0b1220] p-4">
               {activeModal === "critical-stock" || activeModal === "stock-summary" ? (
-                <Link
-                  href="/app/products"
-                  className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-black text-white"
-                >
+                <Link href="/app/products" className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-black text-white">
                   Ürünlere Git
                 </Link>
               ) : null}
 
               {activeModal === "pending-payments" || activeModal === "today-sales" || activeModal === "total-revenue" ? (
-                <Link
-                  href="/app/sales"
-                  className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-black text-white"
-                >
+                <Link href="/app/sales" className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-black text-white">
                   Satışlara Git
                 </Link>
               ) : null}
 
               {activeModal === "recent-movements" ? (
-                <Link
-                  href="/app/stock"
-                  className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-black text-white"
-                >
+                <Link href="/app/stock" className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-black text-white">
                   Stok Sayfasına Git
                 </Link>
               ) : null}
@@ -844,7 +785,7 @@ export default function DashboardPage() {
               <button
                 type="button"
                 onClick={() => setActiveModal(null)}
-                className="rounded-2xl bg-slate-200 px-4 py-3 text-sm font-black text-slate-700"
+                className="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-slate-200"
               >
                 Kapat
               </button>
@@ -856,10 +797,10 @@ export default function DashboardPage() {
   );
 }
 
-function EmptyModalState({ title, desc }: { title: string; desc: string }) {
+function EmptyDarkState({ title, desc }: { title: string; desc: string }) {
   return (
-    <div className="rounded-[22px] border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-      <h3 className="text-lg font-black text-slate-950">{title}</h3>
+    <div className="rounded-[20px] border border-white/10 bg-white/5 p-6 text-center">
+      <h3 className="text-base font-black">{title}</h3>
       <p className="mt-2 text-sm text-slate-500">{desc}</p>
     </div>
   );
@@ -867,37 +808,37 @@ function EmptyModalState({ title, desc }: { title: string; desc: string }) {
 
 function SummaryBox({ title, value }: { title: string; value: string }) {
   return (
-    <div className="rounded-[22px] border border-slate-100 bg-slate-50 p-4">
-      <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">{title}</p>
-      <p className="mt-2 text-2xl font-black text-slate-950">{value}</p>
+    <div className="rounded-[20px] border border-white/10 bg-white/5 p-4">
+      <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">{title}</p>
+      <p className="mt-2 text-2xl font-black">{value}</p>
     </div>
   );
 }
 
 function SaleRow({ sale }: { sale: Sale }) {
   return (
-    <div className="rounded-[22px] border border-slate-100 bg-slate-50 p-4">
+    <div className="rounded-[20px] border border-white/10 bg-white/5 p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <p className="truncate text-lg font-black text-slate-950">{sale.product_name || "Ürün yok"}</p>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="truncate text-lg font-black">{sale.product_name || "Ürün yok"}</p>
+          <p className="mt-1 text-sm text-slate-400">
             {sale.customer_name || "Müşteri yok"} · {sale.product_code || "-"}
           </p>
-          <p className="mt-1 text-xs font-bold text-slate-400">{formatDate(sale.created_at)}</p>
+          <p className="mt-1 text-xs font-bold text-slate-500">{formatDate(sale.created_at)}</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="rounded-2xl bg-white px-3 py-2 text-center">
-            <p className="text-[10px] font-black text-slate-400">Adet</p>
-            <p className="font-black text-slate-950">{sale.quantity ?? 0}</p>
+          <div className="rounded-2xl bg-white/8 px-3 py-2 text-center">
+            <p className="text-[10px] font-black text-slate-500">Adet</p>
+            <p className="font-black">{sale.quantity ?? 0}</p>
           </div>
 
-          <div className="rounded-2xl bg-white px-3 py-2 text-center">
-            <p className="text-[10px] font-black text-slate-400">Tutar</p>
-            <p className="font-black text-slate-950">{formatCurrency(sale.total_price)}</p>
+          <div className="rounded-2xl bg-white/8 px-3 py-2 text-center">
+            <p className="text-[10px] font-black text-slate-500">Tutar</p>
+            <p className="font-black">{formatCurrency(sale.total_price)}</p>
           </div>
 
-          <span className={["rounded-full px-3 py-2 text-xs font-black", paymentClass(sale.payment_status)].join(" ")}>
+          <span className={["rounded-full px-3 py-2 text-xs font-black ring-1", paymentClass(sale.payment_status)].join(" ")}>
             {paymentLabel(sale.payment_status)}
           </span>
         </div>
@@ -910,20 +851,20 @@ function MovementRow({ movement }: { movement: StockMovement }) {
   const isIn = movement.movement_type === "stock_in";
 
   return (
-    <div className="rounded-[22px] border border-slate-100 bg-slate-50 p-4">
+    <div className="rounded-[20px] border border-white/10 bg-white/5 p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <p className="truncate text-lg font-black text-slate-950">{movement.product_name || "Ürün yok"}</p>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="truncate text-lg font-black">{movement.product_name || "Ürün yok"}</p>
+          <p className="mt-1 text-sm text-slate-400">
             {movement.product_code || "-"} · {movement.note || movementLabel(movement.movement_type)}
           </p>
-          <p className="mt-1 text-xs font-bold text-slate-400">{formatDate(movement.created_at)}</p>
+          <p className="mt-1 text-xs font-bold text-slate-500">{formatDate(movement.created_at)}</p>
         </div>
 
         <span
           className={[
             "w-fit rounded-full px-4 py-2 text-sm font-black",
-            isIn ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600",
+            isIn ? "bg-emerald-400/15 text-emerald-300" : "bg-red-400/15 text-red-300",
           ].join(" ")}
         >
           {isIn ? "+" : "-"}
