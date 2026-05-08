@@ -532,7 +532,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <header className="sticky top-0 z-40 border-b border-white/10 bg-[#07111f]/85 px-3 py-3 backdrop-blur-xl">
           <div className="mx-auto max-w-[1600px]">
             <div className="flex items-center gap-2 lg:hidden">
-              <Link href="/app" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white ring-1 ring-blue-400/20">
+              <Link href="/app" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/10 backdrop-blur-sm">
                 <SmartImage
                   sources={["/takipio-logo.png"]}
                   alt="Takipio"
