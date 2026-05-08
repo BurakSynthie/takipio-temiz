@@ -1,101 +1,34 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 
 const primaryNavItems = [
-  {
-    href: "/app",
-    label: "Dashboard",
-    shortLabel: "Panel",
-    icon: "⌁",
-    desc: "Genel bakış",
-  },
-  {
-    href: "/app/sales",
-    label: "Satışlar",
-    shortLabel: "Satış",
-    icon: "₺",
-    desc: "Gelir ve ödeme",
-  },
-  {
-    href: "/app/qr",
-    label: "QR / Barkod",
-    shortLabel: "QR",
-    icon: "⌗",
-    desc: "Etiket ve okutma",
-  },
-  {
-    href: "/app/gorki-ai",
-    label: "Gorki AI",
-    shortLabel: "Gorki",
-    icon: "✦",
-    desc: "Akıllı öneriler",
-  },
+  { href: "/app", label: "Dashboard", shortLabel: "Panel", icon: "⌁", desc: "Genel bakış" },
+  { href: "/app/sales", label: "Satışlar", shortLabel: "Satış", icon: "₺", desc: "Gelir ve ödeme" },
+  { href: "/app/qr", label: "QR / Barkod", shortLabel: "QR", icon: "⌗", desc: "Etiket ve okutma" },
+  { href: "/app/gorki-ai", label: "Gorki AI", shortLabel: "Gorki", icon: "✦", desc: "Akıllı öneriler" },
 ];
 
 const categoryItems = [
-  {
-    href: "/app/orders",
-    label: "Siparişler",
-    icon: "▣",
-    desc: "Sipariş akışı",
-  },
-  {
-    href: "/app/invoices",
-    label: "Faturalar",
-    icon: "□",
-    desc: "Fatura takibi",
-  },
-  {
-    href: "/app/customers",
-    label: "Müşteriler",
-    icon: "◎",
-    desc: "Müşteri kartları",
-  },
-  {
-    href: "/app/products",
-    label: "Ürünler",
-    icon: "◈",
-    desc: "Ürün yönetimi",
-  },
-  {
-    href: "/app/stock",
-    label: "Stok",
-    icon: "▤",
-    desc: "Stok hareketleri",
-  },
-  {
-    href: "/app/integrations",
-    label: "Entegrasyonlar",
-    icon: "◇",
-    desc: "Pazaryerleri",
-  },
-  {
-    href: "/app/settings",
-    label: "Ayarlar",
-    icon: "⚙",
-    desc: "Firma ve hesap",
-  },
+  { href: "/app/orders", label: "Siparişler", icon: "▣", desc: "Sipariş akışı" },
+  { href: "/app/invoices", label: "Faturalar", icon: "□", desc: "Fatura takibi" },
+  { href: "/app/customers", label: "Müşteriler", icon: "◎", desc: "Müşteri kartları" },
+  { href: "/app/products", label: "Ürünler", icon: "◈", desc: "Ürün yönetimi" },
+  { href: "/app/stock", label: "Stok", icon: "▤", desc: "Stok hareketleri" },
+  { href: "/app/integrations", label: "Entegrasyonlar", icon: "◇", desc: "Pazaryerleri" },
+  { href: "/app/settings", label: "Ayarlar", icon: "⚙", desc: "Firma ve hesap" },
 ];
 
 const desktopNavGroups = [
-  {
-    title: "Ana Menü",
-    items: primaryNavItems,
-  },
-  {
-    title: "Operasyon",
-    items: categoryItems,
-  },
+  { title: "Ana Menü", items: primaryNavItems },
+  { title: "Operasyon", items: categoryItems },
 ];
 
 function isActivePath(pathname: string, href: string) {
-  if (href === "/app") {
-    return pathname === "/app";
-  }
-
+  if (href === "/app") return pathname === "/app";
   return pathname.startsWith(href);
 }
 
@@ -108,7 +41,6 @@ function getPageTitle(pathname: string) {
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [categoriesOpen, setCategoriesOpen] = useState(false);
-
   const pageTitle = getPageTitle(pathname);
 
   return (
@@ -128,8 +60,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
               <div className="relative rounded-[32px] bg-gradient-to-br from-slate-950 via-blue-900 to-blue-600 p-5 text-white shadow-2xl shadow-blue-300/50">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-[22px] bg-white/15 text-xl font-black ring-1 ring-white/20">
-                    T
+                  <div className="relative flex h-14 w-14 items-center justify-center overflow-hidden rounded-[22px] bg-white p-2 ring-1 ring-white/20">
+                    <Image
+                      src="/takipio-logo.png"
+                      alt="Takipio"
+                      fill
+                      className="object-contain p-2"
+                      priority
+                    />
                   </div>
 
                   <div className="min-w-0">
@@ -192,22 +130,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
                           <span className="min-w-0 flex-1">
                             <span className="block truncate text-sm font-black">{item.label}</span>
-                            <span
-                              className={[
-                                "mt-0.5 block truncate text-xs",
-                                active ? "text-blue-100" : "text-slate-400 group-hover:text-blue-500",
-                              ].join(" ")}
-                            >
+                            <span className={["mt-0.5 block truncate text-xs", active ? "text-blue-100" : "text-slate-400 group-hover:text-blue-500"].join(" ")}>
                               {item.desc}
                             </span>
                           </span>
-
-                          <span
-                            className={[
-                              "h-2 w-2 rounded-full transition",
-                              active ? "bg-white" : "bg-transparent group-hover:bg-blue-300",
-                            ].join(" ")}
-                          />
                         </Link>
                       );
                     })}
@@ -217,44 +143,40 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </nav>
 
             <div className="border-t border-blue-50 p-5">
-              <div className="rounded-[28px] border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-4">
+              <Link href="/app/gorki-ai" className="block rounded-[28px] border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-4 transition hover:-translate-y-0.5">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-950 text-xl text-white">
-                    ✦
+                  <div className="relative h-14 w-14 overflow-hidden rounded-2xl bg-slate-950">
+                    <Image src="/gorki-hero.png" alt="Gorki AI" fill className="object-cover" />
                   </div>
 
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-black text-slate-950">Gorki önerisi</p>
+                    <p className="truncate text-sm font-black text-slate-950">Gorki hazır</p>
                     <p className="mt-0.5 text-xs leading-5 text-slate-500">
-                      Kritik stokları kontrol et.
+                      Asistanla konuş.
                     </p>
                   </div>
                 </div>
-
-                <button className="mt-4 w-full rounded-2xl bg-slate-950 px-4 py-3 text-xs font-black text-white transition hover:-translate-y-0.5 hover:bg-blue-700">
-                  Asistanı Aç
-                </button>
-              </div>
+              </Link>
             </div>
           </div>
         </aside>
 
-        <main className="flex-1 min-w-0 p-3 pb-28 sm:p-4 sm:pb-28 lg:p-6">
+        <main className="min-w-0 flex-1 p-3 pb-28 sm:p-4 sm:pb-28 lg:p-6">
           <div className="sticky top-3 z-30 mb-4 rounded-[28px] border border-white/80 bg-white/90 p-3 shadow-xl shadow-blue-100/50 backdrop-blur-2xl lg:hidden">
             <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="truncate text-lg font-black tracking-[-0.03em]">Takipio</div>
-                <p className="truncate text-xs font-medium text-slate-500">{pageTitle}</p>
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-2xl bg-white shadow-sm">
+                  <Image src="/takipio-logo.png" alt="Takipio" fill className="object-contain p-1.5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate text-lg font-black tracking-[-0.03em]">Takipio</div>
+                  <p className="truncate text-xs font-medium text-slate-500">{pageTitle}</p>
+                </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <div className="hidden rounded-2xl bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 xs:block">
-                  Aktif
-                </div>
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-700 to-cyan-500 text-sm font-black text-white shadow-lg shadow-blue-200">
-                  T
-                </div>
-              </div>
+              <Link href="/app/gorki-ai" className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl bg-slate-950 shadow-lg shadow-blue-200">
+                <Image src="/gorki-hero.png" alt="Gorki" fill className="object-cover" />
+              </Link>
             </div>
           </div>
 
@@ -280,8 +202,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         ].join(" ")}
       >
         <div className="relative overflow-hidden bg-gradient-to-br from-slate-950 via-blue-900 to-blue-600 p-4 text-white">
-          <div className="absolute -right-10 -top-10 h-28 w-28 rounded-full bg-cyan-300/30 blur-2xl" />
-
           <div className="relative flex items-center justify-between gap-3">
             <div>
               <p className="text-base font-black">Kategoriler</p>
@@ -316,12 +236,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 ].join(" ")}
                 style={{ transitionDelay: `${index * 35}ms` }}
               >
-                <span
-                  className={[
-                    "flex h-11 w-11 shrink-0 items-center justify-center rounded-[18px] text-base font-black",
-                    active ? "bg-white/18 text-white" : "bg-white text-slate-500",
-                  ].join(" ")}
-                >
+                <span className={["flex h-11 w-11 shrink-0 items-center justify-center rounded-[18px] text-base font-black", active ? "bg-white/18 text-white" : "bg-white text-slate-500"].join(" ")}>
                   {item.icon}
                 </span>
 
