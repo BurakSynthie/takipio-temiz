@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ensureBusinessForCurrentUser, supabase, type BusinessContext } from "@/lib/business-core";
+import { ensureBusinessForCurrentUser, supabase, type BusinessContext } from "../../../lib/business-core";
 
 export default function BusinessSetupPage() {
   const [context, setContext] = useState<BusinessContext | null>(null);
