@@ -492,16 +492,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.20),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(6,182,212,0.12),transparent_35%)]" />
 
       <aside className={`fixed inset-y-0 left-0 z-50 w-[236px] border-r border-white/10 bg-[#0b1220]/95 p-3 backdrop-blur-xl transition lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
-        <div className="mb-4 flex items-center justify-between rounded-[20px] bg-white/5 p-3 ring-1 ring-white/10">
-          <Link href="/app" className="flex min-w-0 items-center gap-3">
-            <LogoBox src={business?.logo_url} name={business?.name || "Takipio"} />
-            <div className="min-w-0">
-              <p className="truncate text-sm font-black">{business?.name || "Takipio"}</p>
-              <p className="truncate text-[10px] text-slate-500">{member?.role_name || "İşletme Paneli"}</p>
+        <div className="mb-4 flex items-center justify-center rounded-[20px] bg-white/5 p-4 ring-1 ring-white/10">
+          <Link href="/app" className="flex items-center justify-center">
+            <div className="h-14 w-36">
+              <SmartImage
+                sources={["/takipio-logo.png"]}
+                alt="Takipio"
+                className="h-full w-full object-contain"
+                fallback={<span className="text-lg font-black text-blue-300">Takipio</span>}
+              />
             </div>
           </Link>
 
-          <button onClick={() => setSidebarOpen(false)} className="rounded-xl bg-white/10 px-2 py-1 text-xs font-black lg:hidden">×</button>
+          <button onClick={() => setSidebarOpen(false)} className="absolute right-4 rounded-xl bg-white/10 px-2 py-1 text-xs font-black lg:hidden">×</button>
         </div>
 
         <div className="custom-scrollbar h-[calc(100vh-92px)] overflow-y-auto pr-1">
@@ -675,15 +678,39 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               ))}
             </div>
 
-            <form onSubmit={sendGorkiMessage} className="flex gap-2 border-t border-white/10 p-3">
-              <input
-                value={gorkiInput}
-                onChange={(event) => setGorkiInput(event.target.value)}
-                placeholder="Gorki'ye yaz..."
-                className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-[#07111f] px-3 py-2 text-xs font-bold text-white outline-none placeholder:text-slate-500"
-              />
-              <button className="rounded-2xl bg-blue-600 px-4 py-2 text-xs font-black text-white">Gönder</button>
-            </form>
+            <div className="border-t border-white/10 p-3">
+              <div className="mb-3 grid grid-cols-2 gap-2">
+                {["Bugünkü özeti göster", "Kritik stok var mı?", "Bekleyen ödemeler", "Kargo bekleyenler"].map((question) => (
+                  <button
+                    key={question}
+                    type="button"
+                    onClick={() => {
+                      setGorkiMessages((current) => [
+                        ...current,
+                        { role: "user", text: question },
+                        {
+                          role: "assistant",
+                          text: "Bu hazır soru için canlı veri cevabını AI bağlantı paketinde aktif edeceğiz. Şimdilik bu sohbet ekranı arayüz olarak hazır.",
+                        },
+                      ]);
+                    }}
+                    className="rounded-2xl bg-white/10 px-3 py-2 text-left text-[11px] font-black text-slate-200 transition hover:bg-white/15"
+                  >
+                    {question}
+                  </button>
+                ))}
+              </div>
+
+              <form onSubmit={sendGorkiMessage} className="flex gap-2">
+                <input
+                  value={gorkiInput}
+                  onChange={(event) => setGorkiInput(event.target.value)}
+                  placeholder="Gorki'ye yaz..."
+                  className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-[#07111f] px-3 py-2 text-xs font-bold text-white outline-none placeholder:text-slate-500"
+                />
+                <button className="rounded-2xl bg-blue-600 px-4 py-2 text-xs font-black text-white">Gönder</button>
+              </form>
+            </div>
           </div>
         ) : null}
 
