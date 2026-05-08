@@ -12,8 +12,9 @@ type Product = { id: string; name: string; product_code: string; category: strin
 type Sale = { id: string; product_code: string | null; product_name: string | null; customer_name: string | null; quantity: number | null; total_price: number | null; payment_status: string | null; created_at: string };
 type StockMovement = { id: string; product_code: string | null; product_name: string | null; movement_type: string | null; quantity: number | null; note: string | null; created_at: string };
 type Note = { id: string; title: string; note: string | null; is_done: boolean | null; created_at: string };
-type Order = { id: string; order_no: string; order_status: string | null; shipping_status: string | null; total_amount: number | null; created_at: string };
+type Order = { id: string; order_no: string; order_status: string | null; shipping_status: string | null; total_amount: number | null; paid_amount: number | null; remaining_amount: number | null; created_at: string };
 type ReturnItem = { id: string; status: string | null; amount: number | null; created_at: string };
+type Payment = { id: string; payment_method: string | null; amount: number | null; payment_date: string | null; created_at: string };
 
 function formatCurrency(value: number | null | undefined) {
   return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 }).format(Number(value ?? 0));
@@ -38,19 +39,21 @@ export default function DashboardPage() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [returns, setReturns] = useState<ReturnItem[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
   const [noteTitle, setNoteTitle] = useState("");
   const [loading, setLoading] = useState(true);
 
   async function fetchData() {
     setLoading(true);
 
-    const [productsResult, salesResult, movementsResult, notesResult, ordersResult, returnsResult] = await Promise.all([
+    const [productsResult, salesResult, movementsResult, notesResult, ordersResult, returnsResult, paymentsResult] = await Promise.all([
       supabase.from("products").select("id, name, product_code, category, price, stock, min_stock, created_at").order("created_at", { ascending: false }),
       supabase.from("sales").select("*").order("created_at", { ascending: false }),
       supabase.from("stock_movements").select("*").order("created_at", { ascending: false }).limit(20),
       supabase.from("app_notes").select("*").order("created_at", { ascending: false }).limit(8),
-      supabase.from("orders").select("id, order_no, order_status, shipping_status, total_amount, created_at").order("created_at", { ascending: false }),
+      supabase.from("orders").select("id, order_no, order_status, shipping_status, total_amount, paid_amount, remaining_amount, created_at").order("created_at", { ascending: false }),
       supabase.from("returns").select("id, status, amount, created_at").order("created_at", { ascending: false }),
+      supabase.from("payments").select("id, payment_method, amount, payment_date, created_at").order("created_at", { ascending: false }),
     ]);
 
     setProducts(productsResult.data ?? []);
@@ -59,6 +62,7 @@ export default function DashboardPage() {
     setNotes(notesResult.data ?? []);
     setOrders(ordersResult.data ?? []);
     setReturns(returnsResult.data ?? []);
+    setPayments(paymentsResult.data ?? []);
     setLoading(false);
   }
 
@@ -103,6 +107,22 @@ export default function DashboardPage() {
   const unshippedOrders = orders.filter((order) => order.shipping_status !== "shipped" && order.shipping_status !== "delivered").length;
   const activeReturns = returns.filter((item) => item.status !== "refunded" && item.status !== "rejected").length;
 
+  const orderTotal = orders.reduce((sum, order) => sum + Number(order.total_amount ?? 0), 0);
+  const orderPaid = orders.reduce((sum, order) => sum + Number(order.paid_amount ?? 0), 0);
+  const orderRemaining = orders.reduce((sum, order) => sum + Math.max(Number(order.remaining_amount ?? order.total_amount ?? 0), 0), 0);
+
+  const todayCash = payments
+    .filter((payment) => payment.payment_method === "cash" && isToday(payment.payment_date ?? payment.created_at))
+    .reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0);
+
+  const todayCard = payments
+    .filter((payment) => payment.payment_method === "card" && isToday(payment.payment_date ?? payment.created_at))
+    .reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0);
+
+  const todayTransfer = payments
+    .filter((payment) => payment.payment_method === "transfer" && isToday(payment.payment_date ?? payment.created_at))
+    .reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0);
+
   const weeklyBars = useMemo(() => {
     const labels = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
     const totals = [0, 0, 0, 0, 0, 0, 0];
@@ -125,7 +145,7 @@ export default function DashboardPage() {
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-300">Canlı Dashboard</p>
               <h1 className="mt-1 text-2xl font-black tracking-[-0.04em]">İşletme Özeti</h1>
-              <p className="mt-1 text-xs text-slate-400">Kompakt yönetim görünümü. Kartlar küçük, bilgi yoğun.</p>
+              <p className="mt-1 text-xs text-slate-400">Satış, sipariş, kargo, iade ve parçalı ödeme özeti.</p>
             </div>
 
             <div className="flex gap-2">
@@ -145,10 +165,10 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-6">
         <Metric label="Bugün" value={loading ? "..." : formatCurrency(todayRevenue)} sub="Günlük satış" />
-        <Metric label="Ciro" value={loading ? "..." : formatCurrency(totalRevenue)} sub={`${sales.length} satış`} />
-        <Metric label="Bekleyen" value={loading ? "..." : formatCurrency(pendingRevenue)} sub={`${pendingSales.length} ödeme`} />
-        <Metric label="Sipariş" value={loading ? "..." : String(waitingOrders)} sub="hazırlık bekleyen" />
-        <Metric label="Kargo" value={loading ? "..." : String(unshippedOrders)} sub="çıkış bekleyen" />
+        <Metric label="Nakit" value={loading ? "..." : formatCurrency(todayCash)} sub="bugünkü nakit" />
+        <Metric label="Kart" value={loading ? "..." : formatCurrency(todayCard)} sub="bugünkü kart" />
+        <Metric label="Havale" value={loading ? "..." : formatCurrency(todayTransfer)} sub="bugünkü EFT" />
+        <Metric label="Kalan" value={loading ? "..." : formatCurrency(orderRemaining)} sub="sipariş tahsilatı" />
         <Metric label="İade" value={loading ? "..." : String(activeReturns)} sub="aktif talep" />
       </div>
 
@@ -172,11 +192,11 @@ export default function DashboardPage() {
           </div>
         </Panel>
 
-        <Panel title="Nakit & Stok">
-          <SmallBar label="Tahsilat" value={`${paidRatio}%`} width={paidRatio} color="bg-emerald-400" />
-          <SmallBar label="Stok Sağlığı" value={`${totalProducts > 0 ? Math.round(((totalProducts - criticalProducts.length) / totalProducts) * 100) : 100}%`} width={totalProducts > 0 ? Math.round(((totalProducts - criticalProducts.length) / totalProducts) * 100) : 100} color="bg-blue-500" />
-          <SmallBar label="Stok Değeri" value={formatCurrency(stockValue)} width={stockValue > 0 ? 100 : 0} color="bg-amber-400" />
-          <SmallBar label="Satış Adedi" value={String(soldQty)} width={Math.min(soldQty * 4, 100)} color="bg-violet-400" />
+        <Panel title="Nakit & Tahsilat">
+          <SmallBar label="Sipariş Tutarı" value={formatCurrency(orderTotal)} width={orderTotal > 0 ? 100 : 0} color="bg-blue-500" />
+          <SmallBar label="Alınan Ödeme" value={formatCurrency(orderPaid)} width={orderTotal > 0 ? Math.round((orderPaid / orderTotal) * 100) : 0} color="bg-emerald-400" />
+          <SmallBar label="Kalan Tahsilat" value={formatCurrency(orderRemaining)} width={orderTotal > 0 ? Math.round((orderRemaining / orderTotal) * 100) : 0} color="bg-amber-400" />
+          <SmallBar label="Stok Değeri" value={formatCurrency(stockValue)} width={stockValue > 0 ? 100 : 0} color="bg-violet-400" />
         </Panel>
 
         <Panel title="Notlar">
@@ -237,7 +257,7 @@ export default function DashboardPage() {
 
         <Panel title="Kritik Uyarılar">
           <Alert label="Kritik stok" value={`${criticalProducts.length} ürün`} tone="red" href="/app/products" />
-          <Alert label="Bekleyen ödeme" value={formatCurrency(pendingRevenue)} tone="amber" href="/app/sales" />
+          <Alert label="Bekleyen ödeme" value={formatCurrency(orderRemaining)} tone="amber" href="/app/orders" />
           <Alert label="Hazırlık bekleyen" value={`${waitingOrders} sipariş`} tone="blue" href="/app/orders" />
           <Alert label="Kargoya verilmeyen" value={`${unshippedOrders} sipariş`} tone="red" href="/app/shipments" />
           <Alert label="Aktif iade" value={`${activeReturns} talep`} tone="green" href="/app/returns" />
