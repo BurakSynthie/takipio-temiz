@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+import {
+  canCreateOrder,
+  ensureBusinessForCurrentUser,
+  supabase,
+  withBusinessFields,
+  type BusinessContext,
+} from "@/lib/business-core";
 
 type Product = {
   id: string;
@@ -13,10 +15,13 @@ type Product = {
   product_code: string;
   price: number | null;
   stock: number | null;
+  business_id?: string | null;
 };
 
 type Order = {
   id: string;
+  business_id: string | null;
+  created_by: string | null;
   order_no: string;
   marketplace: string | null;
   customer_name: string | null;
@@ -37,6 +42,7 @@ type Order = {
 
 type OrderItem = {
   id: string;
+  business_id: string | null;
   order_id: string;
   product_id: string | null;
   product_code: string | null;
@@ -48,6 +54,7 @@ type OrderItem = {
 
 type Payment = {
   id: string;
+  business_id: string | null;
   order_id: string | null;
   payment_method: string | null;
   amount: number | null;
@@ -105,6 +112,7 @@ const paymentMethods = [
   { value: "cod", label: "Kapıda Ödeme" },
   { value: "marketplace", label: "Pazaryeri Ödemesi" },
   { value: "check", label: "Çek / Senet" },
+  { value: "refund", label: "Para İadesi" },
   { value: "other", label: "Diğer" },
 ];
 
@@ -152,6 +160,7 @@ function statusClass(value: string | null | undefined) {
   if (value === "packed") return "bg-violet-400/15 text-violet-300";
   if (value === "preparing") return "bg-amber-400/15 text-amber-300";
   if (value === "cancelled") return "bg-red-400/15 text-red-300";
+  if (value === "return_requested") return "bg-orange-400/15 text-orange-300";
   return "bg-white/10 text-slate-300";
 }
 
@@ -186,6 +195,14 @@ function calculatePaymentStatus(total: number, paid: number) {
 }
 
 export default function OrdersPage() {
+  const [context, setContext] = useState<BusinessContext | null>(null);
+  const [usage, setUsage] = useState({
+    allowed: true,
+    used: 0,
+    limit: 15,
+    remaining: 15,
+  });
+
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [items, setItems] = useState<OrderItem[]>([]);
@@ -231,26 +248,63 @@ export default function OrdersPage() {
   const totalPaidAmount = orders.reduce((sum, order) => sum + Number(order.paid_amount ?? 0), 0);
   const totalRemainingAmount = orders.reduce((sum, order) => sum + Math.max(Number(order.remaining_amount ?? order.total_amount ?? 0), 0), 0);
 
-  async function fetchData() {
+  async function loadContextAndData() {
     setLoading(true);
     setMessage("");
 
+    try {
+      const businessContext = await ensureBusinessForCurrentUser();
+      setContext(businessContext);
+
+      const usageInfo = await canCreateOrder(businessContext);
+      setUsage(usageInfo);
+
+      await fetchData(businessContext);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "İşletme bağlantısı kurulamadı.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function fetchData(activeContext = context) {
+    if (!activeContext) return;
+
+    const businessId = activeContext.business.id;
+
     const [productsResult, ordersResult, itemsResult, paymentsResult] = await Promise.all([
-      supabase.from("products").select("id, name, product_code, price, stock").order("created_at", { ascending: false }),
-      supabase.from("orders").select("*").order("created_at", { ascending: false }),
-      supabase.from("order_items").select("*").order("created_at", { ascending: false }),
-      supabase.from("payments").select("*").order("created_at", { ascending: false }),
+      supabase
+        .from("products")
+        .select("id, name, product_code, price, stock, business_id")
+        .eq("business_id", businessId)
+        .order("created_at", { ascending: false }),
+
+      supabase
+        .from("orders")
+        .select("*")
+        .eq("business_id", businessId)
+        .order("created_at", { ascending: false }),
+
+      supabase
+        .from("order_items")
+        .select("*")
+        .eq("business_id", businessId)
+        .order("created_at", { ascending: false }),
+
+      supabase
+        .from("payments")
+        .select("*")
+        .eq("business_id", businessId)
+        .order("created_at", { ascending: false }),
     ]);
 
     if (productsResult.error) {
       setMessage(`Ürünler alınamadı: ${productsResult.error.message}`);
-      setLoading(false);
       return;
     }
 
     if (ordersResult.error) {
       setMessage(`Siparişler alınamadı: ${ordersResult.error.message}`);
-      setLoading(false);
       return;
     }
 
@@ -258,11 +312,13 @@ export default function OrdersPage() {
     setOrders(ordersResult.data ?? []);
     setItems(itemsResult.data ?? []);
     setPayments(paymentsResult.data ?? []);
-    setLoading(false);
+
+    const usageInfo = await canCreateOrder(activeContext);
+    setUsage(usageInfo);
   }
 
   useEffect(() => {
-    fetchData();
+    loadContextAndData();
   }, []);
 
   function selectProduct(productId: string) {
@@ -284,9 +340,12 @@ export default function OrdersPage() {
   }
 
   async function syncOrderPayment(orderId: string, totalAmount: number) {
+    if (!context) return;
+
     const { data } = await supabase
       .from("payments")
       .select("amount")
+      .eq("business_id", context.business.id)
       .eq("order_id", orderId);
 
     const paidAmount = (data ?? []).reduce((sum, payment) => {
@@ -303,13 +362,29 @@ export default function OrdersPage() {
         remaining_amount: remainingAmount,
         payment_status: paymentStatus,
       })
+      .eq("business_id", context.business.id)
       .eq("id", orderId);
   }
 
   async function createOrder(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (!context) {
+      setMessage("İşletme bağlantısı bulunamadı.");
+      return;
+    }
+
     setSaving(true);
     setMessage("");
+
+    const latestUsage = await canCreateOrder(context);
+
+    if (!latestUsage.allowed) {
+      setUsage(latestUsage);
+      setMessage("Ücretsiz 15 sipariş limitin doldu. Yeni sipariş oluşturmak için Abonelik sayfasından Pro pakete geçmelisin.");
+      setSaving(false);
+      return;
+    }
 
     if (!selectedProduct) {
       setMessage("Önce ürün seçmelisin.");
@@ -336,10 +411,12 @@ export default function OrdersPage() {
 
     const orderNo = createOrderNo();
     const totalAmount = quantity * unitPrice;
+    const businessFields = withBusinessFields(context);
 
     const { data: orderData, error: orderError } = await supabase
       .from("orders")
       .insert({
+        ...businessFields,
         order_no: orderNo,
         marketplace: form.marketplace,
         customer_name: form.customer_name.trim() || null,
@@ -364,6 +441,7 @@ export default function OrdersPage() {
     }
 
     await supabase.from("order_items").insert({
+      ...businessFields,
       order_id: orderData.id,
       product_id: selectedProduct.id,
       product_code: selectedProduct.product_code,
@@ -373,9 +451,14 @@ export default function OrdersPage() {
       total_price: totalAmount,
     });
 
-    await supabase.from("products").update({ stock: nextStock }).eq("id", selectedProduct.id);
+    await supabase
+      .from("products")
+      .update({ stock: nextStock })
+      .eq("business_id", context.business.id)
+      .eq("id", selectedProduct.id);
 
     await supabase.from("stock_movements").insert({
+      ...businessFields,
       product_id: selectedProduct.id,
       product_code: selectedProduct.product_code,
       product_name: selectedProduct.name,
@@ -388,13 +471,13 @@ export default function OrdersPage() {
     setForm(emptyForm);
     setFormOpen(false);
     setSaving(false);
-    await fetchData();
+    await fetchData(context);
   }
 
   async function addPayment(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!paymentModalOrder) return;
+    if (!context || !paymentModalOrder) return;
 
     const amount = Number(paymentForm.amount || 0);
 
@@ -404,6 +487,7 @@ export default function OrdersPage() {
     }
 
     await supabase.from("payments").insert({
+      ...withBusinessFields(context),
       order_id: paymentModalOrder.id,
       payment_method: paymentForm.payment_method,
       amount,
@@ -415,26 +499,32 @@ export default function OrdersPage() {
     setPaymentForm(emptyPaymentForm);
     setPaymentModalOrder(null);
     setMessage("Ödeme kaydedildi.");
-    await fetchData();
+    await fetchData(context);
   }
 
   async function deletePayment(payment: Payment) {
-    if (!payment.order_id) return;
+    if (!context || !payment.order_id) return;
     if (!confirm("Ödeme kaydı silinsin mi?")) return;
 
     const order = orders.find((item) => item.id === payment.order_id);
 
-    await supabase.from("payments").delete().eq("id", payment.id);
+    await supabase
+      .from("payments")
+      .delete()
+      .eq("business_id", context.business.id)
+      .eq("id", payment.id);
 
     if (order) {
       await syncOrderPayment(order.id, Number(order.total_amount ?? 0));
     }
 
     setMessage("Ödeme kaydı silindi.");
-    await fetchData();
+    await fetchData(context);
   }
 
   async function advanceOrder(order: Order) {
+    if (!context) return;
+
     const target = nextStatus(order.order_status);
     if (!target) return;
 
@@ -444,13 +534,23 @@ export default function OrdersPage() {
       shipping_status: target === "shipped" ? "shipped" : target === "delivered" ? "delivered" : order.shipping_status,
     };
 
-    await supabase.from("orders").update(updates).eq("id", order.id);
+    await supabase
+      .from("orders")
+      .update(updates)
+      .eq("business_id", context.business.id)
+      .eq("id", order.id);
 
     if (target === "shipped") {
-      const existingShipment = await supabase.from("shipments").select("id").eq("order_id", order.id).maybeSingle();
+      const existingShipment = await supabase
+        .from("shipments")
+        .select("id")
+        .eq("business_id", context.business.id)
+        .eq("order_id", order.id)
+        .maybeSingle();
 
       if (!existingShipment.data) {
         await supabase.from("shipments").insert({
+          ...withBusinessFields(context),
           order_id: order.id,
           order_no: order.order_no,
           marketplace: order.marketplace,
@@ -465,37 +565,50 @@ export default function OrdersPage() {
     }
 
     setMessage(`${order.order_no} durumu güncellendi.`);
-    await fetchData();
+    await fetchData(context);
   }
 
   async function cancelOrder(order: Order) {
+    if (!context) return;
     if (!confirm(`${order.order_no} iptal edilsin mi?`)) return;
 
-    await supabase.from("orders").update({ order_status: "cancelled" }).eq("id", order.id);
+    await supabase
+      .from("orders")
+      .update({ order_status: "cancelled" })
+      .eq("business_id", context.business.id)
+      .eq("id", order.id);
+
     setMessage("Sipariş iptal edildi.");
-    await fetchData();
+    await fetchData(context);
   }
 
   async function createReturn(order: Order) {
-    const firstItem = getOrderItems(order.id)[0];
+    if (!context) return;
+
+    const firstItem = getOrderItems(order.id);
 
     await supabase.from("returns").insert({
+      ...withBusinessFields(context),
       return_no: `RET-${Date.now().toString().slice(-8)}`,
       order_id: order.id,
       order_no: order.order_no,
       marketplace: order.marketplace,
       customer_name: order.customer_name,
-      product_name: firstItem?.product_name ?? "Ürün belirtilmedi",
+      product_name: firstItem[0]?.product_name ?? "Ürün belirtilmedi",
       reason: "Panelden manuel iade talebi oluşturuldu",
       status: "requested",
       amount: order.total_amount ?? 0,
       note: `${order.order_no} için iade talebi`,
     });
 
-    await supabase.from("orders").update({ order_status: "return_requested" }).eq("id", order.id);
+    await supabase
+      .from("orders")
+      .update({ order_status: "return_requested" })
+      .eq("business_id", context.business.id)
+      .eq("id", order.id);
 
     setMessage("İade talebi oluşturuldu.");
-    await fetchData();
+    await fetchData(context);
   }
 
   return (
@@ -504,24 +617,61 @@ export default function OrdersPage() {
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="mb-3 inline-flex rounded-full bg-blue-500/15 px-3 py-2 text-xs font-black text-blue-300">
-              Payments v1
+              Business Core v1
             </div>
             <h1 className="text-[34px] font-black tracking-[-0.05em] sm:text-5xl">
               Siparişler & Ödemeler
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
-              Siparişi oluştur, parçalı ödeme ekle, nakit / kart / havale ayrımını takip et.
+              Siparişler artık işletme hesabına bağlı. Free planda 15 sipariş limiti gerçek çalışır, Pro planda sınırsızdır.
             </p>
           </div>
 
-          <button
-            onClick={() => setFormOpen((value) => !value)}
-            className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-500"
-          >
-            {formOpen ? "Formu Kapat" : "Yeni Sipariş"}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setFormOpen((value) => !value)}
+              className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-500"
+            >
+              {formOpen ? "Formu Kapat" : "Yeni Sipariş"}
+            </button>
+          </div>
         </div>
       </div>
+
+      {context ? (
+        <div className="rounded-[22px] border border-white/10 bg-[#111a2e] p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Aktif İşletme</p>
+              <p className="mt-1 text-lg font-black">{context.business.name}</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Plan: {context.isPro ? "Pro / Sınırsız" : `Free / ${usage.used}/${usage.limit} sipariş`}
+              </p>
+            </div>
+
+            {!context.isPro ? (
+              <div className="w-full lg:w-[360px]">
+                <div className="mb-2 flex justify-between text-xs font-black">
+                  <span className="text-slate-400">Free sipariş limiti</span>
+                  <span className={usage.allowed ? "text-blue-300" : "text-red-300"}>
+                    {usage.used}/{usage.limit}
+                  </span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-white/8">
+                  <div
+                    className={usage.allowed ? "h-full rounded-full bg-blue-500" : "h-full rounded-full bg-red-500"}
+                    style={{ width: `${Math.min(Math.round((usage.used / usage.limit) * 100), 100)}%` }}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-2xl bg-emerald-400/10 px-4 py-3 text-sm font-black text-emerald-300 ring-1 ring-emerald-400/20">
+                Pro aktif · Sınırsız sipariş
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
 
       {message ? (
         <div className="rounded-2xl bg-blue-500/10 px-4 py-3 text-sm font-bold text-blue-200 ring-1 ring-blue-400/20">
@@ -543,7 +693,7 @@ export default function OrdersPage() {
             <div>
               <h2 className="text-2xl font-black">Yeni Sipariş Oluştur</h2>
               <p className="mt-1 text-sm text-slate-400">
-                Ödemeyi sipariş oluştuktan sonra birden fazla parça halinde ekleyebilirsin.
+                Bu sipariş aktif işletmeye kaydedilir. Ödemeyi sipariş oluştuktan sonra parça parça ekleyebilirsin.
               </p>
             </div>
             <div className="rounded-2xl bg-[#0b1220] px-4 py-3 text-right ring-1 ring-white/10">
@@ -551,6 +701,12 @@ export default function OrdersPage() {
               <p className="mt-1 text-lg font-black text-blue-300">{formatCurrency(previewTotal)}</p>
             </div>
           </div>
+
+          {!usage.allowed && !context?.isPro ? (
+            <div className="mb-5 rounded-2xl bg-red-500/10 p-4 text-sm font-bold text-red-200 ring-1 ring-red-500/20">
+              Ücretsiz 15 sipariş limitin doldu. Yeni sipariş oluşturmak için Abonelik sayfasından Pro pakete geçmelisin.
+            </div>
+          ) : null}
 
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <Field label="Pazaryeri / Kanal">
@@ -594,7 +750,7 @@ export default function OrdersPage() {
           </div>
 
           <div className="mt-5 flex flex-wrap gap-2">
-            <button disabled={saving} className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-500 disabled:opacity-60">
+            <button disabled={saving || (!usage.allowed && !context?.isPro)} className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-500 disabled:opacity-50">
               {saving ? "Kaydediliyor..." : "Siparişi Kaydet"}
             </button>
             <button type="button" onClick={() => { setForm(emptyForm); setFormOpen(false); }} className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-black text-slate-200">
@@ -688,7 +844,9 @@ export default function OrdersPage() {
                                 <p className="text-[10px] text-slate-500">{formatDate(payment.payment_date)}</p>
                               </div>
                               <div className="text-right">
-                                <p className="text-xs font-black text-emerald-300">{formatCurrency(payment.amount)}</p>
+                                <p className={`text-xs font-black ${Number(payment.amount ?? 0) < 0 ? "text-red-300" : "text-emerald-300"}`}>
+                                  {formatCurrency(payment.amount)}
+                                </p>
                                 <button onClick={() => deletePayment(payment)} className="text-[10px] font-black text-red-300">Sil</button>
                               </div>
                             </div>
