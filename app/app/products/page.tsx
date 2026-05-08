@@ -57,6 +57,28 @@ function createQrCode(productCode: string) {
   return `takipio://product/${productCode}`;
 }
 
+function createProductPrefix(productName: string) {
+  const cleanedName = productName
+    .trim()
+    .toUpperCase()
+    .replace(/Ğ/g, "G")
+    .replace(/Ü/g, "U")
+    .replace(/Ş/g, "S")
+    .replace(/İ/g, "I")
+    .replace(/İ/g, "I")
+    .replace(/Ö/g, "O")
+    .replace(/Ç/g, "C")
+    .replace(/[^A-Z0-9]/g, "");
+
+  const prefix = cleanedName.slice(0, 4);
+
+  if (prefix.length >= 2) {
+    return prefix.padEnd(4, "X");
+  }
+
+  return "URUN";
+}
+
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [form, setForm] = useState<ProductForm>(emptyForm);
@@ -68,8 +90,17 @@ export default function ProductsPage() {
   const [search, setSearch] = useState("");
 
   const [formOpen, setFormOpen] = useState(false);
-
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  const previewCode = useMemo(() => {
+    if (editingId) {
+      return form.product_code || "MEVCUT-KOD";
+    }
+
+    const prefix = createProductPrefix(form.name);
+
+    return `${prefix}-001`;
+  }, [editingId, form.name, form.product_code]);
 
   const filteredProducts = useMemo(() => {
     const query = search.toLowerCase().trim();
@@ -87,8 +118,26 @@ export default function ProductsPage() {
     });
   }, [products, search]);
 
+  const totalProducts = products.length;
+
+  const totalStock = products.reduce((sum, product) => {
+    return sum + Number(product.stock ?? 0);
+  }, 0);
+
+  const criticalStock = products.filter((product) => {
+    const stock = Number(product.stock ?? 0);
+    const minStock = Number(product.min_stock ?? 0);
+
+    return minStock > 0 && stock <= minStock;
+  }).length;
+
+  const totalValue = products.reduce((sum, product) => {
+    return sum + Number(product.price ?? 0) * Number(product.stock ?? 0);
+  }, 0);
+
   async function fetchProducts() {
     setLoading(true);
+    setMessage("");
 
     const { data, error } = await supabase
       .from("products")
@@ -96,13 +145,42 @@ export default function ProductsPage() {
       .order("created_at", { ascending: false });
 
     if (error) {
-      setMessage(error.message);
+      setMessage(`Ürünler alınamadı: ${error.message}`);
       setLoading(false);
       return;
     }
 
     setProducts(data ?? []);
     setLoading(false);
+  }
+
+  async function generateProductCode(productName: string) {
+    const prefix = createProductPrefix(productName);
+
+    const { data, error } = await supabase
+      .from("products")
+      .select("product_code")
+      .like("product_code", `${prefix}-%`);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const existingNumbers =
+      data
+        ?.map((item) => {
+          const code = item.product_code ?? "";
+          const numberPart = code.replace(`${prefix}-`, "");
+          const parsedNumber = Number(numberPart);
+
+          return Number.isFinite(parsedNumber) ? parsedNumber : 0;
+        })
+        .filter((number) => number > 0) ?? [];
+
+    const nextNumber =
+      existingNumbers.length > 0 ? Math.max(...existingNumbers) + 1 : 1;
+
+    return `${prefix}-${String(nextNumber).padStart(3, "0")}`;
   }
 
   useEffect(() => {
@@ -120,57 +198,66 @@ export default function ProductsPage() {
     setSaving(true);
     setMessage("");
 
-    const payload = {
-      name: form.name.trim(),
-      product_code: form.product_code.trim(),
-      category: form.category.trim() || null,
-      description: form.description.trim() || null,
-      price: Number(form.price || 0),
-      stock: Number(form.stock || 0),
-      min_stock: Number(form.min_stock || 0),
-      image_url: form.image_url.trim() || null,
-      qr_code: createQrCode(form.product_code.trim()),
-      is_active: true,
-    };
+    const cleanName = form.name.trim();
 
-    if (!payload.name || !payload.product_code) {
-      setMessage("Ürün adı ve ürün kodu gerekli.");
+    if (!cleanName) {
+      setMessage("Ürün adı gerekli.");
       setSaving(false);
       return;
     }
 
-    if (editingId) {
-      const { error } = await supabase
-        .from("products")
-        .update(payload)
-        .eq("id", editingId);
+    try {
+      const finalProductCode = editingId
+        ? form.product_code
+        : await generateProductCode(cleanName);
 
-      if (error) {
-        setMessage(error.message);
-        setSaving(false);
-        return;
+      const payload = {
+        name: cleanName,
+        product_code: finalProductCode,
+        category: form.category.trim() || null,
+        description: form.description.trim() || null,
+        price: Number(form.price || 0),
+        stock: Number(form.stock || 0),
+        min_stock: Number(form.min_stock || 0),
+        image_url: form.image_url.trim() || null,
+        qr_code: createQrCode(finalProductCode),
+        is_active: true,
+      };
+
+      if (editingId) {
+        const { error } = await supabase
+          .from("products")
+          .update(payload)
+          .eq("id", editingId);
+
+        if (error) {
+          setMessage(error.message);
+          setSaving(false);
+          return;
+        }
+
+        setMessage("Ürün güncellendi.");
+      } else {
+        const { error } = await supabase.from("products").insert(payload);
+
+        if (error) {
+          setMessage(error.message);
+          setSaving(false);
+          return;
+        }
+
+        setMessage(`${payload.product_code} kodlu ürün eklendi.`);
       }
 
-      setMessage("Ürün güncellendi.");
-    } else {
-      const { error } = await supabase
-        .from("products")
-        .insert(payload);
+      resetForm();
+      setFormOpen(false);
+      setSaving(false);
 
-      if (error) {
-        setMessage(error.message);
-        setSaving(false);
-        return;
-      }
-
-      setMessage("Ürün eklendi.");
+      await fetchProducts();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "İşlem başarısız.");
+      setSaving(false);
     }
-
-    resetForm();
-    setFormOpen(false);
-    setSaving(false);
-
-    await fetchProducts();
   }
 
   function editProduct(product: Product) {
@@ -202,10 +289,7 @@ export default function ProductsPage() {
       return;
     }
 
-    const { error } = await supabase
-      .from("products")
-      .delete()
-      .eq("id", id);
+    const { error } = await supabase.from("products").delete().eq("id", id);
 
     if (error) {
       setMessage(error.message);
@@ -213,13 +297,11 @@ export default function ProductsPage() {
     }
 
     setMessage("Ürün silindi.");
-
     await fetchProducts();
   }
 
   async function updateStock(product: Product, amount: number) {
     const currentStock = Number(product.stock ?? 0);
-
     const nextStock = currentStock + amount;
 
     if (nextStock < 0) {
@@ -241,16 +323,6 @@ export default function ProductsPage() {
     await fetchProducts();
   }
 
-  const totalProducts = products.length;
-
-  const totalStock = products.reduce((sum, product) => {
-    return sum + Number(product.stock ?? 0);
-  }, 0);
-
-  const criticalStock = products.filter((product) => {
-    return Number(product.stock ?? 0) <= Number(product.min_stock ?? 0);
-  }).length;
-
   return (
     <section className="mx-auto w-full max-w-[1500px] space-y-5 pb-8">
       <div className="rounded-[32px] border border-slate-200 bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.07)]">
@@ -265,7 +337,8 @@ export default function ProductsPage() {
             </h1>
 
             <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">
-              Gerçek Supabase ürün sistemi. Ürün ekle, düzenle, sil ve stok yönet.
+              Ürün ekle, düzenle, sil ve stok yönet. Ürün kodu otomatik üretilir:
+              örneğin Hoparlör için HOPA-001.
             </p>
           </div>
 
@@ -285,7 +358,7 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">
             Toplam Ürün
@@ -312,6 +385,15 @@ export default function ProductsPage() {
             {criticalStock}
           </p>
         </div>
+
+        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">
+            Stok Değeri
+          </p>
+          <p className="mt-3 text-2xl font-black text-slate-950">
+            {formatCurrency(totalValue)}
+          </p>
+        </div>
       </div>
 
       {formOpen ? (
@@ -319,71 +401,120 @@ export default function ProductsPage() {
           onSubmit={saveProduct}
           className="rounded-[32px] border border-slate-200 bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.07)]"
         >
-          <div className="mb-5">
-            <h2 className="text-2xl font-black text-slate-950">
-              {editingId ? "Ürün Düzenle" : "Yeni Ürün"}
-            </h2>
+          <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h2 className="text-2xl font-black text-slate-950">
+                {editingId ? "Ürün Düzenle" : "Yeni Ürün"}
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Ürün kodu otomatik oluşturulur ve QR bağlantısı buna göre yazılır.
+              </p>
+            </div>
+
+            <div className="rounded-[22px] bg-slate-950 px-4 py-3 text-white">
+              <p className="text-xs font-bold text-slate-300">
+                {editingId ? "Mevcut Kod" : "Tahmini Kod"}
+              </p>
+              <p className="mt-1 text-lg font-black">{previewCode}</p>
+            </div>
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <input
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder="Ürün adı"
-              className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-500"
-            />
+            <div>
+              <label className="mb-2 block text-sm font-black text-slate-700">
+                Ürün Adı *
+              </label>
+              <input
+                value={form.name}
+                onChange={(event) => setForm({ ...form, name: event.target.value })}
+                placeholder="Örn: Hoparlör"
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-500"
+              />
+            </div>
 
-            <input
-              value={form.product_code}
-              onChange={(e) => setForm({ ...form, product_code: e.target.value })}
-              placeholder="Ürün kodu"
-              className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-500"
-            />
+            <div>
+              <label className="mb-2 block text-sm font-black text-slate-700">
+                Kategori
+              </label>
+              <input
+                value={form.category}
+                onChange={(event) =>
+                  setForm({ ...form, category: event.target.value })
+                }
+                placeholder="Örn: Elektronik"
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-500"
+              />
+            </div>
 
-            <input
-              value={form.category}
-              onChange={(e) => setForm({ ...form, category: e.target.value })}
-              placeholder="Kategori"
-              className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-500"
-            />
+            <div>
+              <label className="mb-2 block text-sm font-black text-slate-700">
+                Fiyat
+              </label>
+              <input
+                value={form.price}
+                type="number"
+                onChange={(event) => setForm({ ...form, price: event.target.value })}
+                placeholder="0"
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-500"
+              />
+            </div>
 
-            <input
-              value={form.price}
-              type="number"
-              onChange={(e) => setForm({ ...form, price: e.target.value })}
-              placeholder="Fiyat"
-              className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-500"
-            />
+            <div>
+              <label className="mb-2 block text-sm font-black text-slate-700">
+                Stok
+              </label>
+              <input
+                value={form.stock}
+                type="number"
+                onChange={(event) => setForm({ ...form, stock: event.target.value })}
+                placeholder="0"
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-500"
+              />
+            </div>
 
-            <input
-              value={form.stock}
-              type="number"
-              onChange={(e) => setForm({ ...form, stock: e.target.value })}
-              placeholder="Stok"
-              className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-500"
-            />
+            <div>
+              <label className="mb-2 block text-sm font-black text-slate-700">
+                Minimum Stok
+              </label>
+              <input
+                value={form.min_stock}
+                type="number"
+                onChange={(event) =>
+                  setForm({ ...form, min_stock: event.target.value })
+                }
+                placeholder="0"
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-500"
+              />
+            </div>
 
-            <input
-              value={form.min_stock}
-              type="number"
-              onChange={(e) => setForm({ ...form, min_stock: e.target.value })}
-              placeholder="Minimum stok"
-              className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-500"
-            />
+            <div>
+              <label className="mb-2 block text-sm font-black text-slate-700">
+                Görsel URL
+              </label>
+              <input
+                value={form.image_url}
+                onChange={(event) =>
+                  setForm({ ...form, image_url: event.target.value })
+                }
+                placeholder="İsteğe bağlı"
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-500"
+              />
+            </div>
 
-            <input
-              value={form.image_url}
-              onChange={(e) => setForm({ ...form, image_url: e.target.value })}
-              placeholder="Görsel URL"
-              className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-500 lg:col-span-2"
-            />
-
-            <textarea
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              placeholder="Açıklama"
-              className="min-h-[120px] rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-500 lg:col-span-2"
-            />
+            <div className="lg:col-span-2">
+              <label className="mb-2 block text-sm font-black text-slate-700">
+                Açıklama
+              </label>
+              <textarea
+                value={form.description}
+                onChange={(event) =>
+                  setForm({ ...form, description: event.target.value })
+                }
+                placeholder="Ürün açıklaması"
+                className="min-h-[120px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-500"
+              />
+            </div>
           </div>
 
           <div className="mt-5 flex flex-wrap gap-3">
@@ -392,11 +523,7 @@ export default function ProductsPage() {
               disabled={saving}
               className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-600 disabled:opacity-60"
             >
-              {saving
-                ? "Kaydediliyor..."
-                : editingId
-                ? "Güncelle"
-                : "Ürün Ekle"}
+              {saving ? "Kaydediliyor..." : editingId ? "Güncelle" : "Ürün Ekle"}
             </button>
 
             {editingId ? (
@@ -424,14 +551,15 @@ export default function ProductsPage() {
       <div className="rounded-[32px] border border-slate-200 bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.07)]">
         <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-2xl font-black text-slate-950">
-              Ürün Listesi
-            </h2>
+            <h2 className="text-2xl font-black text-slate-950">Ürün Listesi</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Kayıtlı ürünleri düzenleyebilir, silebilir veya stoklarını hızlıca değiştirebilirsin.
+            </p>
           </div>
 
           <input
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(event) => setSearch(event.target.value)}
             placeholder="Ürün ara..."
             className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-500 lg:max-w-sm"
           />
@@ -451,14 +579,16 @@ export default function ProductsPage() {
             <h3 className="text-xl font-black text-slate-950">
               Ürün bulunamadı
             </h3>
+            <p className="mt-2 text-sm text-slate-500">
+              Yeni ürün eklediğinde burada görünecek.
+            </p>
           </div>
         ) : (
           <div className="grid gap-3">
             {filteredProducts.map((product) => {
               const stock = Number(product.stock ?? 0);
               const minStock = Number(product.min_stock ?? 0);
-
-              const critical = stock <= minStock;
+              const critical = minStock > 0 && stock <= minStock;
 
               return (
                 <div
@@ -495,6 +625,10 @@ export default function ProductsPage() {
                         {product.description || "Açıklama yok"}
                       </p>
 
+                      <p className="mt-2 text-xs font-bold text-slate-400">
+                        QR: {product.qr_code || "QR yok"}
+                      </p>
+
                       <div className="mt-4 flex flex-wrap gap-2">
                         <button
                           type="button"
@@ -516,10 +650,7 @@ export default function ProductsPage() {
 
                     <div className="flex flex-col gap-3">
                       <div className="rounded-2xl bg-white px-4 py-3 shadow-sm">
-                        <p className="text-xs font-black text-slate-400">
-                          Fiyat
-                        </p>
-
+                        <p className="text-xs font-black text-slate-400">Fiyat</p>
                         <p className="mt-1 font-black text-slate-950">
                           {formatCurrency(product.price)}
                         </p>
@@ -529,17 +660,12 @@ export default function ProductsPage() {
                         <p className="text-xs font-black text-slate-400">
                           Min Stok
                         </p>
-
-                        <p className="mt-1 font-black text-slate-950">
-                          {minStock}
-                        </p>
+                        <p className="mt-1 font-black text-slate-950">{minStock}</p>
                       </div>
                     </div>
 
                     <div className="rounded-[24px] bg-white p-4 shadow-sm">
-                      <p className="text-xs font-black text-slate-400">
-                        Stok
-                      </p>
+                      <p className="text-xs font-black text-slate-400">Stok</p>
 
                       <p
                         className={[
