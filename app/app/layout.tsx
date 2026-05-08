@@ -530,86 +530,117 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       <div className="lg:pl-[236px]">
         <header className="sticky top-0 z-40 border-b border-white/10 bg-[#07111f]/85 px-3 py-3 backdrop-blur-xl">
-          <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-3">
-            <div className="flex min-w-0 flex-1 items-center gap-3">
-              <button onClick={() => setSidebarOpen(true)} className="hidden rounded-2xl bg-white/10 px-3 py-2 text-sm font-black lg:hidden">
-                ☰
-              </button>
+          <div className="mx-auto max-w-[1600px]">
+            <div className="flex items-center gap-2 lg:hidden">
+              <Link href="/app" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white ring-1 ring-blue-400/20">
+                <SmartImage
+                  sources={["/takipio-logo.png"]}
+                  alt="Takipio"
+                  className="h-full w-full object-contain p-1"
+                  fallback={<span className="text-sm font-black text-blue-600">T</span>}
+                />
+              </Link>
 
-              <div className="hidden min-w-[120px] sm:block">
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-300">
-                  {loading ? "Yükleniyor" : business?.name || "Takipio"}
-                </p>
-                <h1 className="truncate text-base font-black tracking-[-0.03em] sm:text-xl">{pageTitle(pathname)}</h1>
-              </div>
-
-              <form onSubmit={submitSearch} className="relative hidden max-w-[560px] flex-1 lg:block">
-                <Icon name="help" className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+              <form onSubmit={submitSearch} className="relative min-w-0 flex-1">
+                <Icon name="help" className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Ürün, satış, müşteri, fatura veya QR ara..."
-                  className="h-12 w-full rounded-[18px] border border-white/10 bg-white/8 pl-11 pr-4 text-sm font-bold text-slate-200 outline-none ring-0 transition placeholder:text-slate-500 focus:border-blue-400/40 focus:bg-white/10"
+                  placeholder="Ara..."
+                  className="h-11 w-full rounded-2xl border border-white/10 bg-white/8 pl-9 pr-3 text-xs font-bold text-slate-200 outline-none placeholder:text-slate-500 focus:border-blue-400/40 focus:bg-white/10"
                 />
               </form>
-            </div>
 
-            <div className="relative flex items-center gap-2">
-              <Link href="/app/profile" className="hidden items-center gap-3 rounded-2xl bg-white/8 px-3 py-2 ring-1 ring-white/10 transition hover:bg-white/12 xl:flex">
-                <LogoBox src={profile?.avatar_url || business?.logo_url} name={profile?.full_name || business?.name || "Takipio"} size="sm" />
-                <div className="min-w-0">
-                  <p className="max-w-[150px] truncate text-xs font-black">{profile?.full_name || userEmail || business?.name || "Kullanıcı"}</p>
-                  <p className="text-[10px] text-slate-500">{profile?.role_name || member?.role_name || "Panel"}</p>
-                </div>
+              <Link href="/app/profile" className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white/10 ring-1 ring-white/10">
+                <LogoBox src={profile?.avatar_url || business?.logo_url} name={profile?.full_name || business?.name || "Kullanıcı"} size="sm" />
               </Link>
 
-              <TopIconButton
-                label="Bildirim"
-                icon="invoices"
-                count={unreadNotifications}
-                onClick={() => {
-                  setNotificationsOpen((value) => !value);
-                  setMessagesOpen(false);
-                }}
-              />
-
-              <TopIconButton
-                label="Mesaj"
-                icon="contact"
-                count={unreadMessages}
-                onClick={() => {
-                  setMessagesOpen((value) => !value);
-                  setNotificationsOpen(false);
-                }}
-              />
-
               <button
-                onClick={toggleTheme}
-                title={theme === "dark" ? "Light mode" : "Dark mode"}
-                className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-slate-200 ring-1 ring-white/10 transition hover:bg-white/15"
+                onClick={signOut}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-500/15 text-red-300 ring-1 ring-red-400/20"
+                title="Çıkış yap"
               >
-                <Icon name={theme === "dark" ? "sun" : "moon"} className="h-4 w-4" />
+                <span className="text-xs font-black">Çık</span>
               </button>
+            </div>
 
-              <button onClick={signOut} className="hidden rounded-2xl bg-red-500/15 px-3 py-2 text-xs font-black text-red-300 ring-1 ring-red-400/20 sm:block">
-                Çıkış
-              </button>
+            <div className="hidden items-center justify-between gap-3 lg:flex">
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                <div className="hidden min-w-[120px] sm:block">
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-300">
+                    {loading ? "Yükleniyor" : business?.name || "Takipio"}
+                  </p>
+                  <h1 className="truncate text-base font-black tracking-[-0.03em] sm:text-xl">{pageTitle(pathname)}</h1>
+                </div>
 
-              {notificationsOpen ? (
-                <FloatingPanel title="Bildirimler" emptyText="Bildirim yok">
-                  {notifications.map((item) => (
-                    <PanelItem key={item.id} title={item.title || "Bildirim"} text={item.message || "-"} icon="invoices" onDelete={() => clearNotification(item.id)} />
-                  ))}
-                </FloatingPanel>
-              ) : null}
+                <form onSubmit={submitSearch} className="relative hidden max-w-[560px] flex-1 lg:block">
+                  <Icon name="help" className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                  <input
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Ürün, satış, müşteri, fatura veya QR ara..."
+                    className="h-12 w-full rounded-[18px] border border-white/10 bg-white/8 pl-11 pr-4 text-sm font-bold text-slate-200 outline-none ring-0 transition placeholder:text-slate-500 focus:border-blue-400/40 focus:bg-white/10"
+                  />
+                </form>
+              </div>
 
-              {messagesOpen ? (
-                <FloatingPanel title="Mesaj Kutusu" emptyText="Mesaj yok">
-                  {messages.map((item) => (
-                    <PanelItem key={item.id} title={item.title || "Mesaj"} text={item.message || "-"} icon="contact" sub={item.sender_name || "Takipio"} onDelete={() => clearMessage(item.id)} />
-                  ))}
-                </FloatingPanel>
-              ) : null}
+              <div className="relative flex items-center gap-2">
+                <Link href="/app/profile" className="hidden items-center gap-3 rounded-2xl bg-white/8 px-3 py-2 ring-1 ring-white/10 transition hover:bg-white/12 xl:flex">
+                  <LogoBox src={profile?.avatar_url || business?.logo_url} name={profile?.full_name || business?.name || "Takipio"} size="sm" />
+                  <div className="min-w-0">
+                    <p className="max-w-[150px] truncate text-xs font-black">{profile?.full_name || userEmail || business?.name || "Kullanıcı"}</p>
+                    <p className="text-[10px] text-slate-500">{profile?.role_name || member?.role_name || "Panel"}</p>
+                  </div>
+                </Link>
+
+                <TopIconButton
+                  label="Bildirim"
+                  icon="invoices"
+                  count={unreadNotifications}
+                  onClick={() => {
+                    setNotificationsOpen((value) => !value);
+                    setMessagesOpen(false);
+                  }}
+                />
+
+                <TopIconButton
+                  label="Mesaj"
+                  icon="contact"
+                  count={unreadMessages}
+                  onClick={() => {
+                    setMessagesOpen((value) => !value);
+                    setNotificationsOpen(false);
+                  }}
+                />
+
+                <button
+                  onClick={toggleTheme}
+                  title={theme === "dark" ? "Light mode" : "Dark mode"}
+                  className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-slate-200 ring-1 ring-white/10 transition hover:bg-white/15"
+                >
+                  <Icon name={theme === "dark" ? "sun" : "moon"} className="h-4 w-4" />
+                </button>
+
+                <button onClick={signOut} className="hidden rounded-2xl bg-red-500/15 px-3 py-2 text-xs font-black text-red-300 ring-1 ring-red-400/20 sm:block">
+                  Çıkış
+                </button>
+
+                {notificationsOpen ? (
+                  <FloatingPanel title="Bildirimler" emptyText="Bildirim yok">
+                    {notifications.map((item) => (
+                      <PanelItem key={item.id} title={item.title || "Bildirim"} text={item.message || "-"} icon="invoices" onDelete={() => clearNotification(item.id)} />
+                    ))}
+                  </FloatingPanel>
+                ) : null}
+
+                {messagesOpen ? (
+                  <FloatingPanel title="Mesaj Kutusu" emptyText="Mesaj yok">
+                    {messages.map((item) => (
+                      <PanelItem key={item.id} title={item.title || "Mesaj"} text={item.message || "-"} icon="contact" sub={item.sender_name || "Takipio"} onDelete={() => clearMessage(item.id)} />
+                    ))}
+                  </FloatingPanel>
+                ) : null}
+              </div>
             </div>
           </div>
         </header>
