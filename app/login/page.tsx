@@ -6,7 +6,14 @@ import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    storageKey: "takipio-auth-session",
+  },
+});
 
 type AuthMode = "login" | "register";
 
@@ -553,7 +560,9 @@ export default function LoginPage() {
 
   useEffect(() => {
     const savedEmail = window.localStorage.getItem("takipio-remember-email");
-    if (savedEmail) {
+    const rememberEnabled = window.localStorage.getItem("takipio-remember-enabled") === "true";
+
+    if (rememberEnabled && savedEmail) {
       setEmail(savedEmail);
       setRemember(true);
     }
@@ -577,8 +586,10 @@ export default function LoginPage() {
     try {
       if (remember) {
         window.localStorage.setItem("takipio-remember-email", email.trim());
+        window.localStorage.setItem("takipio-remember-enabled", "true");
       } else {
         window.localStorage.removeItem("takipio-remember-email");
+        window.localStorage.removeItem("takipio-remember-enabled");
       }
 
       if (mode === "login") {
