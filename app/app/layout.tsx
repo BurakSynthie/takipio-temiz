@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -54,72 +54,243 @@ type MessageItem = {
 type NavItem = {
   href: string;
   label: string;
+  sub: string;
   icon: string;
   permission?: keyof Member;
 };
 
-const mainItems: NavItem[] = [
-  { href: "/app", label: "Dashboard", icon: "dashboard", permission: "can_view_dashboard" },
-  { href: "/app/products", label: "Ürünler", icon: "products", permission: "can_manage_products" },
-  { href: "/app/stock", label: "Stok", icon: "stock", permission: "can_manage_stock" },
-  { href: "/app/sales", label: "Satışlar", icon: "sales", permission: "can_manage_sales" },
-  { href: "/app/orders", label: "Siparişler", icon: "orders", permission: "can_manage_orders" },
-  { href: "/app/shipments", label: "Kargo", icon: "cargo", permission: "can_manage_shipments" },
-  { href: "/app/returns", label: "İadeler", icon: "returns", permission: "can_manage_returns" },
-  { href: "/app/customers", label: "Müşteriler", icon: "customers", permission: "can_manage_customers" },
-  { href: "/app/invoices", label: "Faturalar", icon: "invoices", permission: "can_manage_invoices" },
-  { href: "/app/integrations", label: "Entegrasyonlar", icon: "integrations", permission: "can_manage_integrations" },
-  { href: "/app/qr", label: "QR Etiket", icon: "qr", permission: "can_manage_products" },
+const operationItems: NavItem[] = [
+  { href: "/app", label: "Dashboard", sub: "Genel bakış", icon: "dashboard", permission: "can_view_dashboard" },
+  { href: "/app/sales", label: "Satışlar", sub: "Gelir takibi", icon: "sales", permission: "can_manage_sales" },
+  { href: "/app/products", label: "Ürünler", sub: "Ürün & stok", icon: "products", permission: "can_manage_products" },
+  { href: "/app/stock", label: "Stok", sub: "Depo hareketleri", icon: "stock", permission: "can_manage_stock" },
+  { href: "/app/qr", label: "QR / Barkod", sub: "Etiket sistemi", icon: "qr", permission: "can_manage_products" },
 ];
 
-const systemItems: NavItem[] = [
-  { href: "/app/help", label: "Kullanım Rehberi", icon: "help", permission: "can_view_dashboard" },
-  { href: "/app/billing", label: "Abonelik", icon: "billing", permission: "can_manage_billing" },
-  { href: "/app/business-setup", label: "İşletme", icon: "business", permission: "can_manage_settings" },
-  { href: "/app/downloads", label: "Mobil Uygulama", icon: "downloads", permission: "can_view_dashboard" },
-  { href: "/app/profile", label: "Kullanıcı", icon: "profile" },
-  { href: "/app/settings", label: "Ayarlar", icon: "settings", permission: "can_manage_settings" },
-  { href: "/app/contact", label: "İletişim", icon: "contact", permission: "can_view_dashboard" },
-  { href: "/app/about", label: "Hakkımızda", icon: "about", permission: "can_view_dashboard" },
+const businessItems: NavItem[] = [
+  { href: "/app/customers", label: "Müşteriler", sub: "Cari kayıtları", icon: "customers", permission: "can_manage_customers" },
+  { href: "/app/invoices", label: "Faturalar", sub: "Tahsilat takibi", icon: "invoices", permission: "can_manage_invoices" },
+  { href: "/app/orders", label: "Siparişler", sub: "Sipariş yönetimi", icon: "orders", permission: "can_manage_orders" },
+  { href: "/app/shipments", label: "Kargo", sub: "Çıkış & teslimat", icon: "cargo", permission: "can_manage_shipments" },
+  { href: "/app/returns", label: "İadeler", sub: "İade merkezi", icon: "returns", permission: "can_manage_returns" },
+  { href: "/app/integrations", label: "Entegrasyonlar", sub: "Pazaryerleri", icon: "integrations", permission: "can_manage_integrations" },
+];
+
+const centerItems: NavItem[] = [
+  { href: "/app/billing", label: "Abonelik", sub: "Plan & ödeme", icon: "billing", permission: "can_manage_billing" },
+  { href: "/app/business-setup", label: "İşletme", sub: "Firma bilgileri", icon: "business", permission: "can_manage_settings" },
+  { href: "/app/settings", label: "Ayarlar", sub: "Ekip & yetki", icon: "settings", permission: "can_manage_settings" },
+  { href: "/app/profile", label: "Kullanıcı", sub: "Profil & çıkış", icon: "profile" },
+  { href: "/app/downloads", label: "Mobil Uygulama", sub: "App Store / Play", icon: "downloads", permission: "can_view_dashboard" },
+  { href: "/app/help", label: "Kullanım Rehberi", sub: "Nasıl kullanılır", icon: "help", permission: "can_view_dashboard" },
+  { href: "/app/contact", label: "İletişim", sub: "Destek al", icon: "contact", permission: "can_view_dashboard" },
+  { href: "/app/about", label: "Hakkımızda", sub: "Takipio", icon: "about", permission: "can_view_dashboard" },
 ];
 
 function normalizeEmail(email: string | null | undefined) {
   return (email ?? "").trim().toLowerCase();
 }
 
-function iconFor(icon: string) {
-  const icons: Record<string, string> = {
-    dashboard: "⌘",
-    products: "▦",
-    stock: "↕",
-    sales: "₺",
-    orders: "◈",
-    cargo: "↗",
-    returns: "↩",
-    customers: "◉",
-    invoices: "▤",
-    integrations: "∞",
-    qr: "▣",
-    help: "?",
-    billing: "₺",
-    business: "◆",
-    downloads: "⇩",
-    profile: "●",
-    settings: "⚙",
-    contact: "✉",
-    about: "i",
-  };
-
-  return icons[icon] ?? "•";
+function pageTitle(pathname: string) {
+  const all = [...operationItems, ...businessItems, ...centerItems];
+  return all.find((item) => item.href === pathname)?.label ?? "Dashboard";
 }
 
-function pageTitle(pathname: string) {
-  const current = [...mainItems, ...systemItems].find((item) => item.href === pathname);
-  return current?.label ?? "İşletme Paneli";
+function iconPath(icon: string) {
+  const paths: Record<string, React.ReactNode> = {
+    dashboard: (
+      <>
+        <path d="M4 13.5 12 6l8 7.5" />
+        <path d="M6.5 12.5V20h11v-7.5" />
+        <path d="M10 20v-5h4v5" />
+      </>
+    ),
+    sales: (
+      <>
+        <path d="M12 3v18" />
+        <path d="M17 7.5c-.7-1.6-2.2-2.5-4.3-2.5-2.4 0-4 1.2-4 3 0 4.6 8.8 2.1 8.8 7.3 0 2-1.7 3.4-4.6 3.4-2.3 0-4.1-1-5-2.8" />
+      </>
+    ),
+    products: (
+      <>
+        <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z" />
+        <path d="m4 7.5 8 4.5 8-4.5" />
+        <path d="M12 12v9" />
+      </>
+    ),
+    stock: (
+      <>
+        <path d="M7 3v18" />
+        <path d="M17 3v18" />
+        <path d="m4 7 3-3 3 3" />
+        <path d="m14 17 3 3 3-3" />
+      </>
+    ),
+    qr: (
+      <>
+        <path d="M4 4h6v6H4z" />
+        <path d="M14 4h6v6h-6z" />
+        <path d="M4 14h6v6H4z" />
+        <path d="M14 14h2v2h-2z" />
+        <path d="M18 14h2v6h-4v-2h2z" />
+      </>
+    ),
+    customers: (
+      <>
+        <path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" />
+        <circle cx="9.5" cy="7" r="4" />
+        <path d="M22 21v-2a4 4 0 0 0-3-3.8" />
+        <path d="M16 3.2a4 4 0 0 1 0 7.6" />
+      </>
+    ),
+    invoices: (
+      <>
+        <path d="M7 3h10a2 2 0 0 1 2 2v16l-3-2-3 2-3-2-3 2-3-2V5a2 2 0 0 1 2-2Z" />
+        <path d="M8 8h8" />
+        <path d="M8 12h8" />
+        <path d="M8 16h5" />
+      </>
+    ),
+    orders: (
+      <>
+        <path d="M5 7h14" />
+        <path d="M5 12h14" />
+        <path d="M5 17h14" />
+        <path d="M3 5h18v14H3z" />
+      </>
+    ),
+    cargo: (
+      <>
+        <path d="M3 7h11v10H3z" />
+        <path d="M14 10h4l3 3v4h-7z" />
+        <circle cx="7" cy="18" r="2" />
+        <circle cx="17" cy="18" r="2" />
+      </>
+    ),
+    returns: (
+      <>
+        <path d="M9 14 4 9l5-5" />
+        <path d="M4 9h11a5 5 0 1 1 0 10H8" />
+      </>
+    ),
+    integrations: (
+      <>
+        <path d="M7 7h.01" />
+        <path d="M17 7h.01" />
+        <path d="M7 17h.01" />
+        <path d="M17 17h.01" />
+        <path d="M8 8l8 8" />
+        <path d="M16 8l-8 8" />
+      </>
+    ),
+    billing: (
+      <>
+        <rect x="3" y="5" width="18" height="14" rx="3" />
+        <path d="M3 10h18" />
+        <path d="M7 15h4" />
+      </>
+    ),
+    business: (
+      <>
+        <path d="M4 21V5a2 2 0 0 1 2-2h8v18" />
+        <path d="M14 8h4a2 2 0 0 1 2 2v11" />
+        <path d="M8 7h2" />
+        <path d="M8 11h2" />
+        <path d="M8 15h2" />
+      </>
+    ),
+    settings: (
+      <>
+        <circle cx="12" cy="12" r="3" />
+        <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1A2 2 0 1 1 4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1A2 2 0 1 1 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3h.1A1.7 1.7 0 0 0 10 3.1V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1A2 2 0 1 1 19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9v.1a1.7 1.7 0 0 0 1.6.9h.1a2 2 0 1 1 0 4H21a1.7 1.7 0 0 0-1.6 1Z" />
+      </>
+    ),
+    profile: (
+      <>
+        <circle cx="12" cy="8" r="4" />
+        <path d="M4 21a8 8 0 0 1 16 0" />
+      </>
+    ),
+    downloads: (
+      <>
+        <path d="M12 3v12" />
+        <path d="m7 10 5 5 5-5" />
+        <path d="M5 21h14" />
+      </>
+    ),
+    help: (
+      <>
+        <circle cx="12" cy="12" r="10" />
+        <path d="M9.5 9a2.8 2.8 0 0 1 5 1.8c0 2-2.5 2.3-2.5 4.2" />
+        <path d="M12 18h.01" />
+      </>
+    ),
+    contact: (
+      <>
+        <path d="M4 4h16v16H4z" />
+        <path d="m4 7 8 6 8-6" />
+      </>
+    ),
+    about: (
+      <>
+        <circle cx="12" cy="12" r="10" />
+        <path d="M12 16v-4" />
+        <path d="M12 8h.01" />
+      </>
+    ),
+  };
+
+  return paths[icon] ?? paths.dashboard;
+}
+
+function Icon({ name, className = "" }: { name: string; className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className || "h-4 w-4"} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      {iconPath(name)}
+    </svg>
+  );
+}
+
+function LogoBox({ src, name, size = "md" }: { src?: string | null; name?: string | null; size?: "sm" | "md" | "lg" }) {
+  const [failed, setFailed] = useState(false);
+  const resolvedSrc = src || "/logo.png";
+  const showImage = resolvedSrc && !failed;
+
+  const sizeClass = size === "lg" ? "h-12 w-12 rounded-2xl" : size === "sm" ? "h-9 w-9 rounded-xl" : "h-11 w-11 rounded-2xl";
+
+  return (
+    <div className={`relative flex shrink-0 items-center justify-center overflow-hidden bg-white ring-1 ring-blue-400/20 ${sizeClass}`}>
+      {showImage ? (
+        <img
+          src={resolvedSrc}
+          alt={name || "Takipio"}
+          className="h-full w-full object-contain p-1"
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <span className="text-base font-black text-blue-600">{(name || "T").slice(0, 1).toUpperCase()}</span>
+      )}
+    </div>
+  );
+}
+
+function GorkiImage() {
+  const [failed, setFailed] = useState(false);
+
+  return (
+    <div className="relative flex h-full w-full items-center justify-center overflow-hidden">
+      {!failed ? (
+        <img src="/gorki.png" alt="Gorki" className="h-full w-full object-cover" onError={() => setFailed(true)} />
+      ) : (
+        <span className="text-xl font-black text-white">G</span>
+      )}
+    </div>
+  );
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
 
   const [business, setBusiness] = useState<Business | null>(null);
   const [member, setMember] = useState<Member | null>(null);
@@ -127,10 +298,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [messages, setMessages] = useState<MessageItem[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [theme, setTheme] = useState("dark");
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [gorkiOpen, setGorkiOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
 
   const isOwner = normalizeEmail(userEmail) === normalizeEmail(business?.owner_email);
@@ -203,8 +376,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return Boolean(member[item.permission]);
   }
 
-  const visibleMainItems = useMemo(() => mainItems.filter(canSee), [member, isOwner]);
-  const visibleSystemItems = useMemo(() => systemItems.filter(canSee), [member, isOwner]);
+  const visibleOperationItems = useMemo(() => operationItems.filter(canSee), [member, isOwner]);
+  const visibleBusinessItems = useMemo(() => businessItems.filter(canSee), [member, isOwner]);
+  const visibleCenterItems = useMemo(() => centerItems.filter(canSee), [member, isOwner]);
 
   const unreadNotifications = notifications.filter((item) => !item.is_read).length;
   const unreadMessages = messages.filter((item) => !item.is_read).length;
@@ -216,6 +390,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     document.documentElement.classList.toggle("dark", next === "dark");
   }
 
+  function submitSearch(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const query = search.trim().toLowerCase();
+
+    if (!query) return;
+
+    if (query.includes("ürün") || query.includes("urun") || query.includes("stok")) router.push("/app/products");
+    else if (query.includes("satış") || query.includes("satis")) router.push("/app/sales");
+    else if (query.includes("müşteri") || query.includes("musteri")) router.push("/app/customers");
+    else if (query.includes("fatura")) router.push("/app/invoices");
+    else if (query.includes("qr") || query.includes("barkod")) router.push("/app/qr");
+    else if (query.includes("sipariş") || query.includes("siparis")) router.push("/app/orders");
+    else router.push("/app");
+  }
+
   async function signOut() {
     await supabase.auth.signOut();
     window.location.href = "/login";
@@ -225,43 +414,31 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (!business) return;
 
     setNotifications((current) => current.filter((item) => item.id !== id));
-
-    await supabase
-      .from("app_notifications")
-      .delete()
-      .eq("business_id", business.id)
-      .eq("id", id);
+    await supabase.from("app_notifications").delete().eq("business_id", business.id).eq("id", id);
   }
 
   async function clearMessage(id: string) {
     if (!business) return;
 
     setMessages((current) => current.filter((item) => item.id !== id));
-
-    await supabase
-      .from("app_messages")
-      .delete()
-      .eq("business_id", business.id)
-      .eq("id", id);
+    await supabase.from("app_messages").delete().eq("business_id", business.id).eq("id", id);
   }
+
+  const mobilePrimaryItems = [
+    visibleOperationItems.find((item) => item.href === "/app"),
+    visibleOperationItems.find((item) => item.href === "/app/products"),
+    visibleBusinessItems.find((item) => item.href === "/app/orders"),
+    visibleBusinessItems.find((item) => item.href === "/app/shipments"),
+  ].filter(Boolean) as NavItem[];
 
   return (
     <div className="min-h-screen bg-[#07111f] text-white">
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.18),transparent_35%),radial-gradient(circle_at_bottom_right,rgba(14,165,233,0.12),transparent_35%)]" />
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.20),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(6,182,212,0.12),transparent_35%)]" />
 
-      <aside className={`fixed inset-y-0 left-0 z-50 w-[248px] border-r border-white/10 bg-[#0b1220]/95 p-3 backdrop-blur-xl transition lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 w-[236px] border-r border-white/10 bg-[#0b1220]/95 p-3 backdrop-blur-xl transition lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="mb-4 flex items-center justify-between rounded-[20px] bg-white/5 p-3 ring-1 ring-white/10">
           <Link href="/app" className="flex min-w-0 items-center gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-blue-500/15 ring-1 ring-blue-400/20">
-              {business?.logo_url ? (
-                <img src={business.logo_url} alt="Logo" className="h-full w-full object-contain p-1.5" />
-              ) : (
-                <img src="/logo.png" alt="Takipio" className="h-full w-full object-contain p-1.5" onError={(event) => { event.currentTarget.style.display = "none"; }} />
-              )}
-              {!business?.logo_url ? (
-                <span className="absolute text-lg font-black text-blue-300">{(business?.name || "T").slice(0, 1).toUpperCase()}</span>
-              ) : null}
-            </div>
+            <LogoBox src={business?.logo_url} name={business?.name || "Takipio"} />
             <div className="min-w-0">
               <p className="truncate text-sm font-black">{business?.name || "Takipio"}</p>
               <p className="truncate text-[10px] text-slate-500">{member?.role_name || "İşletme Paneli"}</p>
@@ -272,8 +449,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         <div className="custom-scrollbar h-[calc(100vh-104px)] overflow-y-auto pr-1">
-          <NavGroup title="Operasyon" items={visibleMainItems} pathname={pathname} onNavigate={() => setSidebarOpen(false)} />
-          <NavGroup title="Sistem" items={visibleSystemItems} pathname={pathname} onNavigate={() => setSidebarOpen(false)} />
+          <NavGroup title="Operasyon" items={visibleOperationItems} pathname={pathname} onNavigate={() => setSidebarOpen(false)} />
+          <NavGroup title="İşletme" items={visibleBusinessItems} pathname={pathname} onNavigate={() => setSidebarOpen(false)} />
+          <NavGroup title="Merkez" items={visibleCenterItems} pathname={pathname} onNavigate={() => setSidebarOpen(false)} />
 
           <div className="mt-4 rounded-[20px] bg-white/5 p-3 ring-1 ring-white/10">
             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Hesap</p>
@@ -290,66 +468,70 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <div className="lg:pl-[248px]">
-        <header className="sticky top-0 z-40 border-b border-white/10 bg-[#07111f]/80 px-3 py-3 backdrop-blur-xl">
+      <div className="lg:pl-[236px]">
+        <header className="sticky top-0 z-40 border-b border-white/10 bg-[#07111f]/85 px-3 py-3 backdrop-blur-xl">
           <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
+            <div className="flex min-w-0 flex-1 items-center gap-3">
               <button onClick={() => setSidebarOpen(true)} className="rounded-2xl bg-white/10 px-3 py-2 text-sm font-black lg:hidden">☰</button>
-              <div>
+
+              <div className="hidden min-w-[120px] sm:block">
                 <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-300">
                   {loading ? "Yükleniyor" : business?.name || "Takipio"}
                 </p>
-                <h1 className="text-base font-black tracking-[-0.03em] sm:text-xl">{pageTitle(pathname)}</h1>
+                <h1 className="truncate text-base font-black tracking-[-0.03em] sm:text-xl">{pageTitle(pathname)}</h1>
               </div>
+
+              <form onSubmit={submitSearch} className="relative hidden max-w-[560px] flex-1 lg:block">
+                <Icon name="help" className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Ürün, satış, müşteri, fatura veya QR ara..."
+                  className="h-12 w-full rounded-[18px] border border-white/10 bg-white/8 pl-11 pr-4 text-sm font-bold text-slate-200 outline-none ring-0 transition placeholder:text-slate-500 focus:border-blue-400/40 focus:bg-white/10"
+                />
+              </form>
             </div>
 
             <div className="relative flex items-center gap-2">
-              <button
+              <TopIconButton
+                label="Bildirim"
+                icon="invoices"
+                count={unreadNotifications}
                 onClick={() => {
                   setNotificationsOpen((value) => !value);
                   setMessagesOpen(false);
                 }}
-                className="relative rounded-2xl bg-white/10 px-3 py-2 text-xs font-black text-slate-200"
-              >
-                Bildirim
-                {unreadNotifications ? <span className="absolute -right-1 -top-1 rounded-full bg-red-500 px-1.5 py-0.5 text-[9px] text-white">{unreadNotifications}</span> : null}
-              </button>
+              />
 
-              <button
+              <TopIconButton
+                label="Mesaj"
+                icon="contact"
+                count={unreadMessages}
                 onClick={() => {
                   setMessagesOpen((value) => !value);
                   setNotificationsOpen(false);
                 }}
-                className="relative rounded-2xl bg-white/10 px-3 py-2 text-xs font-black text-slate-200"
-              >
-                Mesaj
-                {unreadMessages ? <span className="absolute -right-1 -top-1 rounded-full bg-blue-500 px-1.5 py-0.5 text-[9px] text-white">{unreadMessages}</span> : null}
-              </button>
+              />
 
-              <Link href="/app/profile" className="hidden rounded-2xl bg-white/10 px-3 py-2 text-xs font-black text-slate-200 sm:inline-flex">
+              <Link href="/app/profile" className="hidden items-center gap-2 rounded-2xl bg-white/10 px-3 py-2 text-xs font-black text-slate-200 ring-1 ring-white/10 sm:flex">
+                <span className="flex h-6 w-6 items-center justify-center rounded-xl bg-blue-500/80">
+                  <Icon name="profile" className="h-3.5 w-3.5" />
+                </span>
                 {member?.role_name || "Kullanıcı"}
               </Link>
 
-              <button onClick={toggleTheme} className="rounded-2xl bg-white/10 px-3 py-2 text-xs font-black text-slate-200">
+              <button onClick={toggleTheme} className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-slate-200 ring-1 ring-white/10 transition hover:bg-white/15">
                 {theme === "dark" ? "☾" : "☀"}
               </button>
 
-              <button onClick={signOut} className="rounded-2xl bg-red-500/15 px-3 py-2 text-xs font-black text-red-300">
+              <button onClick={signOut} className="hidden rounded-2xl bg-red-500/15 px-3 py-2 text-xs font-black text-red-300 ring-1 ring-red-400/20 sm:block">
                 Çıkış
               </button>
 
               {notificationsOpen ? (
                 <FloatingPanel title="Bildirimler" emptyText="Bildirim yok">
                   {notifications.map((item) => (
-                    <div key={item.id} className="rounded-2xl bg-[#0b1220] p-3 ring-1 ring-white/10">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-black">{item.title || "Bildirim"}</p>
-                          <p className="mt-1 text-xs leading-5 text-slate-400">{item.message || "-"}</p>
-                        </div>
-                        <button onClick={() => clearNotification(item.id)} className="rounded-lg bg-red-500/15 px-2 py-1 text-[10px] font-black text-red-300">Sil</button>
-                      </div>
-                    </div>
+                    <PanelItem key={item.id} title={item.title || "Bildirim"} text={item.message || "-"} icon="invoices" onDelete={() => clearNotification(item.id)} />
                   ))}
                 </FloatingPanel>
               ) : null}
@@ -357,16 +539,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               {messagesOpen ? (
                 <FloatingPanel title="Mesaj Kutusu" emptyText="Mesaj yok">
                   {messages.map((item) => (
-                    <div key={item.id} className="rounded-2xl bg-[#0b1220] p-3 ring-1 ring-white/10">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-black">{item.title || "Mesaj"}</p>
-                          <p className="mt-1 text-xs text-slate-500">{item.sender_name || "Takipio"}</p>
-                          <p className="mt-1 text-xs leading-5 text-slate-400">{item.message || "-"}</p>
-                        </div>
-                        <button onClick={() => clearMessage(item.id)} className="rounded-lg bg-red-500/15 px-2 py-1 text-[10px] font-black text-red-300">Sil</button>
-                      </div>
-                    </div>
+                    <PanelItem key={item.id} title={item.title || "Mesaj"} text={item.message || "-"} icon="contact" sub={item.sender_name || "Takipio"} onDelete={() => clearMessage(item.id)} />
                   ))}
                 </FloatingPanel>
               ) : null}
@@ -374,13 +547,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <main className="relative z-10 px-3 py-4 sm:px-4 lg:px-5">
+        <main className="relative z-10 px-3 py-4 pb-28 sm:px-4 lg:px-5 lg:pb-6">
           {children}
         </main>
 
-        <nav className="fixed inset-x-3 bottom-3 z-50 rounded-[24px] border border-white/10 bg-[#0b1220]/95 p-2 shadow-2xl backdrop-blur-xl lg:hidden">
+        <nav className="fixed inset-x-3 bottom-3 z-50 rounded-[26px] border border-white/10 bg-[#0b1220]/95 p-2 shadow-2xl shadow-black/30 backdrop-blur-xl lg:hidden">
           <div className="grid grid-cols-5 gap-1">
-            {visibleMainItems.slice(0, 5).map((item) => {
+            {mobilePrimaryItems.map((item) => {
               const active = pathname === item.href;
 
               return (
@@ -389,22 +562,53 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   href={item.href}
                   className={`rounded-2xl px-2 py-2 text-center text-[10px] font-black transition ${active ? "bg-blue-600 text-white" : "text-slate-400"}`}
                 >
-                  <span className="block text-base">{iconFor(item.icon)}</span>
-                  <span className="mt-0.5 block truncate">{item.label}</span>
+                  <Icon name={item.icon} className="mx-auto h-4 w-4" />
+                  <span className="mt-1 block truncate">{item.label}</span>
                 </Link>
               );
             })}
+
+            <button
+              onClick={() => setMobileMenuOpen((value) => !value)}
+              className={`rounded-2xl px-2 py-2 text-center text-[10px] font-black transition ${mobileMenuOpen ? "bg-blue-600 text-white" : "text-slate-400"}`}
+            >
+              <Icon name="settings" className="mx-auto h-4 w-4" />
+              <span className="mt-1 block truncate">Menü</span>
+            </button>
           </div>
         </nav>
+
+        {mobileMenuOpen ? (
+          <div className="fixed inset-x-3 bottom-[92px] z-50 rounded-[26px] border border-white/10 bg-[#0b1220]/95 p-3 shadow-2xl backdrop-blur-xl lg:hidden">
+            <div className="grid grid-cols-2 gap-2">
+              {[...visibleOperationItems, ...visibleBusinessItems, ...visibleCenterItems].map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-2 rounded-2xl bg-white/5 px-3 py-3 text-xs font-black text-slate-300"
+                >
+                  <Icon name={item.icon} className="h-4 w-4 text-blue-300" />
+                  {item.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <div className="fixed bottom-24 right-4 z-[80] lg:bottom-6">
         {gorkiOpen ? (
           <div className="mb-3 w-[310px] rounded-[28px] border border-white/10 bg-[#0b1220]/95 p-4 shadow-2xl backdrop-blur-xl">
             <div className="mb-3 flex items-start justify-between gap-3">
-              <div>
-                <p className="text-sm font-black">Gorki AI</p>
-                <p className="mt-1 text-xs text-slate-400">Bugün sana nasıl yardımcı olabilirim?</p>
+              <div className="flex items-center gap-3">
+                <div className="h-12 w-12 overflow-hidden rounded-2xl bg-blue-600">
+                  <GorkiImage />
+                </div>
+                <div>
+                  <p className="text-sm font-black">Gorki AI</p>
+                  <p className="mt-1 text-xs text-slate-400">Bugün sana nasıl yardımcı olabilirim?</p>
+                </div>
               </div>
               <button onClick={() => setGorkiOpen(false)} className="rounded-xl bg-white/10 px-3 py-1 text-sm font-black">×</button>
             </div>
@@ -418,8 +622,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         ) : null}
 
         <button onClick={() => setGorkiOpen((value) => !value)} className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-[24px] border border-blue-400/30 bg-blue-600 shadow-2xl shadow-blue-950/40 transition hover:-translate-y-1">
-          <img src="/gorki.png" alt="Gorki" className="h-full w-full object-cover" onError={(event) => { event.currentTarget.style.display = "none"; }} />
-          <span className="absolute text-xl font-black text-white">G</span>
+          <GorkiImage />
         </button>
       </div>
 
@@ -428,12 +631,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
+function TopIconButton({ label, icon, count, onClick }: { label: string; icon: string; count: number; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="relative flex h-10 items-center gap-2 rounded-2xl bg-white/10 px-3 text-xs font-black text-slate-200 ring-1 ring-white/10 transition hover:bg-white/15">
+      <Icon name={icon} className="h-4 w-4 text-blue-300" />
+      <span className="hidden sm:inline">{label}</span>
+      {count ? <span className="absolute -right-1 -top-1 rounded-full bg-red-500 px-1.5 py-0.5 text-[9px] text-white">{count}</span> : null}
+    </button>
+  );
+}
+
 function NavGroup({ title, items, pathname, onNavigate }: { title: string; items: NavItem[]; pathname: string; onNavigate: () => void }) {
   if (items.length === 0) return null;
 
   return (
     <div className="mb-4">
-      <p className="mb-2 px-2 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">{title}</p>
+      <p className="mb-2 px-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{title}</p>
       <div className="space-y-1">
         {items.map((item) => {
           const active = pathname === item.href;
@@ -447,10 +660,13 @@ function NavGroup({ title, items, pathname, onNavigate }: { title: string; items
                 active ? "bg-blue-600 text-white shadow-lg shadow-blue-950/30" : "text-slate-400 hover:bg-white/10 hover:text-white"
               }`}
             >
-              <span className={`flex h-7 w-7 items-center justify-center rounded-xl text-xs ${active ? "bg-white/20" : "bg-white/5 group-hover:bg-white/10"}`}>
-                {iconFor(item.icon)}
+              <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${active ? "bg-white/20" : "bg-white/5 group-hover:bg-white/10"}`}>
+                <Icon name={item.icon} className="h-4 w-4" />
               </span>
-              <span className="truncate">{item.label}</span>
+              <span className="min-w-0">
+                <span className="block truncate">{item.label}</span>
+                <span className={`block truncate text-[10px] font-bold ${active ? "text-blue-100" : "text-slate-600 group-hover:text-slate-400"}`}>{item.sub}</span>
+              </span>
             </Link>
           );
         })}
@@ -463,7 +679,7 @@ function FloatingPanel({ title, emptyText, children }: { title: string; emptyTex
   const list = Array.isArray(children) ? children.filter(Boolean) : children;
 
   return (
-    <div className="absolute right-0 top-12 z-[90] w-[330px] rounded-[26px] border border-white/10 bg-[#111a2e]/95 p-4 shadow-2xl backdrop-blur-xl">
+    <div className="absolute right-0 top-12 z-[90] w-[340px] rounded-[26px] border border-white/10 bg-[#111a2e]/95 p-4 shadow-2xl backdrop-blur-xl">
       <h3 className="mb-3 text-sm font-black">{title}</h3>
       <div className="max-h-[360px] space-y-2 overflow-y-auto">
         {Array.isArray(list) && list.length === 0 ? (
@@ -471,6 +687,24 @@ function FloatingPanel({ title, emptyText, children }: { title: string; emptyTex
         ) : (
           children
         )}
+      </div>
+    </div>
+  );
+}
+
+function PanelItem({ title, text, sub, icon, onDelete }: { title: string; text: string; sub?: string; icon: string; onDelete: () => void }) {
+  return (
+    <div className="rounded-2xl bg-[#0b1220] p-3 ring-1 ring-white/10">
+      <div className="flex items-start gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-blue-500/15 text-blue-300">
+          <Icon name={icon} className="h-4 w-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-black">{title}</p>
+          {sub ? <p className="mt-0.5 text-[10px] text-slate-500">{sub}</p> : null}
+          <p className="mt-1 text-xs leading-5 text-slate-400">{text}</p>
+        </div>
+        <button onClick={onDelete} className="rounded-lg bg-red-500/15 px-2 py-1 text-[10px] font-black text-red-300">Sil</button>
       </div>
     </div>
   );
