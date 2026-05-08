@@ -56,6 +56,15 @@ type NotificationItem = {
   created_at: string;
 };
 
+type InboxMessage = {
+  id: string;
+  sender: string | null;
+  title: string;
+  body: string | null;
+  is_read: boolean | null;
+  created_at: string;
+};
+
 const mainItems: NavItem[] = [
   { href: "/app", label: "Dashboard", shortLabel: "Panel", icon: "dashboard" },
   { href: "/app/sales", label: "Satışlar", shortLabel: "Satış", icon: "sales" },
@@ -147,6 +156,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [gorkiInput, setGorkiInput] = useState("");
   const [messages, setMessages] = useState<GorkiMessage[]>(initialMessages);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [inboxMessages, setInboxMessages] = useState<InboxMessage[]>([]);
+  const [profileName, setProfileName] = useState("Burak");
+  const [profileRole, setProfileRole] = useState("Sahip");
+  const [profileAvatar, setProfileAvatar] = useState("");
 
   const surface = darkMode ? "bg-[#0b1220] text-white" : "bg-[#f4f7fb] text-slate-950";
   const panel = darkMode ? "bg-[#111a2e] border-white/10 text-white" : "bg-white border-slate-200 text-slate-950";
@@ -156,7 +169,72 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     fetchNotifications();
+    fetchInboxMessages();
+    loadProfile();
+
+    function syncProfile() {
+      loadProfile();
+    }
+
+    window.addEventListener("takipio-profile-updated", syncProfile);
+
+    return () => {
+      window.removeEventListener("takipio-profile-updated", syncProfile);
+    };
   }, []);
+
+  async function loadProfile() {
+    const savedProfile = localStorage.getItem("takipio_user_profile");
+
+    if (savedProfile) {
+      try {
+        const parsed = JSON.parse(savedProfile);
+        setProfileName(parsed.name || "Burak");
+        setProfileRole(parsed.role || "Sahip");
+        setProfileAvatar(parsed.avatar || "");
+      } catch {}
+    }
+
+    const { data: userData } = await supabase.auth.getUser();
+    const email = userData.user?.email;
+
+    if (!email) return;
+
+    const { data } = await supabase
+      .from("app_user_profiles")
+      .select("full_name, role_name, avatar_url")
+      .eq("email", email)
+      .maybeSingle();
+
+    if (data) {
+      setProfileName(data.full_name || email);
+      setProfileRole(data.role_name || "Kullanıcı");
+      setProfileAvatar(data.avatar_url || "");
+    }
+  }
+
+  async function fetchInboxMessages() {
+    const { data } = await supabase
+      .from("app_messages")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(8);
+
+    setInboxMessages(data ?? []);
+  }
+
+  async function markInboxRead(id: string) {
+    setInboxMessages((current) =>
+      current.map((item) => (item.id === id ? { ...item, is_read: true } : item))
+    );
+
+    await supabase.from("app_messages").update({ is_read: true }).eq("id", id);
+  }
+
+  async function deleteInboxMessage(id: string) {
+    setInboxMessages((current) => current.filter((item) => item.id !== id));
+    await supabase.from("app_messages").delete().eq("id", id);
+  }
 
   async function fetchNotifications() {
     const { data } = await supabase
@@ -254,7 +332,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-blue-500" />
                 </button>
 
-                {inboxOpen ? <InboxPopover panel={panel} onClose={() => setInboxOpen(false)} /> : null}
+                {inboxOpen ? (
+                  <InboxPopover
+                    panel={panel}
+                    items={inboxMessages}
+                    onRead={markInboxRead}
+                    onDelete={deleteInboxMessage}
+                    onClose={() => setInboxOpen(false)}
+                  />
+                ) : null}
               </div>
 
               <div className="relative">
@@ -290,10 +376,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
               <div className="relative">
                 <button onClick={() => setProfileOpen((v) => !v)} className={`flex h-10 items-center gap-2 rounded-2xl px-2 ${soft}`}>
-                  <div className="h-7 w-7 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400" />
+                  <div className="h-7 w-7 overflow-hidden rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400">
+                    {profileAvatar ? <img src={profileAvatar} alt="Profil" className="h-full w-full object-cover" /> : null}
+                  </div>
                   <div className="hidden text-left leading-none sm:block">
-                    <p className="text-xs font-black">Burak</p>
-                    <p className="mt-1 text-[10px] text-slate-500">Sahip</p>
+                    <p className="max-w-[90px] truncate text-xs font-black">{profileName}</p>
+                    <p className="mt-1 max-w-[90px] truncate text-[10px] text-slate-500">{profileRole}</p>
                   </div>
                 </button>
 
@@ -435,13 +523,19 @@ function NavGroup({ title, items, pathname }: { title: string; items: NavItem[];
   );
 }
 
-function InboxPopover({ panel, onClose }: { panel: string; onClose: () => void }) {
-  const [items, setItems] = useState([
-    { id: "1", title: "Gorki AI", text: "Yetki sistemi ve profil yükleme paketi hazır." },
-    { id: "2", title: "Sistem", text: "Dosya yükleme artık Supabase Storage ile çalışacak." },
-    { id: "3", title: "Destek", text: "takipioinfo@gmail.com iletişim adresi tanımlandı." },
-  ]);
-
+function InboxPopover({
+  panel,
+  items,
+  onRead,
+  onDelete,
+  onClose,
+}: {
+  panel: string;
+  items: InboxMessage[];
+  onRead: (id: string) => void;
+  onDelete: (id: string) => void;
+  onClose: () => void;
+}) {
   return (
     <div className={`absolute right-0 top-12 z-50 w-[330px] rounded-2xl border p-3 shadow-2xl ${panel}`}>
       <div className="mb-3 flex items-center justify-between">
@@ -449,18 +543,19 @@ function InboxPopover({ panel, onClose }: { panel: string; onClose: () => void }
         <button onClick={onClose} className="text-sm font-black text-slate-500">×</button>
       </div>
 
-      <div className="space-y-2">
+      <div className="max-h-[360px] space-y-2 overflow-y-auto">
         {items.length === 0 ? (
           <p className="rounded-xl bg-white/5 p-4 text-center text-sm text-slate-500">Mesaj yok.</p>
         ) : (
           items.map((item) => (
-            <div key={item.id} className="rounded-xl bg-white/5 p-3">
+            <div key={item.id} className={`rounded-xl bg-white/5 p-3 ${item.is_read ? "opacity-60" : ""}`}>
               <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="text-sm font-black">{item.title}</p>
-                  <p className="mt-1 text-xs text-slate-500">{item.text}</p>
-                </div>
-                <button onClick={() => setItems((current) => current.filter((i) => i.id !== item.id))} className="text-red-400">
+                <button onClick={() => onRead(item.id)} className="min-w-0 text-left">
+                  <p className="truncate text-xs font-black text-blue-300">{item.sender || "Sistem"}</p>
+                  <p className="mt-1 truncate text-sm font-black">{item.title}</p>
+                  <p className="mt-1 text-xs text-slate-500">{item.body || "Açıklama yok"}</p>
+                </button>
+                <button onClick={() => onDelete(item.id)} className="text-red-400">
                   <Icon name="trash" />
                 </button>
               </div>
@@ -468,6 +563,10 @@ function InboxPopover({ panel, onClose }: { panel: string; onClose: () => void }
           ))
         )}
       </div>
+
+      <Link href="/app/inbox" onClick={onClose} className="mt-3 block rounded-xl bg-blue-600 px-3 py-2 text-center text-xs font-black text-white">
+        Mesaj Merkezine Git
+      </Link>
     </div>
   );
 }
