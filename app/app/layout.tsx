@@ -476,8 +476,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   async function signOut() {
-    await supabase.auth.signOut();
-    window.location.href = "/login";
+    try {
+      await supabase.auth.signOut({ scope: "local" });
+
+      window.localStorage.removeItem("takipio-auth-session");
+
+      Object.keys(window.localStorage).forEach((key) => {
+        if (key.startsWith("sb-")) {
+          window.localStorage.removeItem(key);
+        }
+      });
+
+      window.location.replace("/login");
+    } catch (error) {
+      console.error("Çıkış yapılamadı:", error);
+      window.location.replace("/login");
+    }
   }
 
   async function clearNotification(id: string) {
