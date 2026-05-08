@@ -11,6 +11,7 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 type Product = { id: string; name: string; product_code: string; category: string | null; price: number | null; stock: number | null; min_stock: number | null; created_at: string };
 type Sale = { id: string; product_code: string | null; product_name: string | null; customer_name: string | null; quantity: number | null; total_price: number | null; payment_status: string | null; created_at: string };
 type StockMovement = { id: string; product_code: string | null; product_name: string | null; movement_type: string | null; quantity: number | null; note: string | null; created_at: string };
+type Note = { id: string; title: string; note: string | null; is_done: boolean | null; created_at: string };
 
 function formatCurrency(value: number | null | undefined) {
   return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 }).format(Number(value ?? 0));
@@ -32,26 +33,50 @@ export default function DashboardPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [movements, setMovements] = useState<StockMovement[]>([]);
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [noteTitle, setNoteTitle] = useState("");
   const [loading, setLoading] = useState(true);
 
   async function fetchData() {
     setLoading(true);
 
-    const [p, s, m] = await Promise.all([
+    const [p, s, m, n] = await Promise.all([
       supabase.from("products").select("id, name, product_code, category, price, stock, min_stock, created_at").order("created_at", { ascending: false }),
       supabase.from("sales").select("*").order("created_at", { ascending: false }),
       supabase.from("stock_movements").select("*").order("created_at", { ascending: false }).limit(20),
+      supabase.from("app_notes").select("*").order("created_at", { ascending: false }).limit(8),
     ]);
 
     setProducts(p.data ?? []);
     setSales(s.data ?? []);
     setMovements(m.data ?? []);
+    setNotes(n.data ?? []);
     setLoading(false);
   }
 
   useEffect(() => {
     fetchData();
   }, []);
+
+  async function addNote(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const cleanTitle = noteTitle.trim();
+    if (!cleanTitle) return;
+
+    const { data } = await supabase.from("app_notes").insert({ title: cleanTitle }).select("*").single();
+    if (data) setNotes((current) => [data, ...current]);
+    setNoteTitle("");
+  }
+
+  async function toggleNote(note: Note) {
+    setNotes((current) => current.map((item) => item.id === note.id ? { ...item, is_done: !item.is_done } : item));
+    await supabase.from("app_notes").update({ is_done: !note.is_done }).eq("id", note.id);
+  }
+
+  async function deleteNote(id: string) {
+    setNotes((current) => current.filter((item) => item.id !== id));
+    await supabase.from("app_notes").delete().eq("id", id);
+  }
 
   const totalProducts = products.length;
   const totalStock = products.reduce((sum, p) => sum + Number(p.stock ?? 0), 0);
@@ -63,6 +88,7 @@ export default function DashboardPage() {
   const pendingRevenue = pendingSales.reduce((sum, s) => sum + Number(s.total_price ?? 0), 0);
   const paidRevenue = sales.filter((s) => s.payment_status === "paid").reduce((sum, s) => sum + Number(s.total_price ?? 0), 0);
   const soldQty = sales.reduce((sum, s) => sum + Number(s.quantity ?? 0), 0);
+  const paidRatio = totalRevenue > 0 ? Math.round((paidRevenue / totalRevenue) * 100) : 0;
 
   const weeklyBars = useMemo(() => {
     const labels = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
@@ -78,8 +104,6 @@ export default function DashboardPage() {
     return labels.map((label, i) => ({ label, total: totals[i], height: Math.max((totals[i] / max) * 100, totals[i] > 0 ? 12 : 3) }));
   }, [sales]);
 
-  const paidRatio = totalRevenue > 0 ? Math.round((paidRevenue / totalRevenue) * 100) : 0;
-
   return (
     <section className="mx-auto grid w-full max-w-[1500px] gap-3 text-white">
       <div className="grid gap-3 xl:grid-cols-[1fr_280px]">
@@ -92,8 +116,8 @@ export default function DashboardPage() {
             </div>
 
             <div className="flex gap-2">
-              <button onClick={fetchData} className="rounded-xl bg-white/10 px-3 py-2 text-xs font-black">Yenile</button>
-              <Link href="/app/sales" className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-black">Yeni Satış</Link>
+              <button onClick={fetchData} className="rounded-xl bg-white/10 px-3 py-2 text-xs font-black transition hover:-translate-y-0.5">Yenile</button>
+              <Link href="/app/sales" className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-black transition hover:-translate-y-0.5">Yeni Satış</Link>
             </div>
           </div>
         </div>
@@ -126,7 +150,7 @@ export default function DashboardPage() {
               {weeklyBars.map((bar) => (
                 <div key={bar.label} className="flex min-w-0 flex-1 flex-col items-center justify-end gap-2">
                   <div className="flex h-[165px] items-end">
-                    <div className="w-5 rounded-t-full bg-gradient-to-t from-blue-700 to-cyan-300" style={{ height: `${bar.height}%` }} />
+                    <div className="w-5 rounded-t-full bg-gradient-to-t from-blue-700 to-cyan-300 transition hover:scale-y-105" style={{ height: `${bar.height}%` }} />
                   </div>
                   <span className="text-[10px] font-black text-slate-500">{bar.label}</span>
                 </div>
@@ -142,11 +166,25 @@ export default function DashboardPage() {
           <SmallBar label="Satış Adedi" value={String(soldQty)} width={Math.min(soldQty * 4, 100)} color="bg-violet-400" />
         </Panel>
 
-        <Panel title="Uyarılar">
-          <Alert label="Kritik stok" value={`${criticalProducts.length} ürün`} tone="red" href="/app/products" />
-          <Alert label="Bekleyen ödeme" value={formatCurrency(pendingRevenue)} tone="amber" href="/app/sales" />
-          <Alert label="Son hareket" value={`${movements.length} kayıt`} tone="blue" href="/app/stock" />
-          <Alert label="Inbox" value="3 mesaj" tone="green" href="/app/inbox" />
+        <Panel title="Notlar">
+          <form onSubmit={addNote} className="mb-2 flex gap-2">
+            <input value={noteTitle} onChange={(e) => setNoteTitle(e.target.value)} placeholder="Not yaz..." className="min-w-0 flex-1 rounded-xl border border-white/10 bg-[#0b1220] px-3 py-2 text-xs outline-none placeholder:text-slate-500" />
+            <button className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-black">Ekle</button>
+          </form>
+
+          <div className="space-y-2">
+            {notes.length === 0 ? (
+              <Empty text="Not yok" />
+            ) : (
+              notes.map((note) => (
+                <div key={note.id} className="flex items-center gap-2 rounded-[14px] bg-[#0b1220] p-2.5">
+                  <button onClick={() => toggleNote(note)} className={`h-4 w-4 shrink-0 rounded-full ${note.is_done ? "bg-emerald-400" : "bg-white/10"}`} />
+                  <p className={`min-w-0 flex-1 truncate text-xs font-bold ${note.is_done ? "text-slate-500 line-through" : "text-white"}`}>{note.title}</p>
+                  <button onClick={() => deleteNote(note.id)} className="text-xs font-black text-red-300">Sil</button>
+                </div>
+              ))
+            )}
+          </div>
         </Panel>
       </div>
 
@@ -154,7 +192,7 @@ export default function DashboardPage() {
         <Panel title="Son Satışlar" actionHref="/app/sales">
           <div className="space-y-2">
             {sales.slice(0, 5).length === 0 ? <Empty text="Satış yok" /> : sales.slice(0, 5).map((sale) => (
-              <div key={sale.id} className="flex items-center justify-between gap-3 rounded-[14px] bg-[#0b1220] p-2.5">
+              <div key={sale.id} className="flex items-center justify-between gap-3 rounded-[14px] bg-[#0b1220] p-2.5 transition hover:bg-[#111d31]">
                 <div className="min-w-0">
                   <p className="truncate text-xs font-black">{sale.product_name || "Ürün yok"}</p>
                   <p className="text-[10px] text-slate-500">{sale.customer_name || "Müşteri yok"}</p>
@@ -171,7 +209,7 @@ export default function DashboardPage() {
         <Panel title="Stok Hareketleri" actionHref="/app/stock">
           <div className="space-y-2">
             {movements.slice(0, 5).length === 0 ? <Empty text="Hareket yok" /> : movements.slice(0, 5).map((movement) => (
-              <div key={movement.id} className="flex items-center justify-between gap-3 rounded-[14px] bg-[#0b1220] p-2.5">
+              <div key={movement.id} className="flex items-center justify-between gap-3 rounded-[14px] bg-[#0b1220] p-2.5 transition hover:bg-[#111d31]">
                 <div className="min-w-0">
                   <p className="truncate text-xs font-black">{movement.product_name || "Ürün yok"}</p>
                   <p className="text-[10px] text-slate-500">{movement.note || "Stok hareketi"}</p>
@@ -184,15 +222,11 @@ export default function DashboardPage() {
           </div>
         </Panel>
 
-        <Panel title="Görevler">
-          <div className="space-y-2">
-            {["Kritik stokları kontrol et", "Bekleyen ödemeleri ara", "QR etiket test et", "Firma bilgilerini tamamla"].map((task, index) => (
-              <div key={task} className="flex items-center gap-2 rounded-[14px] bg-[#0b1220] p-2.5">
-                <span className={`h-4 w-4 rounded-full ${index === 2 ? "bg-emerald-400" : "bg-white/10"}`} />
-                <p className="text-xs font-bold">{task}</p>
-              </div>
-            ))}
-          </div>
+        <Panel title="Uyarılar">
+          <Alert label="Kritik stok" value={`${criticalProducts.length} ürün`} tone="red" href="/app/products" />
+          <Alert label="Bekleyen ödeme" value={formatCurrency(pendingRevenue)} tone="amber" href="/app/sales" />
+          <Alert label="Yetkiler" value="Ekip yönetimi" tone="blue" href="/app/settings" />
+          <Alert label="Profil" value="Fotoğraf yükle" tone="green" href="/app/profile" />
         </Panel>
       </div>
     </section>
@@ -201,7 +235,7 @@ export default function DashboardPage() {
 
 function Metric({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
-    <div className="rounded-[18px] border border-white/10 bg-[#111a2e] p-3">
+    <div className="rounded-[18px] border border-white/10 bg-[#111a2e] p-3 transition hover:-translate-y-0.5 hover:bg-[#17233b]">
       <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{label}</p>
       <p className="mt-1 text-lg font-black">{value}</p>
       <p className="mt-1 text-[10px] text-slate-500">{sub}</p>
@@ -222,7 +256,7 @@ function Panel({ title, children, actionHref }: { title: string; children: React
 }
 
 function Quick({ href, label }: { href: string; label: string }) {
-  return <Link href={href} className="rounded-[14px] bg-[#0b1220] px-3 py-2.5 text-center text-xs font-black ring-1 ring-white/8">{label}</Link>;
+  return <Link href={href} className="rounded-[14px] bg-[#0b1220] px-3 py-2.5 text-center text-xs font-black ring-1 ring-white/8 transition hover:-translate-y-0.5 hover:bg-[#111d31]">{label}</Link>;
 }
 
 function SmallBar({ label, value, width, color }: { label: string; value: string; width: number; color: string }) {
@@ -242,7 +276,7 @@ function SmallBar({ label, value, width, color }: { label: string; value: string
 function Alert({ label, value, tone, href }: { label: string; value: string; tone: "red" | "amber" | "blue" | "green"; href: string }) {
   const color = tone === "red" ? "text-red-300" : tone === "amber" ? "text-amber-300" : tone === "green" ? "text-emerald-300" : "text-blue-300";
   return (
-    <Link href={href} className="mb-2 flex items-center justify-between rounded-[14px] bg-[#0b1220] p-2.5">
+    <Link href={href} className="mb-2 flex items-center justify-between rounded-[14px] bg-[#0b1220] p-2.5 transition hover:bg-[#111d31]">
       <span className="text-xs font-bold text-slate-400">{label}</span>
       <span className={`text-xs font-black ${color}`}>{value}</span>
     </Link>
