@@ -18,7 +18,7 @@ type Profile = {
 
 const defaultProfile: Profile = {
   name: "Burak",
-  role: "Admin",
+  role: "Sahip",
   email: "takipioinfo@gmail.com",
   phone: "0531 723 48 01",
   avatar: "",
@@ -27,6 +27,7 @@ const defaultProfile: Profile = {
 export default function ProfilePage() {
   const router = useRouter();
   const [profile, setProfile] = useState<Profile>(defaultProfile);
+  const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -34,9 +35,41 @@ export default function ProfilePage() {
     if (saved) setProfile(JSON.parse(saved));
   }, []);
 
-  function saveProfile() {
-    localStorage.setItem("takipio_user_profile", JSON.stringify(profile));
+  function saveProfile(nextProfile = profile) {
+    localStorage.setItem("takipio_user_profile", JSON.stringify(nextProfile));
     setMessage("Profil bilgileri kaydedildi.");
+  }
+
+  async function uploadAvatar(file: File) {
+    setUploading(true);
+    setMessage("");
+
+    const extension = file.name.split(".").pop();
+    const fileName = `avatars/${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`;
+
+    const { error } = await supabase.storage
+      .from("takipio-uploads")
+      .upload(fileName, file, {
+        cacheControl: "3600",
+        upsert: true,
+      });
+
+    if (error) {
+      setMessage(`Fotoğraf yüklenemedi: ${error.message}`);
+      setUploading(false);
+      return;
+    }
+
+    const { data } = supabase.storage.from("takipio-uploads").getPublicUrl(fileName);
+
+    const nextProfile = {
+      ...profile,
+      avatar: data.publicUrl,
+    };
+
+    setProfile(nextProfile);
+    saveProfile(nextProfile);
+    setUploading(false);
   }
 
   async function logout() {
@@ -48,7 +81,7 @@ export default function ProfilePage() {
     <section className="mx-auto w-full max-w-[1100px] space-y-3 text-white">
       <div className="rounded-[20px] border border-white/10 bg-[#111a2e] p-4">
         <h1 className="text-2xl font-black">Kullanıcı Profili</h1>
-        <p className="mt-1 text-sm text-slate-400">Profil fotoğrafı ve kullanıcı bilgilerini düzenle.</p>
+        <p className="mt-1 text-sm text-slate-400">Bilgisayardan profil fotoğrafı yükle, bilgilerini düzenle ve çıkış yap.</p>
       </div>
 
       {message ? <div className="rounded-2xl bg-emerald-400/15 px-4 py-3 text-sm font-black text-emerald-300">{message}</div> : null}
@@ -63,9 +96,18 @@ export default function ProfilePage() {
             )}
           </div>
 
-          <label className="mt-4 block">
-            <span className="mb-1.5 block text-xs font-black text-slate-400">Profil Fotoğraf URL</span>
-            <input value={profile.avatar} onChange={(e) => setProfile({ ...profile, avatar: e.target.value })} placeholder="https://..." className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none" />
+          <label className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-white/15 bg-[#0b1220] p-4 text-center transition hover:bg-[#111d31]">
+            <span className="text-sm font-black">{uploading ? "Yükleniyor..." : "Bilgisayardan Fotoğraf Yükle"}</span>
+            <span className="mt-1 text-xs text-slate-500">PNG, JPG veya WEBP</span>
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) uploadAvatar(file);
+              }}
+            />
           </label>
 
           <button onClick={logout} className="mt-4 w-full rounded-2xl bg-red-500/15 px-5 py-3 text-sm font-black text-red-300 ring-1 ring-red-400/20">
@@ -82,7 +124,7 @@ export default function ProfilePage() {
             <Field label="Telefon" value={profile.phone} onChange={(v) => setProfile({ ...profile, phone: v })} />
           </div>
 
-          <button onClick={saveProfile} className="mt-4 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black">Profili Kaydet</button>
+          <button onClick={() => saveProfile()} className="mt-4 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black">Profili Kaydet</button>
         </div>
       </div>
     </section>
