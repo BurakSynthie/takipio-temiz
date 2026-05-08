@@ -5,14 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-    storageKey: "takipio-auth-session",
-  },
-});
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 type Business = {
   id: string;
@@ -72,6 +65,11 @@ function normalizeEmail(email: string | null | undefined) {
 }
 
 async function getCurrentUserEmail() {
+  const sessionResult = await supabase.auth.getSession();
+  const sessionEmail = normalizeEmail(sessionResult.data.session?.user?.email);
+
+  if (sessionEmail) return sessionEmail;
+
   const { data } = await supabase.auth.getUser();
   return normalizeEmail(data.user?.email);
 }
@@ -379,7 +377,7 @@ export default function ProfilePage() {
       window.localStorage.removeItem("takipio-auth-session");
 
       Object.keys(window.localStorage).forEach((key) => {
-        if (key.startsWith("sb-") || key.includes("supabase")) {
+        if (key.startsWith("sb-") || key.includes("supabase") || key.includes("takipio-auth")) {
           window.localStorage.removeItem(key);
         }
       });
@@ -391,7 +389,7 @@ export default function ProfilePage() {
 
       window.localStorage.removeItem("takipio-auth-session");
       Object.keys(window.localStorage).forEach((key) => {
-        if (key.startsWith("sb-") || key.includes("supabase")) {
+        if (key.startsWith("sb-") || key.includes("supabase") || key.includes("takipio-auth")) {
           window.localStorage.removeItem(key);
         }
       });
