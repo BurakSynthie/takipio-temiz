@@ -6,14 +6,7 @@ import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-    storageKey: "takipio-auth-session",
-  },
-});
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 type AuthMode = "login" | "register";
 
@@ -569,7 +562,7 @@ export default function LoginPage() {
 
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) {
-        router.push("/app");
+        router.replace("/app");
       }
     });
   }, [router]);
@@ -604,7 +597,15 @@ export default function LoginPage() {
           return;
         }
 
-        router.push("/app");
+        const sessionCheck = await supabase.auth.getSession();
+
+        if (!sessionCheck.data.session) {
+          setMessage("Giriş yapıldı ama oturum tarayıcıya kaydedilemedi. Lütfen tekrar dene.");
+          setLoading(false);
+          return;
+        }
+
+        router.replace("/app");
         return;
       }
 
