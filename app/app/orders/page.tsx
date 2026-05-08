@@ -23,6 +23,8 @@ type Order = {
   customer_email: string | null;
   customer_phone: string | null;
   total_amount: number | null;
+  paid_amount: number | null;
+  remaining_amount: number | null;
   payment_status: string | null;
   order_status: string | null;
   preparation_status: string | null;
@@ -44,6 +46,16 @@ type OrderItem = {
   total_price: number | null;
 };
 
+type Payment = {
+  id: string;
+  order_id: string | null;
+  payment_method: string | null;
+  amount: number | null;
+  payment_date: string | null;
+  note: string | null;
+  created_at: string;
+};
+
 type OrderForm = {
   marketplace: string;
   customer_name: string;
@@ -52,7 +64,12 @@ type OrderForm = {
   product_id: string;
   quantity: string;
   unit_price: string;
-  payment_status: string;
+  note: string;
+};
+
+type PaymentForm = {
+  payment_method: string;
+  amount: string;
   note: string;
 };
 
@@ -64,16 +81,31 @@ const emptyForm: OrderForm = {
   product_id: "",
   quantity: "1",
   unit_price: "",
-  payment_status: "pending",
+  note: "",
+};
+
+const emptyPaymentForm: PaymentForm = {
+  payment_method: "cash",
+  amount: "",
   note: "",
 };
 
 const marketplaceOptions = [
-  { value: "manual", label: "Manuel" },
+  { value: "manual", label: "Manuel / Instagram" },
   { value: "trendyol", label: "Trendyol" },
   { value: "hepsiburada", label: "Hepsiburada" },
   { value: "amazon", label: "Amazon" },
   { value: "ciceksepeti", label: "ÇiçekSepeti" },
+];
+
+const paymentMethods = [
+  { value: "cash", label: "Nakit" },
+  { value: "card", label: "Kredi / Banka Kartı" },
+  { value: "transfer", label: "Havale / EFT" },
+  { value: "cod", label: "Kapıda Ödeme" },
+  { value: "marketplace", label: "Pazaryeri Ödemesi" },
+  { value: "check", label: "Çek / Senet" },
+  { value: "other", label: "Diğer" },
 ];
 
 const statusFlow = [
@@ -93,7 +125,9 @@ function formatCurrency(value: number | null | undefined) {
   }).format(Number(value ?? 0));
 }
 
-function formatDate(date: string) {
+function formatDate(date: string | null | undefined) {
+  if (!date) return "-";
+
   return new Intl.DateTimeFormat("tr-TR", {
     dateStyle: "medium",
     timeStyle: "short",
@@ -102,6 +136,10 @@ function formatDate(date: string) {
 
 function marketplaceLabel(value: string | null | undefined) {
   return marketplaceOptions.find((item) => item.value === value)?.label ?? "Manuel";
+}
+
+function paymentMethodLabel(value: string | null | undefined) {
+  return paymentMethods.find((item) => item.value === value)?.label ?? "Diğer";
 }
 
 function statusLabel(value: string | null | undefined) {
@@ -117,6 +155,18 @@ function statusClass(value: string | null | undefined) {
   return "bg-white/10 text-slate-300";
 }
 
+function paymentStatusLabel(value: string | null | undefined) {
+  if (value === "paid") return "Ödendi";
+  if (value === "partial") return "Kısmi Ödendi";
+  return "Bekliyor";
+}
+
+function paymentStatusClass(value: string | null | undefined) {
+  if (value === "paid") return "bg-emerald-400/15 text-emerald-300";
+  if (value === "partial") return "bg-amber-400/15 text-amber-300";
+  return "bg-red-400/15 text-red-300";
+}
+
 function nextStatus(current: string | null | undefined) {
   if (current === "new") return "preparing";
   if (current === "preparing") return "packed";
@@ -129,12 +179,23 @@ function createOrderNo() {
   return `ORD-${Date.now().toString().slice(-8)}`;
 }
 
+function calculatePaymentStatus(total: number, paid: number) {
+  if (paid <= 0) return "pending";
+  if (paid >= total) return "paid";
+  return "partial";
+}
+
 export default function OrdersPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [items, setItems] = useState<OrderItem[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
+
   const [form, setForm] = useState<OrderForm>(emptyForm);
+  const [paymentForm, setPaymentForm] = useState<PaymentForm>(emptyPaymentForm);
+
   const [formOpen, setFormOpen] = useState(false);
+  const [paymentModalOrder, setPaymentModalOrder] = useState<Order | null>(null);
   const [search, setSearch] = useState("");
   const [marketplaceFilter, setMarketplaceFilter] = useState("all");
   const [message, setMessage] = useState("");
@@ -165,18 +226,20 @@ export default function OrdersPage() {
   }, [orders, search, marketplaceFilter]);
 
   const waitingOrders = orders.filter((order) => order.order_status === "new" || order.preparation_status === "waiting").length;
-  const preparingOrders = orders.filter((order) => order.order_status === "preparing").length;
   const notShippedOrders = orders.filter((order) => order.shipping_status !== "shipped" && order.shipping_status !== "delivered").length;
-  const deliveredOrders = orders.filter((order) => order.order_status === "delivered").length;
+  const totalOrderAmount = orders.reduce((sum, order) => sum + Number(order.total_amount ?? 0), 0);
+  const totalPaidAmount = orders.reduce((sum, order) => sum + Number(order.paid_amount ?? 0), 0);
+  const totalRemainingAmount = orders.reduce((sum, order) => sum + Math.max(Number(order.remaining_amount ?? order.total_amount ?? 0), 0), 0);
 
   async function fetchData() {
     setLoading(true);
     setMessage("");
 
-    const [productsResult, ordersResult, itemsResult] = await Promise.all([
+    const [productsResult, ordersResult, itemsResult, paymentsResult] = await Promise.all([
       supabase.from("products").select("id, name, product_code, price, stock").order("created_at", { ascending: false }),
       supabase.from("orders").select("*").order("created_at", { ascending: false }),
       supabase.from("order_items").select("*").order("created_at", { ascending: false }),
+      supabase.from("payments").select("*").order("created_at", { ascending: false }),
     ]);
 
     if (productsResult.error) {
@@ -194,6 +257,7 @@ export default function OrdersPage() {
     setProducts(productsResult.data ?? []);
     setOrders(ordersResult.data ?? []);
     setItems(itemsResult.data ?? []);
+    setPayments(paymentsResult.data ?? []);
     setLoading(false);
   }
 
@@ -213,6 +277,33 @@ export default function OrdersPage() {
 
   function getOrderItems(orderId: string) {
     return items.filter((item) => item.order_id === orderId);
+  }
+
+  function getOrderPayments(orderId: string) {
+    return payments.filter((payment) => payment.order_id === orderId);
+  }
+
+  async function syncOrderPayment(orderId: string, totalAmount: number) {
+    const { data } = await supabase
+      .from("payments")
+      .select("amount")
+      .eq("order_id", orderId);
+
+    const paidAmount = (data ?? []).reduce((sum, payment) => {
+      return sum + Number(payment.amount ?? 0);
+    }, 0);
+
+    const remainingAmount = Math.max(totalAmount - paidAmount, 0);
+    const paymentStatus = calculatePaymentStatus(totalAmount, paidAmount);
+
+    await supabase
+      .from("orders")
+      .update({
+        paid_amount: paidAmount,
+        remaining_amount: remainingAmount,
+        payment_status: paymentStatus,
+      })
+      .eq("id", orderId);
   }
 
   async function createOrder(event: React.FormEvent<HTMLFormElement>) {
@@ -255,7 +346,9 @@ export default function OrdersPage() {
         customer_email: form.customer_email.trim() || null,
         customer_phone: form.customer_phone.trim() || null,
         total_amount: totalAmount,
-        payment_status: form.payment_status,
+        paid_amount: 0,
+        remaining_amount: totalAmount,
+        payment_status: "pending",
         order_status: "new",
         preparation_status: "waiting",
         shipping_status: "not_shipped",
@@ -291,10 +384,53 @@ export default function OrdersPage() {
       note: `Sipariş oluşturuldu - ${orderNo}`,
     });
 
-    setMessage("Sipariş oluşturuldu. Ürün stoğu düşüldü.");
+    setMessage("Sipariş oluşturuldu. Ödeme eklemek için sipariş kartındaki Ödeme Ekle butonunu kullan.");
     setForm(emptyForm);
     setFormOpen(false);
     setSaving(false);
+    await fetchData();
+  }
+
+  async function addPayment(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!paymentModalOrder) return;
+
+    const amount = Number(paymentForm.amount || 0);
+
+    if (amount <= 0) {
+      setMessage("Ödeme tutarı 0'dan büyük olmalı.");
+      return;
+    }
+
+    await supabase.from("payments").insert({
+      order_id: paymentModalOrder.id,
+      payment_method: paymentForm.payment_method,
+      amount,
+      note: paymentForm.note.trim() || null,
+    });
+
+    await syncOrderPayment(paymentModalOrder.id, Number(paymentModalOrder.total_amount ?? 0));
+
+    setPaymentForm(emptyPaymentForm);
+    setPaymentModalOrder(null);
+    setMessage("Ödeme kaydedildi.");
+    await fetchData();
+  }
+
+  async function deletePayment(payment: Payment) {
+    if (!payment.order_id) return;
+    if (!confirm("Ödeme kaydı silinsin mi?")) return;
+
+    const order = orders.find((item) => item.id === payment.order_id);
+
+    await supabase.from("payments").delete().eq("id", payment.id);
+
+    if (order) {
+      await syncOrderPayment(order.id, Number(order.total_amount ?? 0));
+    }
+
+    setMessage("Ödeme kaydı silindi.");
     await fetchData();
   }
 
@@ -368,13 +504,13 @@ export default function OrdersPage() {
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="mb-3 inline-flex rounded-full bg-blue-500/15 px-3 py-2 text-xs font-black text-blue-300">
-              Takipio Operations
+              Payments v1
             </div>
             <h1 className="text-[34px] font-black tracking-[-0.05em] sm:text-5xl">
-              Siparişler
+              Siparişler & Ödemeler
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
-              Siparişi oluştur, hazırlanıyor / paketlendi / kargoda / teslim edildi akışını yönet.
+              Siparişi oluştur, parçalı ödeme ekle, nakit / kart / havale ayrımını takip et.
             </p>
           </div>
 
@@ -394,11 +530,11 @@ export default function OrdersPage() {
       ) : null}
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
-        <Metric label="Toplam Sipariş" value={String(orders.length)} valueClass="text-white" />
-        <Metric label="Yeni / Bekleyen" value={String(waitingOrders)} valueClass="text-amber-300" />
-        <Metric label="Hazırlanıyor" value={String(preparingOrders)} valueClass="text-blue-300" />
+        <Metric label="Sipariş Tutarı" value={formatCurrency(totalOrderAmount)} valueClass="text-white" />
+        <Metric label="Alınan Ödeme" value={formatCurrency(totalPaidAmount)} valueClass="text-emerald-300" />
+        <Metric label="Kalan Tahsilat" value={formatCurrency(totalRemainingAmount)} valueClass="text-amber-300" />
+        <Metric label="Yeni / Bekleyen" value={String(waitingOrders)} valueClass="text-blue-300" />
         <Metric label="Kargo Bekleyen" value={String(notShippedOrders)} valueClass="text-red-300" />
-        <Metric label="Teslim Edilen" value={String(deliveredOrders)} valueClass="text-emerald-300" />
       </div>
 
       {formOpen ? (
@@ -406,7 +542,9 @@ export default function OrdersPage() {
           <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h2 className="text-2xl font-black">Yeni Sipariş Oluştur</h2>
-              <p className="mt-1 text-sm text-slate-400">Şimdilik manuel test için. API bağlanınca pazaryerlerinden otomatik düşecek.</p>
+              <p className="mt-1 text-sm text-slate-400">
+                Ödemeyi sipariş oluştuktan sonra birden fazla parça halinde ekleyebilirsin.
+              </p>
             </div>
             <div className="rounded-2xl bg-[#0b1220] px-4 py-3 text-right ring-1 ring-white/10">
               <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Önizleme</p>
@@ -415,7 +553,7 @@ export default function OrdersPage() {
           </div>
 
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <Field label="Pazaryeri">
+            <Field label="Pazaryeri / Kanal">
               <select value={form.marketplace} onChange={(event) => setForm((current) => ({ ...current, marketplace: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none">
                 {marketplaceOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
@@ -450,14 +588,6 @@ export default function OrdersPage() {
               <input type="number" min="0" value={form.unit_price} onChange={(event) => setForm((current) => ({ ...current, unit_price: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none" />
             </Field>
 
-            <Field label="Ödeme">
-              <select value={form.payment_status} onChange={(event) => setForm((current) => ({ ...current, payment_status: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none">
-                <option value="pending">Bekliyor</option>
-                <option value="paid">Ödendi</option>
-                <option value="partial">Kısmi</option>
-              </select>
-            </Field>
-
             <Field label="Not">
               <input value={form.note} onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none" placeholder="Not" />
             </Field>
@@ -478,13 +608,13 @@ export default function OrdersPage() {
         <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-2xl font-black">Sipariş Akışı</h2>
-            <p className="mt-1 text-sm text-slate-400">Hazırlama, paketleme, kargo ve iade kontrolü.</p>
+            <p className="mt-1 text-sm text-slate-400">Hazırlama, paketleme, kargo, iade ve parçalı ödeme kontrolü.</p>
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row">
             <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Sipariş ara..." className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none placeholder:text-slate-500 sm:w-[240px]" />
             <select value={marketplaceFilter} onChange={(event) => setMarketplaceFilter(event.target.value)} className="rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none">
-              <option value="all">Tüm Pazaryerleri</option>
+              <option value="all">Tüm Kanallar</option>
               {marketplaceOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </div>
@@ -501,16 +631,21 @@ export default function OrdersPage() {
           <div className="grid gap-3">
             {filteredOrders.map((order) => {
               const orderItems = getOrderItems(order.id);
+              const orderPayments = getOrderPayments(order.id);
               const target = nextStatus(order.order_status);
+              const total = Number(order.total_amount ?? 0);
+              const paid = Number(order.paid_amount ?? 0);
+              const remaining = Math.max(Number(order.remaining_amount ?? total - paid), 0);
 
               return (
                 <div key={order.id} className="rounded-[22px] border border-white/10 bg-[#0b1220] p-4 transition hover:bg-[#101a31]">
-                  <div className="grid gap-4 xl:grid-cols-[1.1fr_0.8fr_0.7fr_0.9fr_auto] xl:items-center">
+                  <div className="grid gap-4 xl:grid-cols-[1fr_0.8fr_0.85fr_0.9fr_auto] xl:items-start">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="text-lg font-black">{order.order_no}</h3>
                         <span className="rounded-full bg-blue-500/15 px-3 py-1 text-xs font-black text-blue-300">{marketplaceLabel(order.marketplace)}</span>
                         <span className={["rounded-full px-3 py-1 text-xs font-black", statusClass(order.order_status)].join(" ")}>{statusLabel(order.order_status)}</span>
+                        <span className={["rounded-full px-3 py-1 text-xs font-black", paymentStatusClass(order.payment_status)].join(" ")}>{paymentStatusLabel(order.payment_status)}</span>
                       </div>
                       <p className="mt-2 text-sm text-slate-400">{order.customer_name || "Müşteri yok"}</p>
                       <p className="mt-2 text-xs text-slate-500">{formatDate(order.created_at)}</p>
@@ -532,24 +667,57 @@ export default function OrdersPage() {
                     </div>
 
                     <div>
-                      <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Tutar</p>
-                      <p className="mt-1 text-lg font-black">{formatCurrency(order.total_amount)}</p>
+                      <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Ödeme Özeti</p>
+                      <div className="mt-2 space-y-1 text-xs">
+                        <p className="font-black text-slate-200">Toplam: {formatCurrency(total)}</p>
+                        <p className="font-black text-emerald-300">Alınan: {formatCurrency(paid)}</p>
+                        <p className="font-black text-amber-300">Kalan: {formatCurrency(remaining)}</p>
+                      </div>
                     </div>
 
                     <div>
-                      <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Kargo</p>
-                      <p className="mt-1 text-sm font-black text-slate-300">
-                        {order.shipping_status === "delivered" ? "Teslim edildi" : order.shipping_status === "shipped" ? "Kargoda" : "Kargo bekliyor"}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-500">{order.tracking_no || "Takip no yok"}</p>
+                      <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Ödeme Geçmişi</p>
+                      <div className="mt-2 space-y-2">
+                        {orderPayments.length === 0 ? (
+                          <p className="text-xs text-slate-500">Ödeme kaydı yok</p>
+                        ) : (
+                          orderPayments.map((payment) => (
+                            <div key={payment.id} className="flex items-center justify-between gap-2 rounded-xl bg-[#111a2e] px-3 py-2">
+                              <div>
+                                <p className="text-xs font-black">{paymentMethodLabel(payment.payment_method)}</p>
+                                <p className="text-[10px] text-slate-500">{formatDate(payment.payment_date)}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-xs font-black text-emerald-300">{formatCurrency(payment.amount)}</p>
+                                <button onClick={() => deletePayment(payment)} className="text-[10px] font-black text-red-300">Sil</button>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
                     </div>
 
                     <div className="flex flex-wrap gap-2 xl:justify-end">
+                      <button
+                        onClick={() => {
+                          setPaymentModalOrder(order);
+                          setPaymentForm({
+                            payment_method: "cash",
+                            amount: remaining > 0 ? String(remaining) : "",
+                            note: "",
+                          });
+                        }}
+                        className="rounded-xl bg-emerald-500/15 px-3 py-2 text-xs font-black text-emerald-300"
+                      >
+                        Ödeme Ekle
+                      </button>
+
                       {target ? (
                         <button onClick={() => advanceOrder(order)} className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-black text-white">
                           {statusLabel(target)} Yap
                         </button>
                       ) : null}
+
                       <button onClick={() => createReturn(order)} className="rounded-xl bg-amber-500/15 px-3 py-2 text-xs font-black text-amber-300">İade Aç</button>
                       <button onClick={() => cancelOrder(order)} className="rounded-xl bg-red-500/15 px-3 py-2 text-xs font-black text-red-300">İptal</button>
                     </div>
@@ -560,6 +728,44 @@ export default function OrdersPage() {
           </div>
         )}
       </div>
+
+      {paymentModalOrder ? (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
+          <form onSubmit={addPayment} className="w-full max-w-[520px] rounded-[28px] border border-white/10 bg-[#111a2e] p-5 shadow-2xl">
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-300">Parçalı Ödeme</p>
+                <h2 className="mt-2 text-2xl font-black">{paymentModalOrder.order_no}</h2>
+                <p className="mt-1 text-sm text-slate-400">
+                  Toplam: {formatCurrency(paymentModalOrder.total_amount)} · Kalan: {formatCurrency(paymentModalOrder.remaining_amount ?? paymentModalOrder.total_amount)}
+                </p>
+              </div>
+              <button type="button" onClick={() => setPaymentModalOrder(null)} className="rounded-2xl bg-white/10 px-4 py-2 text-lg font-black">×</button>
+            </div>
+
+            <div className="grid gap-3">
+              <Field label="Ödeme Yöntemi">
+                <select value={paymentForm.payment_method} onChange={(event) => setPaymentForm((current) => ({ ...current, payment_method: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none">
+                  {paymentMethods.map((method) => <option key={method.value} value={method.value}>{method.label}</option>)}
+                </select>
+              </Field>
+
+              <Field label="Tutar">
+                <input type="number" min="0" value={paymentForm.amount} onChange={(event) => setPaymentForm((current) => ({ ...current, amount: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none" />
+              </Field>
+
+              <Field label="Not">
+                <input value={paymentForm.note} onChange={(event) => setPaymentForm((current) => ({ ...current, note: event.target.value }))} placeholder="Örn: Instagram satışında yarısı nakit alındı" className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none" />
+              </Field>
+            </div>
+
+            <div className="mt-5 flex flex-wrap gap-2">
+              <button className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white">Ödemeyi Kaydet</button>
+              <button type="button" onClick={() => setPaymentModalOrder(null)} className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-black text-slate-200">Vazgeç</button>
+            </div>
+          </form>
+        </div>
+      ) : null}
     </section>
   );
 }
