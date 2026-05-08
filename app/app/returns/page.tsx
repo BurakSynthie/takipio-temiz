@@ -7,6 +7,225 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+type Business = {
+  id: string;
+  owner_email: string | null;
+  name: string;
+  email: string | null;
+};
+
+type BusinessMember = {
+  id: string;
+  business_id: string;
+  email: string;
+  role_name: string | null;
+  member_status: string | null;
+  can_view_dashboard?: boolean | null;
+  can_manage_stock?: boolean | null;
+  can_manage_shipments?: boolean | null;
+  can_manage_returns?: boolean | null;
+  can_manage_billing?: boolean | null;
+};
+
+type Subscription = {
+  id: string;
+  business_id: string | null;
+  plan: string | null;
+  status: string | null;
+  order_limit: number | null;
+  first_month_price: number | null;
+  monthly_price: number | null;
+};
+
+type BusinessContext = {
+  userEmail: string;
+  business: Business;
+  member: BusinessMember;
+  subscription: Subscription | null;
+  isOwner: boolean;
+  isPro: boolean;
+};
+
+function normalizeEmail(email: string | null | undefined) {
+  return (email ?? "").trim().toLowerCase();
+}
+
+async function getCurrentUserEmail() {
+  const { data } = await supabase.auth.getUser();
+  return normalizeEmail(data.user?.email);
+}
+
+async function ensureOwnerMember(businessId: string, userEmail: string) {
+  const { data: existing } = await supabase
+    .from("business_members")
+    .select("*")
+    .eq("business_id", businessId)
+    .eq("email", userEmail)
+    .maybeSingle();
+
+  if (existing) return existing as BusinessMember;
+
+  const { data, error } = await supabase
+    .from("business_members")
+    .insert({
+      business_id: businessId,
+      email: userEmail,
+      role_name: "Sahip",
+      member_status: "active",
+      can_view_dashboard: true,
+      can_manage_products: true,
+      can_manage_stock: true,
+      can_manage_sales: true,
+      can_manage_orders: true,
+      can_manage_shipments: true,
+      can_manage_returns: true,
+      can_manage_invoices: true,
+      can_manage_customers: true,
+      can_manage_integrations: true,
+      can_manage_billing: true,
+      can_manage_settings: true,
+    })
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    throw new Error(`Owner yetkisi oluşturulamadı: ${error?.message ?? "Bilinmeyen hata"}`);
+  }
+
+  return data as BusinessMember;
+}
+
+async function ensureSubscription(businessId: string, userEmail: string) {
+  const { data: existing } = await supabase
+    .from("subscriptions")
+    .select("*")
+    .eq("business_id", businessId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existing) return existing as Subscription;
+
+  const { data, error } = await supabase
+    .from("subscriptions")
+    .insert({
+      business_id: businessId,
+      user_email: userEmail,
+      plan: "free",
+      status: "trial",
+      order_limit: 15,
+      first_month_price: 89,
+      monthly_price: 99,
+    })
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    throw new Error(`Abonelik oluşturulamadı: ${error?.message ?? "Bilinmeyen hata"}`);
+  }
+
+  return data as Subscription;
+}
+
+async function ensureBusinessForCurrentUser() {
+  const userEmail = await getCurrentUserEmail();
+
+  if (!userEmail) {
+    throw new Error("Oturum bulunamadı. Lütfen tekrar giriş yap.");
+  }
+
+  const existingMember = await supabase
+    .from("business_members")
+    .select("*")
+    .eq("email", userEmail)
+    .eq("member_status", "active")
+    .limit(1)
+    .maybeSingle();
+
+  if (existingMember.data?.business_id) {
+    const { data: business, error: businessError } = await supabase
+      .from("businesses")
+      .select("*")
+      .eq("id", existingMember.data.business_id)
+      .single();
+
+    if (businessError || !business) {
+      throw new Error("İşletme bilgisi alınamadı.");
+    }
+
+    const subscription = await ensureSubscription(business.id, userEmail);
+
+    return {
+      userEmail,
+      business,
+      member: existingMember.data,
+      subscription,
+      isOwner: normalizeEmail(business.owner_email) === userEmail,
+      isPro: subscription?.plan === "pro" && subscription?.status === "active",
+    } satisfies BusinessContext;
+  }
+
+  const existingBusiness = await supabase
+    .from("businesses")
+    .select("*")
+    .eq("owner_email", userEmail)
+    .limit(1)
+    .maybeSingle();
+
+  if (existingBusiness.data) {
+    const ownerMember = await ensureOwnerMember(existingBusiness.data.id, userEmail);
+    const subscription = await ensureSubscription(existingBusiness.data.id, userEmail);
+
+    return {
+      userEmail,
+      business: existingBusiness.data,
+      member: ownerMember,
+      subscription,
+      isOwner: true,
+      isPro: subscription?.plan === "pro" && subscription?.status === "active",
+    } satisfies BusinessContext;
+  }
+
+  const { data: createdBusiness, error: businessError } = await supabase
+    .from("businesses")
+    .insert({
+      owner_email: userEmail,
+      name: "İşletmem",
+      email: userEmail,
+    })
+    .select("*")
+    .single();
+
+  if (businessError || !createdBusiness) {
+    throw new Error(`İşletme oluşturulamadı: ${businessError?.message ?? "Bilinmeyen hata"}`);
+  }
+
+  const ownerMember = await ensureOwnerMember(createdBusiness.id, userEmail);
+  const subscription = await ensureSubscription(createdBusiness.id, userEmail);
+
+  return {
+    userEmail,
+    business: createdBusiness,
+    member: ownerMember,
+    subscription,
+    isOwner: true,
+    isPro: false,
+  } satisfies BusinessContext;
+}
+
+function withBusinessFields(context: BusinessContext) {
+  return {
+    business_id: context.business.id,
+    created_by: context.userEmail,
+  };
+}
+
+function hasPermission(context: BusinessContext | null, key: keyof BusinessMember) {
+  if (!context) return false;
+  if (context.isOwner) return true;
+  return Boolean(context.member[key]);
+}
+
 type ReturnItem = {
   id: string;
   return_no: string;
@@ -68,18 +287,11 @@ const returnStatuses = [
 ];
 
 function formatCurrency(value: number | null | undefined) {
-  return new Intl.NumberFormat("tr-TR", {
-    style: "currency",
-    currency: "TRY",
-    maximumFractionDigits: 0,
-  }).format(Number(value ?? 0));
+  return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 }).format(Number(value ?? 0));
 }
 
 function formatDate(date: string) {
-  return new Intl.DateTimeFormat("tr-TR", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(date));
+  return new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(date));
 }
 
 function marketplaceLabel(value: string | null | undefined) {
@@ -107,6 +319,7 @@ function createReturnNo() {
 }
 
 export default function ReturnsPage() {
+  const [context, setContext] = useState<BusinessContext | null>(null);
   const [returns, setReturns] = useState<ReturnItem[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -117,13 +330,10 @@ export default function ReturnsPage() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
 
-  const selectedOrder = useMemo(() => {
-    return orders.find((order) => order.id === form.order_id) ?? null;
-  }, [orders, form.order_id]);
+  const selectedOrder = useMemo(() => orders.find((order) => order.id === form.order_id) ?? null, [orders, form.order_id]);
 
   const filteredReturns = useMemo(() => {
     const query = search.trim().toLowerCase();
-
     return returns.filter((item) => {
       const matchesSearch =
         !query ||
@@ -133,7 +343,6 @@ export default function ReturnsPage() {
         (item.product_name ?? "").toLowerCase().includes(query);
 
       const matchesStatus = statusFilter === "all" ? true : item.status === statusFilter;
-
       return matchesSearch && matchesStatus;
     });
   }, [returns, search, statusFilter]);
@@ -142,20 +351,35 @@ export default function ReturnsPage() {
   const reviewingCount = returns.filter((item) => item.status === "reviewing").length;
   const approvedCount = returns.filter((item) => item.status === "approved" || item.status === "received").length;
   const refundedAmount = returns.filter((item) => item.status === "refunded").reduce((sum, item) => sum + Number(item.amount ?? 0), 0);
+  const canManage = hasPermission(context, "can_manage_returns");
 
   async function fetchData() {
     setLoading(true);
+    setMessage("");
 
-    const [returnsResult, ordersResult, paymentsResult] = await Promise.all([
-      supabase.from("returns").select("*").order("created_at", { ascending: false }),
-      supabase.from("orders").select("id, order_no, marketplace, customer_name, total_amount, paid_amount").order("created_at", { ascending: false }),
-      supabase.from("payments").select("*").order("created_at", { ascending: false }),
-    ]);
+    try {
+      const ctx = await ensureBusinessForCurrentUser();
+      setContext(ctx);
 
-    setReturns(returnsResult.data ?? []);
-    setOrders(ordersResult.data ?? []);
-    setPayments(paymentsResult.data ?? []);
-    setLoading(false);
+      const [returnsResult, ordersResult, paymentsResult] = await Promise.all([
+        supabase.from("returns").select("*").eq("business_id", ctx.business.id).order("created_at", { ascending: false }),
+        supabase.from("orders").select("id, order_no, marketplace, customer_name, total_amount, paid_amount").eq("business_id", ctx.business.id).order("created_at", { ascending: false }),
+        supabase.from("payments").select("*").eq("business_id", ctx.business.id).order("created_at", { ascending: false }),
+      ]);
+
+      if (returnsResult.error) {
+        setMessage(`İadeler alınamadı: ${returnsResult.error.message}`);
+        return;
+      }
+
+      setReturns(returnsResult.data ?? []);
+      setOrders(ordersResult.data ?? []);
+      setPayments(paymentsResult.data ?? []);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "İşletme bağlantısı kurulamadı.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -164,7 +388,6 @@ export default function ReturnsPage() {
 
   function selectOrder(orderId: string) {
     const order = orders.find((item) => item.id === orderId);
-
     setForm((current) => ({
       ...current,
       order_id: orderId,
@@ -174,12 +397,18 @@ export default function ReturnsPage() {
 
   async function createReturn(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setMessage("");
+
+    if (!context) return;
+    if (!canManage) {
+      setMessage("Bu işletmede iade oluşturma yetkin yok.");
+      return;
+    }
 
     const order = selectedOrder;
     const amount = Number(form.amount || 0);
 
     await supabase.from("returns").insert({
+      ...withBusinessFields(context),
       return_no: createReturnNo(),
       order_id: order?.id ?? null,
       order_no: order?.order_no ?? null,
@@ -193,7 +422,7 @@ export default function ReturnsPage() {
     });
 
     if (order?.id) {
-      await supabase.from("orders").update({ order_status: "return_requested" }).eq("id", order.id);
+      await supabase.from("orders").update({ order_status: "return_requested" }).eq("business_id", context.business.id).eq("id", order.id);
     }
 
     setMessage("İade kaydı oluşturuldu.");
@@ -203,10 +432,17 @@ export default function ReturnsPage() {
   }
 
   async function updateStatus(item: ReturnItem, status: string) {
-    await supabase.from("returns").update({ status }).eq("id", item.id);
+    if (!context) return;
+    if (!canManage) {
+      setMessage("Bu işletmede iade güncelleme yetkin yok.");
+      return;
+    }
+
+    await supabase.from("returns").update({ status }).eq("business_id", context.business.id).eq("id", item.id);
 
     if (status === "refunded" && item.order_id) {
       await supabase.from("payments").insert({
+        ...withBusinessFields(context),
         order_id: item.order_id,
         payment_method: "refund",
         amount: -Math.abs(Number(item.amount ?? 0)),
@@ -226,7 +462,7 @@ export default function ReturnsPage() {
           paid_amount: nextPaid,
           remaining_amount: remaining,
           payment_status: paymentStatus,
-        }).eq("id", order.id);
+        }).eq("business_id", context.business.id).eq("id", order.id);
       }
     }
 
@@ -235,9 +471,15 @@ export default function ReturnsPage() {
   }
 
   async function deleteReturn(id: string) {
+    if (!context) return;
+    if (!canManage) {
+      setMessage("Bu işletmede iade silme yetkin yok.");
+      return;
+    }
+
     if (!confirm("İade kaydı silinsin mi?")) return;
 
-    await supabase.from("returns").delete().eq("id", id);
+    await supabase.from("returns").delete().eq("business_id", context.business.id).eq("id", id);
     setMessage("İade kaydı silindi.");
     await fetchData();
   }
@@ -247,15 +489,9 @@ export default function ReturnsPage() {
       <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <div className="mb-3 inline-flex rounded-full bg-blue-500/15 px-3 py-2 text-xs font-black text-blue-300">
-              Returns + Refunds
-            </div>
-            <h1 className="text-[34px] font-black tracking-[-0.05em] sm:text-5xl">
-              İadeler
-            </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
-              İade talebi, inceleme, onay, red, ürün dönüşü ve para iadesi akışını takip et.
-            </p>
+            <div className="mb-3 inline-flex rounded-full bg-blue-500/15 px-3 py-2 text-xs font-black text-blue-300">Returns Business Core v1</div>
+            <h1 className="text-[34px] font-black tracking-[-0.05em] sm:text-5xl">İadeler</h1>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">İadeler artık sadece aktif işletmenin siparişleriyle çalışır.</p>
           </div>
 
           <button onClick={() => setFormOpen((value) => !value)} className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-500">
@@ -264,11 +500,14 @@ export default function ReturnsPage() {
         </div>
       </div>
 
-      {message ? (
-        <div className="rounded-2xl bg-blue-500/10 px-4 py-3 text-sm font-bold text-blue-200 ring-1 ring-blue-400/20">
-          {message}
+      {context ? (
+        <div className="rounded-[22px] border border-white/10 bg-[#111a2e] p-4">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Aktif İşletme</p>
+          <p className="mt-1 text-lg font-black">{context.business.name}</p>
         </div>
       ) : null}
+
+      {message ? <div className="rounded-2xl bg-blue-500/10 px-4 py-3 text-sm font-bold text-blue-200 ring-1 ring-blue-400/20">{message}</div> : null}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Metric label="Talep Geldi" value={String(requestedCount)} valueClass="text-amber-300" />
@@ -281,7 +520,7 @@ export default function ReturnsPage() {
         <form onSubmit={createReturn} className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
           <div className="mb-5">
             <h2 className="text-2xl font-black">Yeni İade Kaydı</h2>
-            <p className="mt-1 text-sm text-slate-400">Siparişe bağlı veya manuel iade kaydı oluştur.</p>
+            <p className="mt-1 text-sm text-slate-400">Aktif işletmenin siparişine bağlı iade kaydı oluştur.</p>
           </div>
 
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -326,7 +565,7 @@ export default function ReturnsPage() {
         <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-2xl font-black">İade Listesi</h2>
-            <p className="mt-1 text-sm text-slate-400">Para iadesi yapıldı seçilirse ödeme geçmişine negatif kayıt düşer.</p>
+            <p className="mt-1 text-sm text-slate-400">Aktif işletmenin iade talepleri.</p>
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row">
