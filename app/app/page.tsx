@@ -229,7 +229,46 @@ export default function DashboardPage() {
           <Alert label="Profil" value="Fotoğraf yükle" tone="green" href="/app/profile" />
         </Panel>
       </div>
-    </section>
+
+      <div className="grid gap-3 lg:grid-cols-2">
+        <div className="rounded-[20px] border border-white/10 bg-[#111a2e] p-4">
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+            Destek
+          </p>
+          <h2 className="mt-2 text-lg font-black">
+            Öneri, şikayet veya destek talebin mi var?
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-slate-400">
+            Takipio ile ilgili geri bildirim, hata bildirimi veya geliştirme önerileri için iletişim sayfasından bize ulaşabilirsin.
+          </p>
+          <Link
+            href="/app/contact"
+            className="mt-4 inline-flex rounded-2xl bg-blue-600 px-4 py-3 text-sm font-black transition hover:-translate-y-0.5 hover:bg-blue-500"
+          >
+            İletişime Geç
+          </Link>
+        </div>
+
+        <div className="rounded-[20px] border border-white/10 bg-[#111a2e] p-4">
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+            Rehber
+          </p>
+          <h2 className="mt-2 text-lg font-black">
+            Takipio nasıl kullanılır?
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-slate-400">
+            Ürün ekleme, stok yönetimi, satış oluşturma, QR etiket, müşteri, fatura ve ekip yetkilerini adım adım öğren.
+          </p>
+          <Link
+            href="/app/help"
+            className="mt-4 inline-flex rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-blue-200 ring-1 ring-white/10 transition hover:-translate-y-0.5 hover:bg-white/15"
+          >
+            Tıkla, Öğren
+          </Link>
+        </div>
+      </div>
+
+</section>
   );
 }
 
