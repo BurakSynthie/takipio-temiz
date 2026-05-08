@@ -364,6 +364,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
     if (!email) {
       setLoading(false);
+      window.location.replace("/login");
       return;
     }
 
@@ -477,19 +478,29 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   async function signOut() {
     try {
-      await supabase.auth.signOut({ scope: "local" });
+      await supabase.auth.signOut({ scope: "global" });
 
       window.localStorage.removeItem("takipio-auth-session");
 
       Object.keys(window.localStorage).forEach((key) => {
-        if (key.startsWith("sb-")) {
+        if (key.startsWith("sb-") || key.includes("supabase")) {
           window.localStorage.removeItem(key);
         }
       });
 
+      window.sessionStorage.clear();
       window.location.replace("/login");
     } catch (error) {
       console.error("Çıkış yapılamadı:", error);
+
+      window.localStorage.removeItem("takipio-auth-session");
+      Object.keys(window.localStorage).forEach((key) => {
+        if (key.startsWith("sb-") || key.includes("supabase")) {
+          window.localStorage.removeItem(key);
+        }
+      });
+
+      window.sessionStorage.clear();
       window.location.replace("/login");
     }
   }
