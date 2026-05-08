@@ -53,10 +53,6 @@ function formatCurrency(value: number | null) {
   }).format(Number(value ?? 0));
 }
 
-function createQrCode(productCode: string) {
-  return `takipio://product/${productCode}`;
-}
-
 function createProductPrefix(productName: string) {
   const cleanedName = productName
     .trim()
@@ -79,6 +75,30 @@ function createProductPrefix(productName: string) {
   return "URUN";
 }
 
+function createQrTarget(productCode: string) {
+  if (typeof window === "undefined") {
+    return `takipio://product/${productCode}`;
+  }
+
+  return `${window.location.origin}/app/products?code=${encodeURIComponent(productCode)}`;
+}
+
+function createQrImageUrl(productCode: string, size = 260) {
+  const target = createQrTarget(productCode);
+
+  return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(
+    target
+  )}`;
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [form, setForm] = useState<ProductForm>(emptyForm);
@@ -91,6 +111,22 @@ export default function ProductsPage() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [stockUpdatingId, setStockUpdatingId] = useState<string | null>(null);
+  const [openQrId, setOpenQrId] = useState<string | null>(null);
+
+  const existingCategories = useMemo(() => {
+    const categorySet = new Set<string>();
+
+    products.forEach((product) => {
+      const category = product.category?.trim();
+
+      if (category) {
+        categorySet.add(category);
+      }
+    });
+
+    return Array.from(categorySet).sort((a, b) => a.localeCompare(b, "tr"));
+  }, [products]);
 
   const previewCode = useMemo(() => {
     if (editingId) {
@@ -220,7 +256,7 @@ export default function ProductsPage() {
         stock: Number(form.stock || 0),
         min_stock: Number(form.min_stock || 0),
         image_url: form.image_url.trim() || null,
-        qr_code: createQrCode(finalProductCode),
+        qr_code: createQrTarget(finalProductCode),
         is_active: true,
       };
 
@@ -289,15 +325,21 @@ export default function ProductsPage() {
       return;
     }
 
+    const previousProducts = products;
+
+    setProducts((currentProducts) =>
+      currentProducts.filter((product) => product.id !== id)
+    );
+
     const { error } = await supabase.from("products").delete().eq("id", id);
 
     if (error) {
+      setProducts(previousProducts);
       setMessage(error.message);
       return;
     }
 
     setMessage("Ürün silindi.");
-    await fetchProducts();
   }
 
   async function updateStock(product: Product, amount: number) {
@@ -308,6 +350,23 @@ export default function ProductsPage() {
       return;
     }
 
+    const previousProducts = products;
+
+    setStockUpdatingId(product.id);
+
+    setProducts((currentProducts) =>
+      currentProducts.map((item) => {
+        if (item.id !== product.id) {
+          return item;
+        }
+
+        return {
+          ...item,
+          stock: nextStock,
+        };
+      })
+    );
+
     const { error } = await supabase
       .from("products")
       .update({
@@ -316,11 +375,166 @@ export default function ProductsPage() {
       .eq("id", product.id);
 
     if (error) {
+      setProducts(previousProducts);
       setMessage(error.message);
+      setStockUpdatingId(null);
       return;
     }
 
-    await fetchProducts();
+    setStockUpdatingId(null);
+  }
+
+  function printQrLabel(product: Product) {
+    const productCode = product.product_code;
+    const productName = product.name;
+    const qrImage = createQrImageUrl(productCode, 320);
+    const qrTarget = createQrTarget(productCode);
+
+    const printWindow = window.open("", "_blank", "width=520,height=720");
+
+    if (!printWindow) {
+      setMessage("Yazdırma penceresi açılamadı. Tarayıcı popup engelini kontrol et.");
+      return;
+    }
+
+    printWindow.document.write(`
+      <!doctype html>
+      <html>
+        <head>
+          <title>${escapeHtml(productName)} QR Etiketi</title>
+          <meta charset="utf-8" />
+          <style>
+            * {
+              box-sizing: border-box;
+            }
+
+            body {
+              margin: 0;
+              min-height: 100vh;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              background: #f8fafc;
+              font-family: Arial, Helvetica, sans-serif;
+              color: #0f172a;
+            }
+
+            .label {
+              width: 360px;
+              min-height: 500px;
+              border: 1px solid #e2e8f0;
+              border-radius: 28px;
+              background: white;
+              padding: 28px;
+              text-align: center;
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+              box-shadow: 0 22px 70px rgba(15, 23, 42, 0.12);
+            }
+
+            .product-name {
+              font-size: 24px;
+              font-weight: 900;
+              letter-spacing: -0.04em;
+              margin: 0;
+            }
+
+            .product-code {
+              margin: 8px 0 0;
+              font-size: 14px;
+              font-weight: 800;
+              color: #2563eb;
+            }
+
+            .qr {
+              width: 280px;
+              height: 280px;
+              margin: 24px auto;
+            }
+
+            .footer {
+              border-top: 1px solid #e2e8f0;
+              padding-top: 18px;
+              font-size: 13px;
+              color: #64748b;
+            }
+
+            .brand {
+              display: block;
+              margin-top: 4px;
+              color: #2563eb;
+              font-weight: 900;
+              font-size: 18px;
+            }
+
+            .target {
+              margin-top: 8px;
+              font-size: 10px;
+              color: #94a3b8;
+              word-break: break-all;
+            }
+
+            @media print {
+              body {
+                background: white;
+              }
+
+              .label {
+                box-shadow: none;
+              }
+            }
+          </style>
+        </head>
+
+        <body>
+          <div class="label">
+            <div>
+              <h1 class="product-name">${escapeHtml(productName)}</h1>
+              <p class="product-code">${escapeHtml(productCode)}</p>
+            </div>
+
+            <img class="qr" src="${qrImage}" alt="QR Kod" />
+
+            <div class="footer">
+              Powered by
+              <span class="brand">Takipio</span>
+              <div class="target">${escapeHtml(qrTarget)}</div>
+            </div>
+          </div>
+
+          <script>
+            window.onload = function () {
+              setTimeout(function () {
+                window.print();
+              }, 450);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+  }
+
+  async function downloadQrImage(product: Product) {
+    try {
+      const qrImageUrl = createQrImageUrl(product.product_code, 420);
+      const response = await fetch(qrImageUrl);
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = `${product.product_code}-qr.png`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      setMessage("QR indirilemedi. Tekrar dene.");
+    }
   }
 
   return (
@@ -337,8 +551,7 @@ export default function ProductsPage() {
             </h1>
 
             <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">
-              Ürün ekle, düzenle, sil ve stok yönet. Ürün kodu otomatik üretilir:
-              örneğin Hoparlör için HOPA-001.
+              Ürün ekle, kategorileri tekrar yazmadan seç, stokları canlı artır/azalt ve ürün QR etiketlerini yazdır.
             </p>
           </div>
 
@@ -408,7 +621,7 @@ export default function ProductsPage() {
               </h2>
 
               <p className="mt-1 text-sm text-slate-500">
-                Ürün kodu otomatik oluşturulur ve QR bağlantısı buna göre yazılır.
+                Ürün kodu otomatik oluşturulur. Kategoriyi yazabilir veya daha önce girilenden seçebilirsin.
               </p>
             </div>
 
@@ -437,14 +650,46 @@ export default function ProductsPage() {
               <label className="mb-2 block text-sm font-black text-slate-700">
                 Kategori
               </label>
+
               <input
+                list="takipio-product-categories"
                 value={form.category}
                 onChange={(event) =>
                   setForm({ ...form, category: event.target.value })
                 }
-                placeholder="Örn: Elektronik"
+                placeholder={
+                  existingCategories.length > 0
+                    ? "Kategori yaz veya seç"
+                    : "Örn: Elektronik"
+                }
                 className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-500"
               />
+
+              <datalist id="takipio-product-categories">
+                {existingCategories.map((category) => (
+                  <option key={category} value={category} />
+                ))}
+              </datalist>
+
+              {existingCategories.length > 0 ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {existingCategories.slice(0, 6).map((category) => (
+                    <button
+                      key={category}
+                      type="button"
+                      onClick={() => setForm({ ...form, category })}
+                      className={[
+                        "rounded-full px-3 py-1 text-xs font-black transition",
+                        form.category === category
+                          ? "bg-blue-600 text-white"
+                          : "bg-blue-50 text-blue-700 hover:bg-blue-100",
+                      ].join(" ")}
+                    >
+                      {category}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
 
             <div>
@@ -553,7 +798,7 @@ export default function ProductsPage() {
           <div>
             <h2 className="text-2xl font-black text-slate-950">Ürün Listesi</h2>
             <p className="mt-1 text-sm text-slate-500">
-              Kayıtlı ürünleri düzenleyebilir, silebilir veya stoklarını hızlıca değiştirebilirsin.
+              Stok + / - işlemleri sayfa yenilemeden canlı güncellenir. QR kartını açarak yazdırabilir veya indirebilirsin.
             </p>
           </div>
 
@@ -589,13 +834,15 @@ export default function ProductsPage() {
               const stock = Number(product.stock ?? 0);
               const minStock = Number(product.min_stock ?? 0);
               const critical = minStock > 0 && stock <= minStock;
+              const qrImageUrl = createQrImageUrl(product.product_code, 240);
+              const qrIsOpen = openQrId === product.id;
 
               return (
                 <div
                   key={product.id}
                   className="rounded-[28px] border border-slate-100 bg-slate-50 p-4 transition hover:bg-blue-50/60"
                 >
-                  <div className="grid gap-4 lg:grid-cols-[1fr_auto_auto] lg:items-center">
+                  <div className="grid gap-4 xl:grid-cols-[1fr_auto_auto] xl:items-start">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="truncate text-lg font-black text-slate-950">
@@ -625,8 +872,8 @@ export default function ProductsPage() {
                         {product.description || "Açıklama yok"}
                       </p>
 
-                      <p className="mt-2 text-xs font-bold text-slate-400">
-                        QR: {product.qr_code || "QR yok"}
+                      <p className="mt-2 break-all text-xs font-bold text-slate-400">
+                        QR hedefi: {createQrTarget(product.product_code)}
                       </p>
 
                       <div className="mt-4 flex flex-wrap gap-2">
@@ -645,18 +892,28 @@ export default function ProductsPage() {
                         >
                           Sil
                         </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setOpenQrId(qrIsOpen ? null : product.id)
+                          }
+                          className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white"
+                        >
+                          {qrIsOpen ? "QR Kapat" : "QR Gör"}
+                        </button>
                       </div>
                     </div>
 
-                    <div className="flex flex-col gap-3">
-                      <div className="rounded-2xl bg-white px-4 py-3 shadow-sm">
+                    <div className="flex flex-row gap-3 xl:flex-col">
+                      <div className="flex-1 rounded-2xl bg-white px-4 py-3 shadow-sm">
                         <p className="text-xs font-black text-slate-400">Fiyat</p>
                         <p className="mt-1 font-black text-slate-950">
                           {formatCurrency(product.price)}
                         </p>
                       </div>
 
-                      <div className="rounded-2xl bg-white px-4 py-3 shadow-sm">
+                      <div className="flex-1 rounded-2xl bg-white px-4 py-3 shadow-sm">
                         <p className="text-xs font-black text-slate-400">
                           Min Stok
                         </p>
@@ -665,36 +922,109 @@ export default function ProductsPage() {
                     </div>
 
                     <div className="rounded-[24px] bg-white p-4 shadow-sm">
-                      <p className="text-xs font-black text-slate-400">Stok</p>
+                      <div className="flex items-start justify-between gap-4 xl:block">
+                        <div>
+                          <p className="text-xs font-black text-slate-400">Stok</p>
 
-                      <p
-                        className={[
-                          "mt-2 text-3xl font-black",
-                          critical ? "text-red-600" : "text-slate-950",
-                        ].join(" ")}
-                      >
-                        {stock}
-                      </p>
+                          <p
+                            className={[
+                              "mt-2 text-3xl font-black",
+                              critical ? "text-red-600" : "text-slate-950",
+                            ].join(" ")}
+                          >
+                            {stock}
+                          </p>
+                        </div>
 
-                      <div className="mt-4 flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => updateStock(product, -1)}
-                          className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50 text-lg font-black text-red-600"
-                        >
-                          -
-                        </button>
+                        <div className="flex gap-2 xl:mt-4">
+                          <button
+                            type="button"
+                            disabled={stockUpdatingId === product.id}
+                            onClick={() => updateStock(product, -1)}
+                            className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50 text-lg font-black text-red-600 disabled:opacity-50"
+                          >
+                            -
+                          </button>
 
-                        <button
-                          type="button"
-                          onClick={() => updateStock(product, 1)}
-                          className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-lg font-black text-emerald-700"
-                        >
-                          +
-                        </button>
+                          <button
+                            type="button"
+                            disabled={stockUpdatingId === product.id}
+                            onClick={() => updateStock(product, 1)}
+                            className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-lg font-black text-emerald-700 disabled:opacity-50"
+                          >
+                            +
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
+
+                  {qrIsOpen ? (
+                    <div className="mt-4 grid gap-4 rounded-[26px] border border-blue-100 bg-white p-4 lg:grid-cols-[280px_1fr]">
+                      <div className="rounded-[24px] border border-slate-100 bg-slate-50 p-4 text-center">
+                        <p className="text-lg font-black text-slate-950">
+                          {product.name}
+                        </p>
+
+                        <p className="mt-1 text-sm font-black text-blue-600">
+                          {product.product_code}
+                        </p>
+
+                        <img
+                          src={qrImageUrl}
+                          alt={`${product.name} QR kodu`}
+                          className="mx-auto mt-4 h-[220px] w-[220px] rounded-2xl bg-white p-2"
+                        />
+
+                        <p className="mt-3 text-xs text-slate-400">
+                          Powered by Takipio
+                        </p>
+                      </div>
+
+                      <div className="flex flex-col justify-between gap-4">
+                        <div>
+                          <h4 className="text-xl font-black text-slate-950">
+                            QR Etiket İşlemleri
+                          </h4>
+
+                          <p className="mt-2 text-sm leading-6 text-slate-500">
+                            Bu QR etiketi yazdırabilir, tarayıcıdan PDF olarak kaydedebilir veya PNG olarak indirebilirsin.
+                            PDF indirmek için açılan yazdırma ekranında “PDF olarak kaydet” seçeneğini kullan.
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => printQrLabel(product)}
+                            className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-blue-100 transition hover:bg-blue-700"
+                          >
+                            Yazdır / PDF
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => downloadQrImage(product)}
+                            className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-white shadow-lg shadow-slate-100 transition hover:bg-slate-800"
+                          >
+                            QR PNG İndir
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              navigator.clipboard.writeText(
+                                createQrTarget(product.product_code)
+                              )
+                            }
+                            className="rounded-2xl bg-slate-100 px-4 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-200"
+                          >
+                            Link Kopyala
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               );
             })}
