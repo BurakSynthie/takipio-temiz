@@ -7,8 +7,42 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+type Business = {
+  id: string;
+  owner_email: string | null;
+  name: string;
+  email: string | null;
+};
+
+type BusinessMember = {
+  id: string;
+  business_id: string;
+  email: string;
+  role_name: string | null;
+  member_status: string | null;
+  can_manage_products: boolean | null;
+};
+
+type Subscription = {
+  id: string;
+  business_id: string | null;
+  plan: string | null;
+  status: string | null;
+};
+
+type BusinessContext = {
+  userEmail: string;
+  business: Business;
+  member: BusinessMember;
+  subscription: Subscription | null;
+  isOwner: boolean;
+  isPro: boolean;
+};
+
 type Product = {
   id: string;
+  business_id: string | null;
+  created_by: string | null;
   created_at: string;
   name: string;
   product_code: string;
@@ -44,6 +78,205 @@ const emptyForm: ProductForm = {
   image_url: "",
 };
 
+function normalizeEmail(email: string | null | undefined) {
+  return (email ?? "").trim().toLowerCase();
+}
+
+async function getCurrentUserEmail() {
+  const { data } = await supabase.auth.getUser();
+  return normalizeEmail(data.user?.email);
+}
+
+async function ensureOwnerMember(businessId: string, userEmail: string) {
+  const { data: existing } = await supabase
+    .from("business_members")
+    .select("*")
+    .eq("business_id", businessId)
+    .eq("email", userEmail)
+    .maybeSingle();
+
+  if (existing) return existing as BusinessMember;
+
+  const { data, error } = await supabase
+    .from("business_members")
+    .insert({
+      business_id: businessId,
+      email: userEmail,
+      role_name: "Sahip",
+      member_status: "active",
+      can_view_dashboard: true,
+      can_manage_products: true,
+      can_manage_stock: true,
+      can_manage_sales: true,
+      can_manage_orders: true,
+      can_manage_shipments: true,
+      can_manage_returns: true,
+      can_manage_invoices: true,
+      can_manage_customers: true,
+      can_manage_integrations: true,
+      can_manage_billing: true,
+      can_manage_settings: true,
+    })
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    throw new Error(`Owner yetkisi oluşturulamadı: ${error?.message ?? "Bilinmeyen hata"}`);
+  }
+
+  return data as BusinessMember;
+}
+
+async function ensureSubscription(businessId: string, userEmail: string) {
+  const { data: existing } = await supabase
+    .from("subscriptions")
+    .select("*")
+    .eq("business_id", businessId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existing) return existing as Subscription;
+
+  const { data, error } = await supabase
+    .from("subscriptions")
+    .insert({
+      business_id: businessId,
+      user_email: userEmail,
+      plan: "free",
+      status: "trial",
+      order_limit: 15,
+      first_month_price: 89,
+      monthly_price: 99,
+    })
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    throw new Error(`Abonelik oluşturulamadı: ${error?.message ?? "Bilinmeyen hata"}`);
+  }
+
+  return data as Subscription;
+}
+
+async function ensureBusinessForCurrentUser() {
+  const userEmail = await getCurrentUserEmail();
+
+  if (!userEmail) {
+    throw new Error("Oturum bulunamadı. Lütfen tekrar giriş yap.");
+  }
+
+  const existingMember = await supabase
+    .from("business_members")
+    .select("*")
+    .eq("email", userEmail)
+    .eq("member_status", "active")
+    .limit(1)
+    .maybeSingle();
+
+  if (existingMember.data?.business_id) {
+    const { data: business, error: businessError } = await supabase
+      .from("businesses")
+      .select("*")
+      .eq("id", existingMember.data.business_id)
+      .single();
+
+    if (businessError || !business) {
+      throw new Error("İşletme bilgisi alınamadı.");
+    }
+
+    const { data: subscription } = await supabase
+      .from("subscriptions")
+      .select("*")
+      .eq("business_id", business.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    return {
+      userEmail,
+      business,
+      member: existingMember.data,
+      subscription,
+      isOwner: normalizeEmail(business.owner_email) === userEmail,
+      isPro: subscription?.plan === "pro" && subscription?.status === "active",
+    } satisfies BusinessContext;
+  }
+
+  const existingBusiness = await supabase
+    .from("businesses")
+    .select("*")
+    .eq("owner_email", userEmail)
+    .limit(1)
+    .maybeSingle();
+
+  if (existingBusiness.data) {
+    const ownerMember = await ensureOwnerMember(existingBusiness.data.id, userEmail);
+    const subscription = await ensureSubscription(existingBusiness.data.id, userEmail);
+
+    return {
+      userEmail,
+      business: existingBusiness.data,
+      member: ownerMember,
+      subscription,
+      isOwner: true,
+      isPro: subscription?.plan === "pro" && subscription?.status === "active",
+    } satisfies BusinessContext;
+  }
+
+  const { data: createdBusiness, error: businessError } = await supabase
+    .from("businesses")
+    .insert({
+      owner_email: userEmail,
+      name: "İşletmem",
+      email: userEmail,
+    })
+    .select("*")
+    .single();
+
+  if (businessError || !createdBusiness) {
+    throw new Error(`İşletme oluşturulamadı: ${businessError?.message ?? "Bilinmeyen hata"}`);
+  }
+
+  const ownerMember = await ensureOwnerMember(createdBusiness.id, userEmail);
+  const subscription = await ensureSubscription(createdBusiness.id, userEmail);
+
+  await supabase
+    .from("app_user_profiles")
+    .upsert(
+      {
+        email: userEmail,
+        business_id: createdBusiness.id,
+        role_name: "Sahip",
+      },
+      {
+        onConflict: "email",
+      }
+    );
+
+  return {
+    userEmail,
+    business: createdBusiness,
+    member: ownerMember,
+    subscription,
+    isOwner: true,
+    isPro: false,
+  } satisfies BusinessContext;
+}
+
+function withBusinessFields(context: BusinessContext) {
+  return {
+    business_id: context.business.id,
+    created_by: context.userEmail,
+  };
+}
+
+function canManageProducts(context: BusinessContext | null) {
+  if (!context) return false;
+  if (context.isOwner) return true;
+  return Boolean(context.member.can_manage_products);
+}
+
 function formatCurrency(value: number | null) {
   return new Intl.NumberFormat("tr-TR", {
     style: "currency",
@@ -63,13 +296,17 @@ function createProductPrefix(productName: string) {
     .replace(/Ö/g, "O")
     .replace(/Ç/g, "C")
     .replace(/[^A-Z0-9]/g, "");
+
   const prefix = cleanedName.slice(0, 4);
+
   if (prefix.length >= 2) return prefix.padEnd(4, "X");
+
   return "URUN";
 }
 
 function createQrTarget(productCode: string) {
   if (typeof window === "undefined") return `takipio://product/${productCode}`;
+
   return `${window.location.origin}/app/products?code=${encodeURIComponent(productCode)}`;
 }
 
@@ -78,8 +315,10 @@ function createQrImageUrl(productCode: string, size = 260) {
 }
 
 export default function ProductsPage() {
+  const [context, setContext] = useState<BusinessContext | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [form, setForm] = useState<ProductForm>(emptyForm);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -91,16 +330,21 @@ export default function ProductsPage() {
 
   const existingCategories = useMemo(() => {
     const set = new Set<string>();
+
     products.forEach((product) => {
       const category = product.category?.trim();
+
       if (category) set.add(category);
     });
+
     return Array.from(set).sort((a, b) => a.localeCompare(b, "tr"));
   }, [products]);
 
   const filteredProducts = useMemo(() => {
     const query = search.trim().toLowerCase();
+
     if (!query) return products;
+
     return products.filter((product) => {
       return (
         product.name.toLowerCase().includes(query) ||
@@ -113,23 +357,43 @@ export default function ProductsPage() {
   const totalStock = products.reduce((sum, product) => sum + Number(product.stock ?? 0), 0);
   const totalValue = products.reduce((sum, product) => sum + Number(product.stock ?? 0) * Number(product.price ?? 0), 0);
   const criticalCount = products.filter((product) => Number(product.min_stock ?? 0) > 0 && Number(product.stock ?? 0) <= Number(product.min_stock ?? 0)).length;
+  const isAllowed = canManageProducts(context);
 
-  async function fetchProducts() {
+  async function loadContextAndProducts() {
     setLoading(true);
-    const { data, error } = await supabase.from("products").select("*").order("created_at", { ascending: false });
+    setMessage("");
+
+    try {
+      const businessContext = await ensureBusinessForCurrentUser();
+
+      setContext(businessContext);
+      await fetchProducts(businessContext);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "İşletme bağlantısı kurulamadı.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function fetchProducts(activeContext = context) {
+    if (!activeContext) return;
+
+    const { data, error } = await supabase
+      .from("products")
+      .select("*")
+      .eq("business_id", activeContext.business.id)
+      .order("created_at", { ascending: false });
 
     if (error) {
       setMessage(`Ürünler alınamadı: ${error.message}`);
-      setLoading(false);
       return;
     }
 
     setProducts(data ?? []);
-    setLoading(false);
   }
 
   useEffect(() => {
-    fetchProducts();
+    loadContextAndProducts();
   }, []);
 
   function resetForm() {
@@ -139,18 +403,36 @@ export default function ProductsPage() {
 
   async function generateProductCode(productName: string) {
     const prefix = createProductPrefix(productName);
+
     const matches = products.filter((product) => product.product_code.startsWith(`${prefix}-`));
-    const existingNumbers = matches.map((product) => Number(product.product_code.split("-")[1] || 0)).filter((number) => !Number.isNaN(number));
+
+    const existingNumbers = matches
+      .map((product) => Number(product.product_code.split("-")[1] || 0))
+      .filter((number) => !Number.isNaN(number));
+
     const nextNumber = existingNumbers.length ? Math.max(...existingNumbers) + 1 : 1;
+
     return `${prefix}-${String(nextNumber).padStart(3, "0")}`;
   }
 
   async function saveProduct(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (!context) {
+      setMessage("İşletme bağlantısı bulunamadı.");
+      return;
+    }
+
+    if (!isAllowed) {
+      setMessage("Bu işletmede ürün yönetimi yetkin yok.");
+      return;
+    }
+
     setSaving(true);
     setMessage("");
 
     const cleanName = form.name.trim();
+
     if (!cleanName) {
       setMessage("Ürün adı gerekli.");
       setSaving(false);
@@ -161,6 +443,7 @@ export default function ProductsPage() {
       const finalProductCode = editingId ? form.product_code : await generateProductCode(cleanName);
 
       const payload = {
+        ...withBusinessFields(context),
         name: cleanName,
         product_code: finalProductCode,
         category: form.category.trim() || null,
@@ -174,7 +457,11 @@ export default function ProductsPage() {
       };
 
       const result = editingId
-        ? await supabase.from("products").update(payload).eq("id", editingId)
+        ? await supabase
+            .from("products")
+            .update(payload)
+            .eq("business_id", context.business.id)
+            .eq("id", editingId)
         : await supabase.from("products").insert(payload);
 
       if (result.error) {
@@ -187,7 +474,7 @@ export default function ProductsPage() {
       setFormOpen(false);
       resetForm();
       setSaving(false);
-      await fetchProducts();
+      await fetchProducts(context);
     } catch (error) {
       setMessage("Ürün kodu oluşturulurken hata oluştu.");
       setSaving(false);
@@ -195,6 +482,11 @@ export default function ProductsPage() {
   }
 
   function startEdit(product: Product) {
+    if (!isAllowed) {
+      setMessage("Bu işletmede ürün düzenleme yetkin yok.");
+      return;
+    }
+
     setEditingId(product.id);
     setForm({
       name: product.name,
@@ -210,29 +502,55 @@ export default function ProductsPage() {
   }
 
   async function deleteProduct(id: string) {
+    if (!context) return;
+
+    if (!isAllowed) {
+      setMessage("Bu işletmede ürün silme yetkin yok.");
+      return;
+    }
+
     const ok = confirm("Ürün silinsin mi?");
     if (!ok) return;
 
-    const { error } = await supabase.from("products").delete().eq("id", id);
+    const { error } = await supabase
+      .from("products")
+      .delete()
+      .eq("business_id", context.business.id)
+      .eq("id", id);
+
     if (error) {
       setMessage(`Ürün silinemedi: ${error.message}`);
       return;
     }
 
     setMessage("Ürün silindi.");
-    await fetchProducts();
+    await fetchProducts(context);
   }
 
   async function updateStock(product: Product, diff: number) {
+    if (!context) return;
+
+    if (!isAllowed) {
+      setMessage("Bu işletmede stok değiştirme yetkin yok.");
+      return;
+    }
+
     const currentStock = Number(product.stock ?? 0);
     const nextStock = currentStock + diff;
+
     if (nextStock < 0) return;
 
     setStockUpdatingId(product.id);
 
-    const { error } = await supabase.from("products").update({ stock: nextStock }).eq("id", product.id);
+    const { error } = await supabase
+      .from("products")
+      .update({ stock: nextStock })
+      .eq("business_id", context.business.id)
+      .eq("id", product.id);
+
     if (!error) {
       await supabase.from("stock_movements").insert({
+        ...withBusinessFields(context),
         product_id: product.id,
         product_code: product.product_code,
         product_name: product.name,
@@ -240,7 +558,10 @@ export default function ProductsPage() {
         quantity: Math.abs(diff),
         note: diff > 0 ? "Ürün kartından stok artırıldı" : "Ürün kartından stok azaltıldı",
       });
-      setProducts((current) => current.map((item) => item.id === product.id ? { ...item, stock: nextStock } : item));
+
+      setProducts((current) =>
+        current.map((item) => (item.id === product.id ? { ...item, stock: nextStock } : item))
+      );
     }
 
     setStockUpdatingId(null);
@@ -249,6 +570,7 @@ export default function ProductsPage() {
   function printQr(product: Product) {
     const qrUrl = createQrImageUrl(product.product_code, 400);
     const newWindow = window.open("", "_blank", "width=800,height=900");
+
     if (!newWindow) return;
 
     newWindow.document.write(`
@@ -271,19 +593,58 @@ export default function ProductsPage() {
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="mb-3 inline-flex rounded-full bg-blue-500/15 px-3 py-2 text-xs font-black text-blue-300">
-              Takipio Products
+              Products Business Core v1
             </div>
             <h1 className="text-[34px] font-black tracking-[-0.05em] sm:text-5xl">Ürünler</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">Ürün ekle, düzenle, kategorileri seç, stok değiştir ve QR oluştur.</p>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
+              Ürünler artık aktif işletmeye bağlı kaydolur. Her işletme sadece kendi ürünlerini görür.
+            </p>
           </div>
 
-          <button onClick={() => { resetForm(); setFormOpen((v) => !v); }} className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-500">
+          <button
+            onClick={() => {
+              if (!isAllowed) {
+                setMessage("Bu işletmede ürün ekleme yetkin yok.");
+                return;
+              }
+
+              resetForm();
+              setFormOpen((value) => !value);
+            }}
+            className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-500"
+          >
             {formOpen ? "Formu Kapat" : "Yeni Ürün"}
           </button>
         </div>
       </div>
 
-      {message ? <div className="rounded-2xl bg-blue-500/10 px-4 py-3 text-sm font-bold text-blue-200 ring-1 ring-blue-400/20">{message}</div> : null}
+      {context ? (
+        <div className="rounded-[22px] border border-white/10 bg-[#111a2e] p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Aktif İşletme</p>
+              <p className="mt-1 text-lg font-black">{context.business.name}</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Kullanıcı: {context.userEmail} · Rol: {context.member.role_name || "Üye"}
+              </p>
+            </div>
+
+            <div className={`rounded-2xl px-4 py-3 text-sm font-black ring-1 ${
+              isAllowed
+                ? "bg-emerald-400/10 text-emerald-300 ring-emerald-400/20"
+                : "bg-red-400/10 text-red-300 ring-red-400/20"
+            }`}>
+              {isAllowed ? "Ürün yönetimi açık" : "Ürün yönetimi kapalı"}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {message ? (
+        <div className="rounded-2xl bg-blue-500/10 px-4 py-3 text-sm font-bold text-blue-200 ring-1 ring-blue-400/20">
+          {message}
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Metric label="Toplam Ürün" value={String(products.length)} valueClass="text-white" />
@@ -296,7 +657,9 @@ export default function ProductsPage() {
         <form onSubmit={saveProduct} className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
           <div className="mb-5">
             <h2 className="text-2xl font-black">{editingId ? "Ürünü Düzenle" : "Yeni Ürün Ekle"}</h2>
-            <p className="mt-1 text-sm text-slate-400">Kategoriyi yazabilir veya daha önce girilmiş kategorilerden seçebilirsin.</p>
+            <p className="mt-1 text-sm text-slate-400">
+              Kategoriyi yazabilir veya daha önce bu işletmede girilmiş kategorilerden seçebilirsin.
+            </p>
           </div>
 
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -334,15 +697,17 @@ export default function ProductsPage() {
             </Field>
 
             <Field label="Ürün Kodu">
-              <input value={editingId ? form.product_code : "Otomatik oluşturulacak"} readOnly className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none text-slate-500" />
+              <input value={editingId ? form.product_code : "Otomatik oluşturulacak"} readOnly className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm text-slate-500 outline-none" />
             </Field>
           </div>
 
           <div className="mt-5 flex flex-wrap gap-2">
-            <button disabled={saving} className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-500 disabled:opacity-60">
+            <button disabled={saving || !isAllowed} className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-500 disabled:opacity-60">
               {saving ? "Kaydediliyor..." : editingId ? "Güncelle" : "Ürünü Kaydet"}
             </button>
-            <button type="button" onClick={() => { setFormOpen(false); resetForm(); }} className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-black text-slate-200">Vazgeç</button>
+            <button type="button" onClick={() => { setFormOpen(false); resetForm(); }} className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-black text-slate-200">
+              Vazgeç
+            </button>
           </div>
         </form>
       ) : null}
@@ -359,7 +724,7 @@ export default function ProductsPage() {
 
         {loading ? (
           <div className="grid gap-3">
-            {[1,2,3].map((item) => <div key={item} className="h-32 animate-pulse rounded-[24px] bg-white/5" />)}
+            {[1, 2, 3].map((item) => <div key={item} className="h-32 animate-pulse rounded-[24px] bg-white/5" />)}
           </div>
         ) : filteredProducts.length === 0 ? (
           <div className="rounded-[24px] border border-dashed border-white/10 bg-[#0b1220] p-10 text-center">
@@ -382,7 +747,7 @@ export default function ProductsPage() {
                         {critical ? <span className="rounded-full bg-amber-400/15 px-3 py-1 text-xs font-black text-amber-300">Kritik stok</span> : null}
                       </div>
                       {product.description ? <p className="mt-2 text-sm text-slate-400">{product.description}</p> : null}
-                      <p className="mt-2 text-xs text-slate-500">Min stok: {product.min_stock ?? 0}</p>
+                      <p className="mt-2 text-xs text-slate-500">Min stok: {product.min_stock ?? 0} · Ekleyen: {product.created_by || "-"}</p>
                     </div>
 
                     <div>
@@ -393,9 +758,9 @@ export default function ProductsPage() {
                     <div>
                       <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Stok</p>
                       <div className="mt-2 flex items-center gap-2">
-                        <button disabled={stockUpdatingId === product.id} onClick={() => updateStock(product, -1)} className="flex h-8 w-8 items-center justify-center rounded-xl bg-red-500/15 text-red-300">-</button>
+                        <button disabled={stockUpdatingId === product.id || !isAllowed} onClick={() => updateStock(product, -1)} className="flex h-8 w-8 items-center justify-center rounded-xl bg-red-500/15 text-red-300 disabled:opacity-40">-</button>
                         <span className="min-w-10 text-center text-xl font-black text-blue-300">{product.stock ?? 0}</span>
-                        <button disabled={stockUpdatingId === product.id} onClick={() => updateStock(product, 1)} className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-300">+</button>
+                        <button disabled={stockUpdatingId === product.id || !isAllowed} onClick={() => updateStock(product, 1)} className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-300 disabled:opacity-40">+</button>
                       </div>
                     </div>
 
@@ -408,7 +773,9 @@ export default function ProductsPage() {
 
                     <div className="xl:text-right">
                       <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Durum</p>
-                      <p className={["mt-1 text-sm font-black", product.is_active ? "text-emerald-300" : "text-slate-500"].join(" ")}>{product.is_active ? "Aktif" : "Pasif"}</p>
+                      <p className={["mt-1 text-sm font-black", product.is_active ? "text-emerald-300" : "text-slate-500"].join(" ")}>
+                        {product.is_active ? "Aktif" : "Pasif"}
+                      </p>
                     </div>
                   </div>
 
