@@ -28,6 +28,16 @@ type Order = {
   marketplace: string | null;
   customer_name: string | null;
   total_amount: number | null;
+  paid_amount: number | null;
+};
+
+type Payment = {
+  id: string;
+  order_id: string | null;
+  payment_method: string | null;
+  amount: number | null;
+  payment_date: string | null;
+  note: string | null;
 };
 
 type ReturnForm = {
@@ -99,6 +109,7 @@ function createReturnNo() {
 export default function ReturnsPage() {
   const [returns, setReturns] = useState<ReturnItem[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
   const [form, setForm] = useState<ReturnForm>(emptyForm);
   const [formOpen, setFormOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -135,13 +146,15 @@ export default function ReturnsPage() {
   async function fetchData() {
     setLoading(true);
 
-    const [returnsResult, ordersResult] = await Promise.all([
+    const [returnsResult, ordersResult, paymentsResult] = await Promise.all([
       supabase.from("returns").select("*").order("created_at", { ascending: false }),
-      supabase.from("orders").select("id, order_no, marketplace, customer_name, total_amount").order("created_at", { ascending: false }),
+      supabase.from("orders").select("id, order_no, marketplace, customer_name, total_amount, paid_amount").order("created_at", { ascending: false }),
+      supabase.from("payments").select("*").order("created_at", { ascending: false }),
     ]);
 
     setReturns(returnsResult.data ?? []);
     setOrders(ordersResult.data ?? []);
+    setPayments(paymentsResult.data ?? []);
     setLoading(false);
   }
 
@@ -155,7 +168,7 @@ export default function ReturnsPage() {
     setForm((current) => ({
       ...current,
       order_id: orderId,
-      amount: order?.total_amount ? String(order.total_amount) : current.amount,
+      amount: order?.paid_amount ? String(order.paid_amount) : order?.total_amount ? String(order.total_amount) : current.amount,
     }));
   }
 
@@ -191,6 +204,32 @@ export default function ReturnsPage() {
 
   async function updateStatus(item: ReturnItem, status: string) {
     await supabase.from("returns").update({ status }).eq("id", item.id);
+
+    if (status === "refunded" && item.order_id) {
+      await supabase.from("payments").insert({
+        order_id: item.order_id,
+        payment_method: "refund",
+        amount: -Math.abs(Number(item.amount ?? 0)),
+        note: `${item.return_no} için para iadesi`,
+      });
+
+      const relatedPayments = payments.filter((payment) => payment.order_id === item.order_id);
+      const nextPaid = relatedPayments.reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0) - Math.abs(Number(item.amount ?? 0));
+      const order = orders.find((orderItem) => orderItem.id === item.order_id);
+
+      if (order) {
+        const total = Number(order.total_amount ?? 0);
+        const remaining = Math.max(total - nextPaid, 0);
+        const paymentStatus = nextPaid <= 0 ? "pending" : nextPaid >= total ? "paid" : "partial";
+
+        await supabase.from("orders").update({
+          paid_amount: nextPaid,
+          remaining_amount: remaining,
+          payment_status: paymentStatus,
+        }).eq("id", order.id);
+      }
+    }
+
     setMessage(`${item.return_no} durumu güncellendi.`);
     await fetchData();
   }
@@ -209,7 +248,7 @@ export default function ReturnsPage() {
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="mb-3 inline-flex rounded-full bg-blue-500/15 px-3 py-2 text-xs font-black text-blue-300">
-              Takipio Returns
+              Returns + Refunds
             </div>
             <h1 className="text-[34px] font-black tracking-[-0.05em] sm:text-5xl">
               İadeler
@@ -287,7 +326,7 @@ export default function ReturnsPage() {
         <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-2xl font-black">İade Listesi</h2>
-            <p className="mt-1 text-sm text-slate-400">İade taleplerini durumlarına göre yönet.</p>
+            <p className="mt-1 text-sm text-slate-400">Para iadesi yapıldı seçilirse ödeme geçmişine negatif kayıt düşer.</p>
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row">
@@ -333,7 +372,7 @@ export default function ReturnsPage() {
                   </div>
 
                   <div>
-                    <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Sonraki Durum</p>
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Durum Güncelle</p>
                     <select value={item.status ?? "requested"} onChange={(event) => updateStatus(item, event.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-[#111a2e] px-3 py-2 text-xs outline-none">
                       {returnStatuses.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
                     </select>
