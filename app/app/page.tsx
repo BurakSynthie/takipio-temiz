@@ -8,6 +8,225 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+type Business = {
+  id: string;
+  owner_email: string | null;
+  name: string;
+  email: string | null;
+};
+
+type BusinessMember = {
+  id: string;
+  business_id: string;
+  email: string;
+  role_name: string | null;
+  member_status: string | null;
+  can_view_dashboard?: boolean | null;
+  can_manage_stock?: boolean | null;
+  can_manage_shipments?: boolean | null;
+  can_manage_returns?: boolean | null;
+  can_manage_billing?: boolean | null;
+};
+
+type Subscription = {
+  id: string;
+  business_id: string | null;
+  plan: string | null;
+  status: string | null;
+  order_limit: number | null;
+  first_month_price: number | null;
+  monthly_price: number | null;
+};
+
+type BusinessContext = {
+  userEmail: string;
+  business: Business;
+  member: BusinessMember;
+  subscription: Subscription | null;
+  isOwner: boolean;
+  isPro: boolean;
+};
+
+function normalizeEmail(email: string | null | undefined) {
+  return (email ?? "").trim().toLowerCase();
+}
+
+async function getCurrentUserEmail() {
+  const { data } = await supabase.auth.getUser();
+  return normalizeEmail(data.user?.email);
+}
+
+async function ensureOwnerMember(businessId: string, userEmail: string) {
+  const { data: existing } = await supabase
+    .from("business_members")
+    .select("*")
+    .eq("business_id", businessId)
+    .eq("email", userEmail)
+    .maybeSingle();
+
+  if (existing) return existing as BusinessMember;
+
+  const { data, error } = await supabase
+    .from("business_members")
+    .insert({
+      business_id: businessId,
+      email: userEmail,
+      role_name: "Sahip",
+      member_status: "active",
+      can_view_dashboard: true,
+      can_manage_products: true,
+      can_manage_stock: true,
+      can_manage_sales: true,
+      can_manage_orders: true,
+      can_manage_shipments: true,
+      can_manage_returns: true,
+      can_manage_invoices: true,
+      can_manage_customers: true,
+      can_manage_integrations: true,
+      can_manage_billing: true,
+      can_manage_settings: true,
+    })
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    throw new Error(`Owner yetkisi oluşturulamadı: ${error?.message ?? "Bilinmeyen hata"}`);
+  }
+
+  return data as BusinessMember;
+}
+
+async function ensureSubscription(businessId: string, userEmail: string) {
+  const { data: existing } = await supabase
+    .from("subscriptions")
+    .select("*")
+    .eq("business_id", businessId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existing) return existing as Subscription;
+
+  const { data, error } = await supabase
+    .from("subscriptions")
+    .insert({
+      business_id: businessId,
+      user_email: userEmail,
+      plan: "free",
+      status: "trial",
+      order_limit: 15,
+      first_month_price: 89,
+      monthly_price: 99,
+    })
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    throw new Error(`Abonelik oluşturulamadı: ${error?.message ?? "Bilinmeyen hata"}`);
+  }
+
+  return data as Subscription;
+}
+
+async function ensureBusinessForCurrentUser() {
+  const userEmail = await getCurrentUserEmail();
+
+  if (!userEmail) {
+    throw new Error("Oturum bulunamadı. Lütfen tekrar giriş yap.");
+  }
+
+  const existingMember = await supabase
+    .from("business_members")
+    .select("*")
+    .eq("email", userEmail)
+    .eq("member_status", "active")
+    .limit(1)
+    .maybeSingle();
+
+  if (existingMember.data?.business_id) {
+    const { data: business, error: businessError } = await supabase
+      .from("businesses")
+      .select("*")
+      .eq("id", existingMember.data.business_id)
+      .single();
+
+    if (businessError || !business) {
+      throw new Error("İşletme bilgisi alınamadı.");
+    }
+
+    const subscription = await ensureSubscription(business.id, userEmail);
+
+    return {
+      userEmail,
+      business,
+      member: existingMember.data,
+      subscription,
+      isOwner: normalizeEmail(business.owner_email) === userEmail,
+      isPro: subscription?.plan === "pro" && subscription?.status === "active",
+    } satisfies BusinessContext;
+  }
+
+  const existingBusiness = await supabase
+    .from("businesses")
+    .select("*")
+    .eq("owner_email", userEmail)
+    .limit(1)
+    .maybeSingle();
+
+  if (existingBusiness.data) {
+    const ownerMember = await ensureOwnerMember(existingBusiness.data.id, userEmail);
+    const subscription = await ensureSubscription(existingBusiness.data.id, userEmail);
+
+    return {
+      userEmail,
+      business: existingBusiness.data,
+      member: ownerMember,
+      subscription,
+      isOwner: true,
+      isPro: subscription?.plan === "pro" && subscription?.status === "active",
+    } satisfies BusinessContext;
+  }
+
+  const { data: createdBusiness, error: businessError } = await supabase
+    .from("businesses")
+    .insert({
+      owner_email: userEmail,
+      name: "İşletmem",
+      email: userEmail,
+    })
+    .select("*")
+    .single();
+
+  if (businessError || !createdBusiness) {
+    throw new Error(`İşletme oluşturulamadı: ${businessError?.message ?? "Bilinmeyen hata"}`);
+  }
+
+  const ownerMember = await ensureOwnerMember(createdBusiness.id, userEmail);
+  const subscription = await ensureSubscription(createdBusiness.id, userEmail);
+
+  return {
+    userEmail,
+    business: createdBusiness,
+    member: ownerMember,
+    subscription,
+    isOwner: true,
+    isPro: false,
+  } satisfies BusinessContext;
+}
+
+function withBusinessFields(context: BusinessContext) {
+  return {
+    business_id: context.business.id,
+    created_by: context.userEmail,
+  };
+}
+
+function hasPermission(context: BusinessContext | null, key: keyof BusinessMember) {
+  if (!context) return false;
+  if (context.isOwner) return true;
+  return Boolean(context.member[key]);
+}
+
 type Product = { id: string; name: string; product_code: string; category: string | null; price: number | null; stock: number | null; min_stock: number | null; created_at: string };
 type Sale = { id: string; product_code: string | null; product_name: string | null; customer_name: string | null; quantity: number | null; total_price: number | null; payment_status: string | null; created_at: string };
 type StockMovement = { id: string; product_code: string | null; product_name: string | null; movement_type: string | null; quantity: number | null; note: string | null; created_at: string };
@@ -15,7 +234,6 @@ type Note = { id: string; title: string; note: string | null; is_done: boolean |
 type Order = { id: string; order_no: string; order_status: string | null; shipping_status: string | null; total_amount: number | null; paid_amount: number | null; remaining_amount: number | null; created_at: string };
 type ReturnItem = { id: string; status: string | null; amount: number | null; created_at: string };
 type Payment = { id: string; payment_method: string | null; amount: number | null; payment_date: string | null; created_at: string };
-type Subscription = { id: string; plan: string | null; status: string | null; order_limit: number | null; first_month_price: number | null; monthly_price: number | null };
 
 function formatCurrency(value: number | null | undefined) {
   return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 }).format(Number(value ?? 0));
@@ -34,6 +252,7 @@ function paymentLabel(status: string | null) {
 }
 
 export default function DashboardPage() {
+  const [context, setContext] = useState<BusinessContext | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [movements, setMovements] = useState<StockMovement[]>([]);
@@ -41,33 +260,41 @@ export default function DashboardPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [returns, setReturns] = useState<ReturnItem[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
-  const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [noteTitle, setNoteTitle] = useState("");
   const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
 
   async function fetchData() {
     setLoading(true);
+    setMessage("");
 
-    const [productsResult, salesResult, movementsResult, notesResult, ordersResult, returnsResult, paymentsResult, subscriptionResult] = await Promise.all([
-      supabase.from("products").select("id, name, product_code, category, price, stock, min_stock, created_at").order("created_at", { ascending: false }),
-      supabase.from("sales").select("*").order("created_at", { ascending: false }),
-      supabase.from("stock_movements").select("*").order("created_at", { ascending: false }).limit(20),
-      supabase.from("app_notes").select("*").order("created_at", { ascending: false }).limit(8),
-      supabase.from("orders").select("id, order_no, order_status, shipping_status, total_amount, paid_amount, remaining_amount, created_at").order("created_at", { ascending: false }),
-      supabase.from("returns").select("id, status, amount, created_at").order("created_at", { ascending: false }),
-      supabase.from("payments").select("id, payment_method, amount, payment_date, created_at").order("created_at", { ascending: false }),
-      supabase.from("subscriptions").select("id, plan, status, order_limit, first_month_price, monthly_price").order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    ]);
+    try {
+      const ctx = await ensureBusinessForCurrentUser();
+      setContext(ctx);
+      const businessId = ctx.business.id;
 
-    setProducts(productsResult.data ?? []);
-    setSales(salesResult.data ?? []);
-    setMovements(movementsResult.data ?? []);
-    setNotes(notesResult.data ?? []);
-    setOrders(ordersResult.data ?? []);
-    setReturns(returnsResult.data ?? []);
-    setPayments(paymentsResult.data ?? []);
-    setSubscription(subscriptionResult.data ?? null);
-    setLoading(false);
+      const [productsResult, salesResult, movementsResult, notesResult, ordersResult, returnsResult, paymentsResult] = await Promise.all([
+        supabase.from("products").select("id, name, product_code, category, price, stock, min_stock, created_at").eq("business_id", businessId).order("created_at", { ascending: false }),
+        supabase.from("sales").select("*").eq("business_id", businessId).order("created_at", { ascending: false }),
+        supabase.from("stock_movements").select("*").eq("business_id", businessId).order("created_at", { ascending: false }).limit(20),
+        supabase.from("app_notes").select("*").eq("business_id", businessId).order("created_at", { ascending: false }).limit(8),
+        supabase.from("orders").select("id, order_no, order_status, shipping_status, total_amount, paid_amount, remaining_amount, created_at").eq("business_id", businessId).order("created_at", { ascending: false }),
+        supabase.from("returns").select("id, status, amount, created_at").eq("business_id", businessId).order("created_at", { ascending: false }),
+        supabase.from("payments").select("id, payment_method, amount, payment_date, created_at").eq("business_id", businessId).order("created_at", { ascending: false }),
+      ]);
+
+      setProducts(productsResult.data ?? []);
+      setSales(salesResult.data ?? []);
+      setMovements(movementsResult.data ?? []);
+      setNotes(notesResult.data ?? []);
+      setOrders(ordersResult.data ?? []);
+      setReturns(returnsResult.data ?? []);
+      setPayments(paymentsResult.data ?? []);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "İşletme bağlantısı kurulamadı.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -76,59 +303,40 @@ export default function DashboardPage() {
 
   async function addNote(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
+    if (!context) return;
     const cleanTitle = noteTitle.trim();
     if (!cleanTitle) return;
-
-    const { data } = await supabase.from("app_notes").insert({ title: cleanTitle }).select("*").single();
+    const { data } = await supabase.from("app_notes").insert({ ...withBusinessFields(context), title: cleanTitle }).select("*").single();
     if (data) setNotes((current) => [data, ...current]);
     setNoteTitle("");
   }
 
   async function toggleNote(note: Note) {
+    if (!context) return;
     setNotes((current) => current.map((item) => item.id === note.id ? { ...item, is_done: !item.is_done } : item));
-    await supabase.from("app_notes").update({ is_done: !note.is_done }).eq("id", note.id);
+    await supabase.from("app_notes").update({ is_done: !note.is_done }).eq("business_id", context.business.id).eq("id", note.id);
   }
 
   async function deleteNote(id: string) {
+    if (!context) return;
     setNotes((current) => current.filter((item) => item.id !== id));
-    await supabase.from("app_notes").delete().eq("id", id);
+    await supabase.from("app_notes").delete().eq("business_id", context.business.id).eq("id", id);
   }
 
-  const totalProducts = products.length;
-  const totalStock = products.reduce((sum, p) => sum + Number(p.stock ?? 0), 0);
   const stockValue = products.reduce((sum, p) => sum + Number(p.price ?? 0) * Number(p.stock ?? 0), 0);
   const criticalProducts = products.filter((p) => Number(p.min_stock ?? 0) > 0 && Number(p.stock ?? 0) <= Number(p.min_stock ?? 0));
-  const totalRevenue = sales.reduce((sum, s) => sum + Number(s.total_price ?? 0), 0);
   const todayRevenue = sales.filter((s) => isToday(s.created_at)).reduce((sum, s) => sum + Number(s.total_price ?? 0), 0);
-  const pendingSales = sales.filter((s) => s.payment_status !== "paid");
-  const paidRevenue = sales.filter((s) => s.payment_status === "paid").reduce((sum, s) => sum + Number(s.total_price ?? 0), 0);
-  const soldQty = sales.reduce((sum, s) => sum + Number(s.quantity ?? 0), 0);
-  const paidRatio = totalRevenue > 0 ? Math.round((paidRevenue / totalRevenue) * 100) : 0;
-
   const waitingOrders = orders.filter((order) => order.order_status === "new" || order.order_status === "preparing").length;
   const unshippedOrders = orders.filter((order) => order.shipping_status !== "shipped" && order.shipping_status !== "delivered").length;
   const activeReturns = returns.filter((item) => item.status !== "refunded" && item.status !== "rejected").length;
-
   const orderTotal = orders.reduce((sum, order) => sum + Number(order.total_amount ?? 0), 0);
   const orderPaid = orders.reduce((sum, order) => sum + Number(order.paid_amount ?? 0), 0);
   const orderRemaining = orders.reduce((sum, order) => sum + Math.max(Number(order.remaining_amount ?? order.total_amount ?? 0), 0), 0);
-
-  const todayCash = payments
-    .filter((payment) => payment.payment_method === "cash" && isToday(payment.payment_date ?? payment.created_at))
-    .reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0);
-
-  const todayCard = payments
-    .filter((payment) => payment.payment_method === "card" && isToday(payment.payment_date ?? payment.created_at))
-    .reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0);
-
-  const todayTransfer = payments
-    .filter((payment) => payment.payment_method === "transfer" && isToday(payment.payment_date ?? payment.created_at))
-    .reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0);
-
-  const plan = subscription?.plan ?? "free";
-  const isPro = plan === "pro";
-  const orderLimit = Number(subscription?.order_limit ?? 15);
+  const todayCash = payments.filter((payment) => payment.payment_method === "cash" && isToday(payment.payment_date ?? payment.created_at)).reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0);
+  const todayCard = payments.filter((payment) => payment.payment_method === "card" && isToday(payment.payment_date ?? payment.created_at)).reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0);
+  const todayTransfer = payments.filter((payment) => payment.payment_method === "transfer" && isToday(payment.payment_date ?? payment.created_at)).reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0);
+  const isPro = context?.subscription?.plan === "pro";
+  const orderLimit = Number(context?.subscription?.order_limit ?? 15);
   const usedOrders = orders.length;
   const remainingOrders = Math.max(orderLimit - usedOrders, 0);
   const usagePercentage = isPro ? 100 : Math.min(Math.round((usedOrders / orderLimit) * 100), 100);
@@ -136,13 +344,11 @@ export default function DashboardPage() {
   const weeklyBars = useMemo(() => {
     const labels = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
     const totals = [0, 0, 0, 0, 0, 0, 0];
-
     sales.forEach((sale) => {
       const day = new Date(sale.created_at).getDay();
       const index = day === 0 ? 6 : day - 1;
       totals[index] += Number(sale.total_price ?? 0);
     });
-
     const max = Math.max(...totals, 1);
     return labels.map((label, i) => ({ label, total: totals[i], height: Math.max((totals[i] / max) * 100, totals[i] > 0 ? 12 : 3) }));
   }, [sales]);
@@ -153,11 +359,10 @@ export default function DashboardPage() {
         <div className="rounded-[20px] border border-white/10 bg-[#111a2e] p-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-300">Canlı Dashboard</p>
-              <h1 className="mt-1 text-2xl font-black tracking-[-0.04em]">İşletme Özeti</h1>
-              <p className="mt-1 text-xs text-slate-400">Satış, sipariş, kargo, iade, ödeme ve abonelik özeti.</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-300">Business Dashboard</p>
+              <h1 className="mt-1 text-2xl font-black tracking-[-0.04em]">{context?.business.name || "İşletme Özeti"}</h1>
+              <p className="mt-1 text-xs text-slate-400">Bu dashboard sadece aktif işletmenin verilerini gösterir.</p>
             </div>
-
             <div className="flex gap-2">
               <button onClick={fetchData} className="rounded-xl bg-white/10 px-3 py-2 text-xs font-black transition hover:-translate-y-0.5">Yenile</button>
               <Link href="/app/orders" className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-black transition hover:-translate-y-0.5">Yeni Sipariş</Link>
@@ -173,29 +378,22 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {message ? <div className="rounded-2xl bg-blue-500/10 px-4 py-3 text-sm font-bold text-blue-200 ring-1 ring-blue-400/20">{message}</div> : null}
+
       <div className="rounded-[20px] border border-white/10 bg-[#111a2e] p-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm font-black">
-                {isPro ? "Takipio Pro aktif" : `Ücretsiz kullanım: ${usedOrders}/${orderLimit} sipariş`}
-              </p>
-              <span className={`rounded-full px-3 py-1 text-[10px] font-black ${isPro ? "bg-emerald-400/15 text-emerald-300" : "bg-blue-400/15 text-blue-300"}`}>
-                {isPro ? "PRO" : "FREE"}
-              </span>
+              <p className="text-sm font-black">{isPro ? "Takipio Pro aktif" : `Ücretsiz kullanım: ${usedOrders}/${orderLimit} sipariş`}</p>
+              <span className={`rounded-full px-3 py-1 text-[10px] font-black ${isPro ? "bg-emerald-400/15 text-emerald-300" : "bg-blue-400/15 text-blue-300"}`}>{isPro ? "PRO" : "FREE"}</span>
             </div>
-            <p className="mt-1 text-xs text-slate-500">
-              {isPro ? "Sınırsız sipariş ve premium özellikler açık." : `${remainingOrders} ücretsiz sipariş hakkın kaldı. İlk ay ₺89 ile Pro'ya geçebilirsin.`}
-            </p>
+            <p className="mt-1 text-xs text-slate-500">{isPro ? "Sınırsız sipariş ve premium özellikler açık." : `${remainingOrders} ücretsiz sipariş hakkın kaldı. İlk ay ₺89 ile Pro'ya geçebilirsin.`}</p>
           </div>
-
           <div className="flex flex-col gap-2 lg:w-[360px]">
             <div className="h-2 overflow-hidden rounded-full bg-white/8">
               <div className={isPro ? "h-full rounded-full bg-emerald-400" : "h-full rounded-full bg-blue-500"} style={{ width: `${usagePercentage}%` }} />
             </div>
-            <Link href="/app/billing" className="self-start rounded-xl bg-blue-600 px-3 py-2 text-xs font-black text-white lg:self-end">
-              Paketi Gör
-            </Link>
+            <Link href="/app/billing" className="self-start rounded-xl bg-blue-600 px-3 py-2 text-xs font-black text-white lg:self-end">Paketi Gör</Link>
           </div>
         </div>
       </div>
@@ -215,7 +413,6 @@ export default function DashboardPage() {
             <div className="absolute inset-x-3 top-1/4 border-t border-dashed border-white/10" />
             <div className="absolute inset-x-3 top-1/2 border-t border-dashed border-white/10" />
             <div className="absolute inset-x-3 top-3/4 border-t border-dashed border-white/10" />
-
             <div className="relative flex h-full items-end gap-2">
               {weeklyBars.map((bar) => (
                 <div key={bar.label} className="flex min-w-0 flex-1 flex-col items-center justify-end gap-2">
@@ -241,19 +438,14 @@ export default function DashboardPage() {
             <input value={noteTitle} onChange={(e) => setNoteTitle(e.target.value)} placeholder="Not yaz..." className="min-w-0 flex-1 rounded-xl border border-white/10 bg-[#0b1220] px-3 py-2 text-xs outline-none placeholder:text-slate-500" />
             <button className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-black">Ekle</button>
           </form>
-
           <div className="space-y-2">
-            {notes.length === 0 ? (
-              <Empty text="Not yok" />
-            ) : (
-              notes.map((note) => (
-                <div key={note.id} className="flex items-center gap-2 rounded-[14px] bg-[#0b1220] p-2.5">
-                  <button onClick={() => toggleNote(note)} className={`h-4 w-4 shrink-0 rounded-full ${note.is_done ? "bg-emerald-400" : "bg-white/10"}`} />
-                  <p className={`min-w-0 flex-1 truncate text-xs font-bold ${note.is_done ? "text-slate-500 line-through" : "text-white"}`}>{note.title}</p>
-                  <button onClick={() => deleteNote(note.id)} className="text-xs font-black text-red-300">Sil</button>
-                </div>
-              ))
-            )}
+            {notes.length === 0 ? <Empty text="Not yok" /> : notes.map((note) => (
+              <div key={note.id} className="flex items-center gap-2 rounded-[14px] bg-[#0b1220] p-2.5">
+                <button onClick={() => toggleNote(note)} className={`h-4 w-4 shrink-0 rounded-full ${note.is_done ? "bg-emerald-400" : "bg-white/10"}`} />
+                <p className={`min-w-0 flex-1 truncate text-xs font-bold ${note.is_done ? "text-slate-500 line-through" : "text-white"}`}>{note.title}</p>
+                <button onClick={() => deleteNote(note.id)} className="text-xs font-black text-red-300">Sil</button>
+              </div>
+            ))}
           </div>
         </Panel>
       </div>
@@ -299,22 +491,6 @@ export default function DashboardPage() {
           <Alert label="Kargoya verilmeyen" value={`${unshippedOrders} sipariş`} tone="red" href="/app/shipments" />
           <Alert label="Aktif iade" value={`${activeReturns} talep`} tone="green" href="/app/returns" />
         </Panel>
-      </div>
-
-      <div className="grid gap-3 lg:grid-cols-2">
-        <div className="rounded-[20px] border border-white/10 bg-[#111a2e] p-4">
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Destek</p>
-          <h2 className="mt-2 text-lg font-black">Öneri, şikayet veya destek talebin mi var?</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-400">Takipio ile ilgili geri bildirim, hata bildirimi veya geliştirme önerileri için iletişim sayfasından bize ulaşabilirsin.</p>
-          <Link href="/app/contact" className="mt-4 inline-flex rounded-2xl bg-blue-600 px-4 py-3 text-sm font-black transition hover:bg-blue-500">İletişime Geç</Link>
-        </div>
-
-        <div className="rounded-[20px] border border-white/10 bg-[#111a2e] p-4">
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Rehber</p>
-          <h2 className="mt-2 text-lg font-black">Takipio nasıl kullanılır?</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-400">Ürün, stok, sipariş, kargo, iade, müşteri, fatura ve ekip yetkilerini adım adım öğren.</p>
-          <Link href="/app/help" className="mt-4 inline-flex rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-blue-200 ring-1 ring-white/10 transition hover:bg-white/15">Tıkla, Öğren</Link>
-        </div>
       </div>
     </section>
   );
