@@ -84,6 +84,7 @@ const systemItems: NavItem[] = [
   { href: "/app/downloads", label: "Mobil Uygulama", icon: "downloads" },
   { href: "/app/profile", label: "Kullanıcı", icon: "profile" },
   { href: "/app/settings", label: "Ayarlar", icon: "settings" },
+  { href: "/app/help", label: "Kullanım Rehberi", icon: "about" },
   { href: "/app/contact", label: "İletişim", icon: "contact" },
   { href: "/app/about", label: "Hakkımızda", icon: "about" },
 ];
