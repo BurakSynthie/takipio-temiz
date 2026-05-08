@@ -15,6 +15,7 @@ type Note = { id: string; title: string; note: string | null; is_done: boolean |
 type Order = { id: string; order_no: string; order_status: string | null; shipping_status: string | null; total_amount: number | null; paid_amount: number | null; remaining_amount: number | null; created_at: string };
 type ReturnItem = { id: string; status: string | null; amount: number | null; created_at: string };
 type Payment = { id: string; payment_method: string | null; amount: number | null; payment_date: string | null; created_at: string };
+type Subscription = { id: string; plan: string | null; status: string | null; order_limit: number | null; first_month_price: number | null; monthly_price: number | null };
 
 function formatCurrency(value: number | null | undefined) {
   return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 }).format(Number(value ?? 0));
@@ -40,13 +41,14 @@ export default function DashboardPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [returns, setReturns] = useState<ReturnItem[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [noteTitle, setNoteTitle] = useState("");
   const [loading, setLoading] = useState(true);
 
   async function fetchData() {
     setLoading(true);
 
-    const [productsResult, salesResult, movementsResult, notesResult, ordersResult, returnsResult, paymentsResult] = await Promise.all([
+    const [productsResult, salesResult, movementsResult, notesResult, ordersResult, returnsResult, paymentsResult, subscriptionResult] = await Promise.all([
       supabase.from("products").select("id, name, product_code, category, price, stock, min_stock, created_at").order("created_at", { ascending: false }),
       supabase.from("sales").select("*").order("created_at", { ascending: false }),
       supabase.from("stock_movements").select("*").order("created_at", { ascending: false }).limit(20),
@@ -54,6 +56,7 @@ export default function DashboardPage() {
       supabase.from("orders").select("id, order_no, order_status, shipping_status, total_amount, paid_amount, remaining_amount, created_at").order("created_at", { ascending: false }),
       supabase.from("returns").select("id, status, amount, created_at").order("created_at", { ascending: false }),
       supabase.from("payments").select("id, payment_method, amount, payment_date, created_at").order("created_at", { ascending: false }),
+      supabase.from("subscriptions").select("id, plan, status, order_limit, first_month_price, monthly_price").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     ]);
 
     setProducts(productsResult.data ?? []);
@@ -63,6 +66,7 @@ export default function DashboardPage() {
     setOrders(ordersResult.data ?? []);
     setReturns(returnsResult.data ?? []);
     setPayments(paymentsResult.data ?? []);
+    setSubscription(subscriptionResult.data ?? null);
     setLoading(false);
   }
 
@@ -98,7 +102,6 @@ export default function DashboardPage() {
   const totalRevenue = sales.reduce((sum, s) => sum + Number(s.total_price ?? 0), 0);
   const todayRevenue = sales.filter((s) => isToday(s.created_at)).reduce((sum, s) => sum + Number(s.total_price ?? 0), 0);
   const pendingSales = sales.filter((s) => s.payment_status !== "paid");
-  const pendingRevenue = pendingSales.reduce((sum, s) => sum + Number(s.total_price ?? 0), 0);
   const paidRevenue = sales.filter((s) => s.payment_status === "paid").reduce((sum, s) => sum + Number(s.total_price ?? 0), 0);
   const soldQty = sales.reduce((sum, s) => sum + Number(s.quantity ?? 0), 0);
   const paidRatio = totalRevenue > 0 ? Math.round((paidRevenue / totalRevenue) * 100) : 0;
@@ -123,6 +126,13 @@ export default function DashboardPage() {
     .filter((payment) => payment.payment_method === "transfer" && isToday(payment.payment_date ?? payment.created_at))
     .reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0);
 
+  const plan = subscription?.plan ?? "free";
+  const isPro = plan === "pro";
+  const orderLimit = Number(subscription?.order_limit ?? 15);
+  const usedOrders = orders.length;
+  const remainingOrders = Math.max(orderLimit - usedOrders, 0);
+  const usagePercentage = isPro ? 100 : Math.min(Math.round((usedOrders / orderLimit) * 100), 100);
+
   const weeklyBars = useMemo(() => {
     const labels = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
     const totals = [0, 0, 0, 0, 0, 0, 0];
@@ -145,7 +155,7 @@ export default function DashboardPage() {
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-300">Canlı Dashboard</p>
               <h1 className="mt-1 text-2xl font-black tracking-[-0.04em]">İşletme Özeti</h1>
-              <p className="mt-1 text-xs text-slate-400">Satış, sipariş, kargo, iade ve parçalı ödeme özeti.</p>
+              <p className="mt-1 text-xs text-slate-400">Satış, sipariş, kargo, iade, ödeme ve abonelik özeti.</p>
             </div>
 
             <div className="flex gap-2">
@@ -159,7 +169,34 @@ export default function DashboardPage() {
           <Quick href="/app/orders" label="Sipariş" />
           <Quick href="/app/shipments" label="Kargo" />
           <Quick href="/app/returns" label="İade" />
-          <Quick href="/app/products" label="Ürün" />
+          <Quick href="/app/billing" label="Abonelik" />
+        </div>
+      </div>
+
+      <div className="rounded-[20px] border border-white/10 bg-[#111a2e] p-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-black">
+                {isPro ? "Takipio Pro aktif" : `Ücretsiz kullanım: ${usedOrders}/${orderLimit} sipariş`}
+              </p>
+              <span className={`rounded-full px-3 py-1 text-[10px] font-black ${isPro ? "bg-emerald-400/15 text-emerald-300" : "bg-blue-400/15 text-blue-300"}`}>
+                {isPro ? "PRO" : "FREE"}
+              </span>
+            </div>
+            <p className="mt-1 text-xs text-slate-500">
+              {isPro ? "Sınırsız sipariş ve premium özellikler açık." : `${remainingOrders} ücretsiz sipariş hakkın kaldı. İlk ay ₺89 ile Pro'ya geçebilirsin.`}
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-2 lg:w-[360px]">
+            <div className="h-2 overflow-hidden rounded-full bg-white/8">
+              <div className={isPro ? "h-full rounded-full bg-emerald-400" : "h-full rounded-full bg-blue-500"} style={{ width: `${usagePercentage}%` }} />
+            </div>
+            <Link href="/app/billing" className="self-start rounded-xl bg-blue-600 px-3 py-2 text-xs font-black text-white lg:self-end">
+              Paketi Gör
+            </Link>
+          </div>
         </div>
       </div>
 
