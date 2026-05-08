@@ -7,7 +7,14 @@ import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    storageKey: "takipio-auth-session",
+  },
+});
 
 type Member = {
   email: string;
@@ -358,8 +365,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   async function loadContext() {
     setLoading(true);
 
+    const sessionResult = await supabase.auth.getSession();
+    const sessionEmail = normalizeEmail(sessionResult.data.session?.user?.email);
+
+    if (!sessionEmail) {
+      setLoading(false);
+      window.location.replace("/login");
+      return;
+    }
+
     const { data } = await supabase.auth.getUser();
-    const email = normalizeEmail(data.user?.email);
+    const email = normalizeEmail(data.user?.email || sessionEmail);
     setUserEmail(email);
 
     if (!email) {
@@ -478,7 +494,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   async function signOut() {
     try {
-      await supabase.auth.signOut({ scope: "global" });
+      await supabase.auth.signOut({ scope: "local" });
 
       window.localStorage.removeItem("takipio-auth-session");
 
