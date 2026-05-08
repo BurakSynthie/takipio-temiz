@@ -7,7 +7,7 @@ import {
   supabase,
   withBusinessFields,
   type BusinessContext,
-} from "@/lib/business-core";
+} from "../../../lib/business-core";
 
 type Product = {
   id: string;
