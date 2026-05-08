@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -30,13 +30,30 @@ type IconName =
   | "menu"
   | "search"
   | "theme"
-  | "logout";
+  | "logout"
+  | "send"
+  | "trash";
 
 type NavItem = {
   href: string;
   label: string;
   shortLabel?: string;
   icon: IconName;
+};
+
+type GorkiMessage = {
+  role: "gorki" | "user";
+  text: string;
+};
+
+type NotificationItem = {
+  id: string;
+  title: string;
+  description: string | null;
+  type: string | null;
+  target_url: string | null;
+  is_read: boolean | null;
+  created_at: string;
 };
 
 const mainItems: NavItem[] = [
@@ -55,13 +72,18 @@ const businessItems: NavItem[] = [
 ];
 
 const systemItems: NavItem[] = [
-  { href: "/app/inbox", label: "Inbox", icon: "inbox" },
-  { href: "/app/notifications", label: "Bildirimler", icon: "notifications" },
   { href: "/app/downloads", label: "Mobil Uygulama", icon: "downloads" },
   { href: "/app/profile", label: "Kullanıcı", icon: "profile" },
   { href: "/app/settings", label: "Ayarlar", icon: "settings" },
   { href: "/app/contact", label: "İletişim", icon: "contact" },
   { href: "/app/about", label: "Hakkımızda", icon: "about" },
+];
+
+const initialMessages: GorkiMessage[] = [
+  {
+    role: "gorki",
+    text: "Buradayım. Panelde gezerken stok, satış, ödeme, müşteri veya QR tarafında hızlıca yardım edebilirim.",
+  },
 ];
 
 function Icon({ name, className = "" }: { name: IconName; className?: string }) {
@@ -86,18 +108,30 @@ function Icon({ name, className = "" }: { name: IconName; className?: string }) 
   if (name === "search") return <svg viewBox="0 0 24 24" fill="none" className={common}><path d="M11 19C15.4 19 19 15.4 19 11S15.4 3 11 3S3 6.6 3 11S6.6 19 11 19Z" stroke="currentColor" strokeWidth="2"/><path d="M21 21L17 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>;
   if (name === "theme") return <svg viewBox="0 0 24 24" fill="none" className={common}><path d="M21 14.5C19.7 15.3 18.1 15.7 16.5 15.7C11.9 15.7 8.3 12.1 8.3 7.5C8.3 5.9 8.7 4.3 9.5 3C5.8 4.1 3 7.6 3 11.7C3 16.7 7.1 20.8 12.1 20.8C16.2 20.8 19.7 18 21 14.5Z" stroke="currentColor" strokeWidth="2"/></svg>;
   if (name === "logout") return <svg viewBox="0 0 24 24" fill="none" className={common}><path d="M10 6H6V18H10M14 8L18 12L14 16M18 12H9" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>;
+  if (name === "send") return <svg viewBox="0 0 24 24" fill="none" className={common}><path d="M21 3L10.5 13.5M21 3L14.5 21L10.5 13.5M21 3L3 9.5L10.5 13.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>;
+  if (name === "trash") return <svg viewBox="0 0 24 24" fill="none" className={common}><path d="M4 7H20M9 7V4H15V7M7 7L8 20H16L17 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>;
 
   return <svg viewBox="0 0 24 24" fill="none" className={common}><path d="M5 7H19M5 12H19M5 17H19" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>;
 }
 
-function active(pathname: string, href: string) {
+function isActive(pathname: string, href: string) {
   if (href === "/app") return pathname === "/app";
   return pathname.startsWith(href);
 }
 
-function pageTitle(pathname: string) {
+function getPageTitle(pathname: string) {
   const all = [...mainItems, ...businessItems, ...systemItems];
-  return all.find((item) => active(pathname, item.href))?.label ?? "Dashboard";
+  return all.find((item) => isActive(pathname, item.href))?.label ?? "Dashboard";
+}
+
+function createGorkiReply(text: string) {
+  const lower = text.toLowerCase();
+
+  if (lower.includes("stok")) return "Stok sayfasında tüm giriş/çıkışları görebilir, ürün sayfasından stok güncelleyebilirsin.";
+  if (lower.includes("ödeme") || lower.includes("tahsilat")) return "Bekleyen ödemeler Satışlar ve Dashboard özetlerinde görünür. Ödeme durumunu satış kartından takip edebilirsin.";
+  if (lower.includes("yetki") || lower.includes("rol")) return "Ayarlar > Ekip ve Yetkiler alanından e-posta ekleyip hangi panellere erişeceğini seçebilirsin.";
+  if (lower.includes("foto") || lower.includes("resim")) return "Kullanıcı profilinden bilgisayardan fotoğraf yükleyebilirsin. Supabase Storage'a kaydedilir.";
+  return "Bunu not aldım. Paneldeki ilgili modüle göre sana yönlendirme yapabilirim.";
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -107,27 +141,74 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [darkMode, setDarkMode] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [notificationOpen, setNotificationOpen] = useState(false);
+  const [inboxOpen, setInboxOpen] = useState(false);
+  const [gorkiOpen, setGorkiOpen] = useState(false);
+  const [gorkiInput, setGorkiInput] = useState("");
+  const [messages, setMessages] = useState<GorkiMessage[]>(initialMessages);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+
+  const surface = darkMode ? "bg-[#0b1220] text-white" : "bg-[#f4f7fb] text-slate-950";
+  const panel = darkMode ? "bg-[#111a2e] border-white/10 text-white" : "bg-white border-slate-200 text-slate-950";
+  const soft = darkMode ? "bg-white/8 hover:bg-white/12" : "bg-slate-100 hover:bg-slate-200";
+
+  const unreadCount = notifications.filter((item) => !item.is_read).length;
+
+  useEffect(() => {
+    fetchNotifications();
+  }, []);
+
+  async function fetchNotifications() {
+    const { data } = await supabase
+      .from("app_notifications")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(8);
+
+    setNotifications(data ?? []);
+  }
+
+  async function markNotificationRead(id: string) {
+    setNotifications((current) =>
+      current.map((item) => (item.id === id ? { ...item, is_read: true } : item))
+    );
+
+    await supabase.from("app_notifications").update({ is_read: true }).eq("id", id);
+  }
+
+  async function deleteNotification(id: string) {
+    setNotifications((current) => current.filter((item) => item.id !== id));
+    await supabase.from("app_notifications").delete().eq("id", id);
+  }
 
   async function logout() {
     await supabase.auth.signOut();
     router.push("/login");
   }
 
-  const surface = darkMode ? "bg-[#0b1220] text-white" : "bg-[#eef3f9] text-slate-950";
-  const panel = darkMode ? "bg-[#111a2e] border-white/10" : "bg-white border-slate-200";
+  function sendGorkiMessage(text?: string) {
+    const clean = (text ?? gorkiInput).trim();
+    if (!clean) return;
+
+    setMessages((current) => [
+      ...current,
+      { role: "user", text: clean },
+      { role: "gorki", text: createGorkiReply(clean) },
+    ]);
+    setGorkiInput("");
+    setGorkiOpen(true);
+  }
+
+  const contextText = useMemo(() => getPageTitle(pathname), [pathname]);
 
   return (
-    <div className={`min-h-screen ${surface}`}>
+    <div className={`min-h-screen transition-colors duration-300 ${surface}`}>
       <div className="flex min-h-screen">
-        <aside className="hidden w-[224px] shrink-0 border-r border-white/10 bg-[#0b1220] p-2.5 text-white lg:block">
+        <aside className="hidden w-[218px] shrink-0 border-r border-white/10 bg-[#0b1220] p-2 text-white lg:block">
           <div className="flex h-full flex-col overflow-hidden rounded-[20px] border border-white/10 bg-[#111a2e]">
-            <Link href="/app" className="m-2.5 flex items-center gap-2.5 rounded-[18px] bg-[#07101f] p-2.5">
-              <div className="relative h-10 w-10 overflow-hidden rounded-xl bg-white">
-                <Image src="/takipio-logo.png" alt="Takipio" fill className="object-contain p-1.5" priority />
-              </div>
-              <div className="min-w-0">
-                <p className="truncate text-base font-black">Takipio</p>
-                <p className="truncate text-[10px] text-slate-400">İşletme paneli</p>
+            <Link href="/app" className="m-2 flex items-center justify-center rounded-[18px] bg-[#07101f] p-2.5 transition hover:scale-[1.02]">
+              <div className="relative h-12 w-28">
+                <Image src="/takipio-logo.png" alt="Takipio" fill className="object-contain" priority />
               </div>
             </Link>
 
@@ -140,38 +221,79 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </aside>
 
         <main className="min-w-0 flex-1 pb-24 lg:pb-0">
-          <header className={`sticky top-0 z-40 border-b ${darkMode ? "border-white/10 bg-[#0b1220]/90" : "border-slate-200 bg-white/90"} backdrop-blur-2xl`}>
-            <div className="flex h-[62px] items-center gap-2 px-3 lg:px-4">
-              <div className="min-w-0 flex-1">
-                <div className="hidden lg:block">
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Aktif Sayfa</p>
-                  <h1 className="truncate text-lg font-black">{pageTitle(pathname)}</h1>
+          <header className={`sticky top-0 z-40 border-b backdrop-blur-2xl ${darkMode ? "border-white/10 bg-[#0b1220]/92" : "border-slate-200 bg-white/92"}`}>
+            <div className="flex h-[60px] items-center gap-2 px-3 lg:px-4">
+              <Link href="/app" className="lg:hidden">
+                <div className={`relative h-10 w-24 rounded-2xl ${darkMode ? "bg-white/5" : "bg-white"} p-1.5`}>
+                  <Image src="/takipio-logo.png" alt="Takipio" fill className="object-contain p-1" />
                 </div>
+              </Link>
 
-                <div className={`flex h-10 items-center gap-2 rounded-2xl px-3 ring-1 lg:hidden ${darkMode ? "bg-white/8 ring-white/10" : "bg-slate-100 ring-slate-200"}`}>
-                  <Icon name="search" />
-                  <input placeholder="Panelde ara..." className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-slate-500" />
-                </div>
+              <div className="hidden min-w-[130px] lg:block">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Aktif Sayfa</p>
+                <h1 className="truncate text-lg font-black">{getPageTitle(pathname)}</h1>
               </div>
 
-              <div className={`hidden h-10 max-w-[560px] flex-1 items-center gap-2 rounded-2xl px-3 ring-1 lg:flex ${darkMode ? "bg-white/8 ring-white/10" : "bg-slate-100 ring-slate-200"}`}>
+              <div className={`flex h-10 min-w-0 flex-1 items-center gap-2 rounded-2xl px-3 ring-1 ${darkMode ? "bg-white/8 ring-white/10" : "bg-slate-100 ring-slate-200"}`}>
                 <Icon name="search" />
-                <input placeholder="Ürün, satış, müşteri, fatura veya QR ara..." className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-slate-500" />
+                <input
+                  placeholder="Ürün, satış, müşteri, fatura veya QR ara..."
+                  className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-slate-500"
+                />
               </div>
 
-              <TopIcon href="/app/inbox" name="inbox" dark={darkMode} dot="blue" />
-              <TopIcon href="/app/notifications" name="notifications" dark={darkMode} dot="red" />
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    setInboxOpen((v) => !v);
+                    setNotificationOpen(false);
+                  }}
+                  className={`relative flex h-10 w-10 items-center justify-center rounded-2xl ${soft}`}
+                >
+                  <Icon name="inbox" />
+                  <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-blue-500" />
+                </button>
 
-              <button onClick={() => setDarkMode((v) => !v)} className={`flex h-10 w-10 items-center justify-center rounded-2xl ${darkMode ? "bg-white/8" : "bg-slate-100"}`}>
+                {inboxOpen ? <InboxPopover panel={panel} onClose={() => setInboxOpen(false)} /> : null}
+              </div>
+
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    setNotificationOpen((v) => !v);
+                    setInboxOpen(false);
+                  }}
+                  className={`relative flex h-10 w-10 items-center justify-center rounded-2xl ${soft}`}
+                >
+                  <Icon name="notifications" />
+                  {unreadCount > 0 ? (
+                    <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-black text-white">
+                      {unreadCount}
+                    </span>
+                  ) : null}
+                </button>
+
+                {notificationOpen ? (
+                  <NotificationsPopover
+                    panel={panel}
+                    notifications={notifications}
+                    onRead={markNotificationRead}
+                    onDelete={deleteNotification}
+                    onClose={() => setNotificationOpen(false)}
+                  />
+                ) : null}
+              </div>
+
+              <button onClick={() => setDarkMode((v) => !v)} className={`flex h-10 w-10 items-center justify-center rounded-2xl ${soft}`}>
                 <Icon name="theme" />
               </button>
 
               <div className="relative">
-                <button onClick={() => setProfileOpen((v) => !v)} className={`flex h-10 items-center gap-2 rounded-2xl px-2 ${darkMode ? "bg-white/8" : "bg-slate-100"}`}>
+                <button onClick={() => setProfileOpen((v) => !v)} className={`flex h-10 items-center gap-2 rounded-2xl px-2 ${soft}`}>
                   <div className="h-7 w-7 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400" />
                   <div className="hidden text-left leading-none sm:block">
                     <p className="text-xs font-black">Burak</p>
-                    <p className="mt-1 text-[10px] text-slate-500">Admin</p>
+                    <p className="mt-1 text-[10px] text-slate-500">Sahip</p>
                   </div>
                 </button>
 
@@ -181,7 +303,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                       <Icon name="profile" /> Kullanıcı Profili
                     </Link>
                     <Link href="/app/settings" className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold hover:bg-blue-500/10">
-                      <Icon name="settings" /> Ayarlar
+                      <Icon name="settings" /> Yetkiler & Ayarlar
                     </Link>
                     <button onClick={logout} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-bold text-red-400 hover:bg-red-500/10">
                       <Icon name="logout" /> Çıkış Yap
@@ -203,11 +325,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <div className={`fixed bottom-[82px] left-3 right-3 z-50 max-h-[58vh] overflow-y-auto rounded-[24px] border p-3 shadow-2xl transition lg:hidden ${menuOpen ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-8 opacity-0"} ${panel}`}>
         <div className="mb-3 flex items-center justify-between">
           <p className="font-black">Tüm Menüler</p>
-          <button onClick={() => setMenuOpen(false)} className="rounded-xl bg-white/10 px-3 py-1 font-black">×</button>
+          <button onClick={() => setMenuOpen(false)} className={`rounded-xl px-3 py-1 font-black ${soft}`}>×</button>
         </div>
         <div className="grid grid-cols-2 gap-2">
           {[...businessItems, ...systemItems].map((item) => (
-            <Link key={item.href} href={item.href} onClick={() => setMenuOpen(false)} className={`flex items-center gap-2 rounded-2xl p-3 text-sm font-black ${active(pathname, item.href) ? "bg-blue-600 text-white" : darkMode ? "bg-white/8" : "bg-slate-100"}`}>
+            <Link key={item.href} href={item.href} onClick={() => setMenuOpen(false)} className={`flex items-center gap-2 rounded-2xl p-3 text-sm font-black transition ${isActive(pathname, item.href) ? "bg-blue-600 text-white" : darkMode ? "bg-white/8" : "bg-slate-100"}`}>
               <Icon name={item.icon} /> {item.label}
             </Link>
           ))}
@@ -217,17 +339,80 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <nav className={`fixed bottom-3 left-3 right-3 z-50 rounded-[24px] border p-1.5 shadow-2xl lg:hidden ${panel}`}>
         <div className="grid grid-cols-6 gap-1">
           {mainItems.slice(0, 5).map((item) => (
-            <Link key={item.href} href={item.href} className={`flex flex-col items-center justify-center gap-1 rounded-[18px] px-1 py-2 text-[9px] font-black ${active(pathname, item.href) ? "bg-blue-600 text-white" : "text-slate-400"}`}>
+            <Link key={item.href} href={item.href} className={`flex flex-col items-center justify-center gap-1 rounded-[18px] px-1 py-2 text-[9px] font-black transition ${isActive(pathname, item.href) ? "bg-blue-600 text-white" : "text-slate-400"}`}>
               <Icon name={item.icon} />
               <span>{item.shortLabel}</span>
             </Link>
           ))}
-          <button onClick={() => setMenuOpen((v) => !v)} className={`flex flex-col items-center justify-center gap-1 rounded-[18px] px-1 py-2 text-[9px] font-black ${menuOpen ? "bg-blue-600 text-white" : "text-slate-400"}`}>
+          <button onClick={() => setMenuOpen((v) => !v)} className={`flex flex-col items-center justify-center gap-1 rounded-[18px] px-1 py-2 text-[9px] font-black transition ${menuOpen ? "bg-blue-600 text-white" : "text-slate-400"}`}>
             <Icon name="menu" />
             <span>Menü</span>
           </button>
         </div>
       </nav>
+
+      {!gorkiOpen ? (
+        <button
+          type="button"
+          onClick={() => setGorkiOpen(true)}
+          className="fixed bottom-[92px] right-4 z-50 flex h-16 w-16 items-center justify-center overflow-hidden rounded-[22px] border border-white/10 bg-[#111827] shadow-[0_18px_55px_rgba(15,23,42,0.36)] transition hover:-translate-y-1"
+        >
+          <Image src="/gorki-hero.png" alt="Gorki" fill className="object-contain object-bottom" />
+        </button>
+      ) : null}
+
+      <div className={`fixed z-[70] overflow-hidden border shadow-[0_28px_90px_rgba(15,23,42,0.32)] transition-all duration-300 bottom-[92px] left-3 right-3 rounded-[28px] lg:bottom-6 lg:left-auto lg:right-6 lg:w-[400px] ${panel} ${gorkiOpen ? "translate-y-0 scale-100 opacity-100" : "pointer-events-none translate-y-8 scale-95 opacity-0"}`}>
+        <div className="bg-[#0b1220] p-4 text-white">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-2xl bg-white/10">
+                <Image src="/gorki-hero.png" alt="Gorki" fill className="object-contain object-bottom" />
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-base font-black">Gorki AI</p>
+                <p className="truncate text-xs text-slate-400">{contextText}</p>
+              </div>
+            </div>
+            <button onClick={() => setGorkiOpen(false)} className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-lg font-black">×</button>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {["Stok durumu", "Bekleyen ödeme", "Yetki sistemi"].map((question) => (
+              <button key={question} onClick={() => sendGorkiMessage(question)} className="rounded-full bg-white/10 px-3 py-2 text-xs font-black text-slate-200 transition hover:bg-blue-600">
+                {question}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className={`max-h-[330px] space-y-3 overflow-y-auto p-4 ${darkMode ? "bg-white/[0.03]" : "bg-slate-50"}`}>
+          {messages.map((message, index) => {
+            const isUser = message.role === "user";
+            return (
+              <div key={`${message.role}-${index}`} className={isUser ? "flex justify-end" : "flex justify-start"}>
+                <div className={`max-w-[86%] rounded-[20px] px-4 py-3 text-sm leading-6 ${isUser ? "bg-blue-600 text-white" : darkMode ? "bg-white/8 text-slate-100" : "bg-white text-slate-700 shadow-sm"}`}>
+                  {message.text}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className={`flex gap-2 border-t p-3 ${darkMode ? "border-white/10" : "border-slate-100"}`}>
+          <input
+            value={gorkiInput}
+            onChange={(event) => setGorkiInput(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") sendGorkiMessage();
+            }}
+            placeholder="Gorki’ye sor..."
+            className={`min-w-0 flex-1 rounded-2xl border px-4 py-3 text-sm outline-none placeholder:text-slate-500 ${darkMode ? "border-white/10 bg-white/8 text-white" : "border-slate-200 bg-slate-50 text-slate-950"}`}
+          />
+          <button onClick={() => sendGorkiMessage()} className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-white">
+            <Icon name="send" />
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -238,8 +423,8 @@ function NavGroup({ title, items, pathname }: { title: string; items: NavItem[];
       <p className="mb-1.5 px-2 text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">{title}</p>
       <div className="space-y-1">
         {items.map((item) => (
-          <Link key={item.href} href={item.href} className={`flex items-center gap-2 rounded-[14px] px-2.5 py-2 text-[12px] font-black transition ${active(pathname, item.href) ? "bg-blue-600 text-white" : "text-slate-400 hover:bg-white/8 hover:text-white"}`}>
-            <span className={`flex h-7 w-7 items-center justify-center rounded-xl ${active(pathname, item.href) ? "bg-white/15" : "bg-white/8"}`}>
+          <Link key={item.href} href={item.href} className={`group flex items-center gap-2 rounded-[14px] px-2.5 py-2 text-[12px] font-black transition duration-200 hover:translate-x-0.5 ${isActive(pathname, item.href) ? "bg-blue-600 text-white" : "text-slate-400 hover:bg-white/8 hover:text-white"}`}>
+            <span className={`flex h-7 w-7 items-center justify-center rounded-xl ${isActive(pathname, item.href) ? "bg-white/15" : "bg-white/8"}`}>
               <Icon name={item.icon} />
             </span>
             <span className="truncate">{item.label}</span>
@@ -250,11 +435,86 @@ function NavGroup({ title, items, pathname }: { title: string; items: NavItem[];
   );
 }
 
-function TopIcon({ href, name, dark, dot }: { href: string; name: IconName; dark: boolean; dot?: "blue" | "red" }) {
+function InboxPopover({ panel, onClose }: { panel: string; onClose: () => void }) {
+  const [items, setItems] = useState([
+    { id: "1", title: "Gorki AI", text: "Yetki sistemi ve profil yükleme paketi hazır." },
+    { id: "2", title: "Sistem", text: "Dosya yükleme artık Supabase Storage ile çalışacak." },
+    { id: "3", title: "Destek", text: "takipioinfo@gmail.com iletişim adresi tanımlandı." },
+  ]);
+
   return (
-    <Link href={href} className={`relative flex h-10 w-10 items-center justify-center rounded-2xl ${dark ? "bg-white/8" : "bg-slate-100"}`}>
-      <Icon name={name} />
-      {dot ? <span className={`absolute right-2 top-2 h-2 w-2 rounded-full ${dot === "blue" ? "bg-blue-500" : "bg-red-500"}`} /> : null}
-    </Link>
+    <div className={`absolute right-0 top-12 z-50 w-[330px] rounded-2xl border p-3 shadow-2xl ${panel}`}>
+      <div className="mb-3 flex items-center justify-between">
+        <p className="font-black">Mesaj Kutusu</p>
+        <button onClick={onClose} className="text-sm font-black text-slate-500">×</button>
+      </div>
+
+      <div className="space-y-2">
+        {items.length === 0 ? (
+          <p className="rounded-xl bg-white/5 p-4 text-center text-sm text-slate-500">Mesaj yok.</p>
+        ) : (
+          items.map((item) => (
+            <div key={item.id} className="rounded-xl bg-white/5 p-3">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm font-black">{item.title}</p>
+                  <p className="mt-1 text-xs text-slate-500">{item.text}</p>
+                </div>
+                <button onClick={() => setItems((current) => current.filter((i) => i.id !== item.id))} className="text-red-400">
+                  <Icon name="trash" />
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function NotificationsPopover({
+  panel,
+  notifications,
+  onRead,
+  onDelete,
+  onClose,
+}: {
+  panel: string;
+  notifications: NotificationItem[];
+  onRead: (id: string) => void;
+  onDelete: (id: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className={`absolute right-0 top-12 z-50 w-[360px] rounded-2xl border p-3 shadow-2xl ${panel}`}>
+      <div className="mb-3 flex items-center justify-between">
+        <p className="font-black">Bildirimler</p>
+        <button onClick={onClose} className="text-sm font-black text-slate-500">×</button>
+      </div>
+
+      <div className="max-h-[360px] space-y-2 overflow-y-auto">
+        {notifications.length === 0 ? (
+          <p className="rounded-xl bg-white/5 p-4 text-center text-sm text-slate-500">Bildirim yok.</p>
+        ) : (
+          notifications.map((item) => (
+            <div key={item.id} className={`rounded-xl bg-white/5 p-3 ${item.is_read ? "opacity-55" : ""}`}>
+              <div className="flex items-start justify-between gap-2">
+                <button onClick={() => onRead(item.id)} className="min-w-0 text-left">
+                  <p className="truncate text-sm font-black">{item.title}</p>
+                  <p className="mt-1 text-xs text-slate-500">{item.description || "Açıklama yok"}</p>
+                </button>
+                <button onClick={() => onDelete(item.id)} className="text-red-400">
+                  <Icon name="trash" />
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      <Link href="/app/notifications" onClick={onClose} className="mt-3 block rounded-xl bg-blue-600 px-3 py-2 text-center text-xs font-black text-white">
+        Bildirim Yönetimine Git
+      </Link>
+    </div>
   );
 }
