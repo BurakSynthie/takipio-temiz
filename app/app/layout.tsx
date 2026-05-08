@@ -85,6 +85,7 @@ const businessItems: NavItem[] = [
 
 const systemItems: NavItem[] = [
   { href: "/app/help", label: "Kullanım Rehberi", icon: "about" },
+  { href: "/app/billing", label: "Abonelik", icon: "invoices" },
   { href: "/app/downloads", label: "Mobil Uygulama", icon: "downloads" },
   { href: "/app/profile", label: "Kullanıcı", icon: "profile" },
   { href: "/app/settings", label: "Ayarlar", icon: "settings" },
