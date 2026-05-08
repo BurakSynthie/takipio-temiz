@@ -27,6 +27,18 @@ type BusinessMember = {
   full_name: string | null;
   role_name: string | null;
   member_status: string | null;
+  can_view_dashboard: boolean | null;
+  can_manage_products: boolean | null;
+  can_manage_stock: boolean | null;
+  can_manage_sales: boolean | null;
+  can_manage_orders: boolean | null;
+  can_manage_shipments: boolean | null;
+  can_manage_returns: boolean | null;
+  can_manage_invoices: boolean | null;
+  can_manage_customers: boolean | null;
+  can_manage_integrations: boolean | null;
+  can_manage_billing: boolean | null;
+  can_manage_settings: boolean | null;
 };
 
 type Subscription = {
@@ -34,6 +46,9 @@ type Subscription = {
   business_id: string | null;
   plan: string | null;
   status: string | null;
+  order_limit: number | null;
+  first_month_price: number | null;
+  monthly_price: number | null;
 };
 
 type BusinessContext = {
@@ -152,13 +167,7 @@ async function ensureBusinessForCurrentUser() {
       throw new Error("İşletme bilgisi alınamadı.");
     }
 
-    const { data: subscription } = await supabase
-      .from("subscriptions")
-      .select("*")
-      .eq("business_id", business.id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const subscription = await ensureSubscription(business.id, userEmail);
 
     return {
       userEmail,
@@ -208,19 +217,6 @@ async function ensureBusinessForCurrentUser() {
   const ownerMember = await ensureOwnerMember(createdBusiness.id, userEmail);
   const subscription = await ensureSubscription(createdBusiness.id, userEmail);
 
-  await supabase
-    .from("app_user_profiles")
-    .upsert(
-      {
-        email: userEmail,
-        business_id: createdBusiness.id,
-        role_name: "Sahip",
-      },
-      {
-        onConflict: "email",
-      }
-    );
-
   return {
     userEmail,
     business: createdBusiness,
@@ -231,9 +227,26 @@ async function ensureBusinessForCurrentUser() {
   } satisfies BusinessContext;
 }
 
+function hasPermission(context: BusinessContext | null, key: keyof BusinessMember) {
+  if (!context) return false;
+  if (context.isOwner) return true;
+  return Boolean(context.member[key]);
+}
+
+type BusinessForm = {
+  name: string;
+  phone: string;
+  email: string;
+  website: string;
+  tax_office: string;
+  tax_number: string;
+  address: string;
+  logo_url: string;
+};
+
 export default function BusinessSetupPage() {
   const [context, setContext] = useState<BusinessContext | null>(null);
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<BusinessForm>({
     name: "",
     phone: "",
     email: "",
@@ -241,16 +254,21 @@ export default function BusinessSetupPage() {
     tax_office: "",
     tax_number: "",
     address: "",
+    logo_url: "",
   });
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
 
-  async function loadBusiness() {
-    try {
-      setLoading(true);
-      const ctx = await ensureBusinessForCurrentUser();
+  const canManageSettings = hasPermission(context, "can_manage_settings");
 
+  async function loadBusiness() {
+    setLoading(true);
+    setMessage("");
+
+    try {
+      const ctx = await ensureBusinessForCurrentUser();
       setContext(ctx);
+
       setForm({
         name: ctx.business.name ?? "",
         phone: ctx.business.phone ?? "",
@@ -259,6 +277,7 @@ export default function BusinessSetupPage() {
         tax_office: ctx.business.tax_office ?? "",
         tax_number: ctx.business.tax_number ?? "",
         address: ctx.business.address ?? "",
+        logo_url: ctx.business.logo_url ?? "",
       });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "İşletme bilgisi alınamadı.");
@@ -276,6 +295,11 @@ export default function BusinessSetupPage() {
 
     if (!context) return;
 
+    if (!canManageSettings) {
+      setMessage("Bu işletmede işletme bilgilerini düzenleme yetkin yok.");
+      return;
+    }
+
     const { error } = await supabase
       .from("businesses")
       .update({
@@ -286,6 +310,7 @@ export default function BusinessSetupPage() {
         tax_office: form.tax_office.trim() || null,
         tax_number: form.tax_number.trim() || null,
         address: form.address.trim() || null,
+        logo_url: form.logo_url.trim() || null,
         updated_at: new Date().toISOString(),
       })
       .eq("id", context.business.id);
@@ -304,13 +329,11 @@ export default function BusinessSetupPage() {
       <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
         <div>
           <div className="mb-3 inline-flex rounded-full bg-blue-500/15 px-3 py-2 text-xs font-black text-blue-300">
-            Business Core
+            Business Setup v2
           </div>
-          <h1 className="text-[34px] font-black tracking-[-0.05em] sm:text-5xl">
-            İşletme Kurulumu
-          </h1>
+          <h1 className="text-[34px] font-black tracking-[-0.05em] sm:text-5xl">İşletme Kurulumu</h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
-            Takipio verileri artık işletme hesabına bağlanacak. Web ve mobil aynı işletme üzerinden çalışacak.
+            Takipio verileri bu işletme hesabına bağlı çalışır. Logo, iletişim ve vergi bilgileri burada yönetilir.
           </p>
         </div>
       </div>
@@ -334,42 +357,52 @@ export default function BusinessSetupPage() {
           <form onSubmit={saveBusiness} className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
             <h2 className="text-2xl font-black">İşletme Bilgileri</h2>
             <p className="mt-1 text-sm text-slate-400">
-              Bu bilgiler ileride fatura, mobil uygulama, ödeme ve pazaryeri entegrasyonlarında kullanılacak.
+              Bu bilgiler fatura, mobil uygulama, ödeme ve pazaryeri entegrasyonlarında kullanılacak.
             </p>
+
+            {!canManageSettings ? (
+              <div className="mt-5 rounded-2xl bg-red-500/10 p-4 text-sm font-bold text-red-200 ring-1 ring-red-500/20">
+                Bu işletmede işletme bilgilerini düzenleme yetkin yok.
+              </div>
+            ) : null}
 
             <div className="mt-5 grid gap-3 md:grid-cols-2">
               <Field label="İşletme Adı">
-                <input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none" />
+                <input disabled={!canManageSettings} value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none disabled:opacity-50" />
               </Field>
 
               <Field label="E-posta">
-                <input value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none" />
+                <input disabled={!canManageSettings} value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none disabled:opacity-50" />
               </Field>
 
               <Field label="Telefon">
-                <input value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none" />
+                <input disabled={!canManageSettings} value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none disabled:opacity-50" />
               </Field>
 
               <Field label="Web Sitesi">
-                <input value={form.website} onChange={(event) => setForm((current) => ({ ...current, website: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none" />
+                <input disabled={!canManageSettings} value={form.website} onChange={(event) => setForm((current) => ({ ...current, website: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none disabled:opacity-50" />
               </Field>
 
               <Field label="Vergi Dairesi">
-                <input value={form.tax_office} onChange={(event) => setForm((current) => ({ ...current, tax_office: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none" />
+                <input disabled={!canManageSettings} value={form.tax_office} onChange={(event) => setForm((current) => ({ ...current, tax_office: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none disabled:opacity-50" />
               </Field>
 
               <Field label="Vergi No">
-                <input value={form.tax_number} onChange={(event) => setForm((current) => ({ ...current, tax_number: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none" />
+                <input disabled={!canManageSettings} value={form.tax_number} onChange={(event) => setForm((current) => ({ ...current, tax_number: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none disabled:opacity-50" />
+              </Field>
+
+              <Field label="Logo URL">
+                <input disabled={!canManageSettings} value={form.logo_url} onChange={(event) => setForm((current) => ({ ...current, logo_url: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none disabled:opacity-50" />
               </Field>
 
               <div className="md:col-span-2">
                 <Field label="Adres">
-                  <textarea value={form.address} onChange={(event) => setForm((current) => ({ ...current, address: event.target.value }))} className="min-h-28 w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none" />
+                  <textarea disabled={!canManageSettings} value={form.address} onChange={(event) => setForm((current) => ({ ...current, address: event.target.value }))} className="min-h-28 w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none disabled:opacity-50" />
                 </Field>
               </div>
             </div>
 
-            <button className="mt-5 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white">
+            <button disabled={!canManageSettings} className="mt-5 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white disabled:opacity-50">
               İşletmeyi Kaydet
             </button>
           </form>
@@ -377,18 +410,32 @@ export default function BusinessSetupPage() {
           <div className="space-y-4">
             <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
               <h2 className="text-2xl font-black">Aktif İşletme</h2>
+
+              <div className="mt-5 flex items-center gap-4 rounded-2xl bg-[#0b1220] p-4 ring-1 ring-white/10">
+                <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-white/5">
+                  {form.logo_url ? (
+                    <img src={form.logo_url} alt="Logo" className="h-full w-full object-contain p-2" />
+                  ) : (
+                    <span className="text-2xl font-black text-blue-300">{form.name.slice(0, 1).toUpperCase()}</span>
+                  )}
+                </div>
+                <div>
+                  <p className="text-lg font-black">{form.name || "İşletmem"}</p>
+                  <p className="mt-1 text-xs text-slate-500">{context.business.id}</p>
+                </div>
+              </div>
+
               <div className="mt-5 space-y-3">
-                <Info label="İşletme ID" value={context.business.id} />
                 <Info label="Owner" value={context.business.owner_email || "-"} />
-                <Info label="Rol" value={context.member.role_name || "-"} />
+                <Info label="Senin Rolün" value={context.member.role_name || "-"} />
                 <Info label="Plan" value={context.subscription?.plan === "pro" ? "Pro" : "Free"} />
               </div>
             </div>
 
             <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
-              <h2 className="text-2xl font-black">Sıradaki Bağlantı</h2>
+              <h2 className="text-2xl font-black">Dosya Yükleme Notu</h2>
               <p className="mt-2 text-sm leading-6 text-slate-400">
-                Bundan sonra ürün, sipariş, kargo, iade, ödeme ve fatura kayıtları bu işletme ID’siyle filtrelenecek.
+                Bu ekranda logo URL şimdilik çalışır. Sonraki “File Upload” paketinde bilgisayardan logo, ürün görseli ve profil fotoğrafı yükleme eklenecek.
               </p>
             </div>
           </div>
