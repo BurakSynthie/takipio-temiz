@@ -367,20 +367,40 @@ export default function ProductsPage() {
       })
     );
 
-    const { error } = await supabase
+    const { error: productError } = await supabase
       .from("products")
       .update({
         stock: nextStock,
       })
       .eq("id", product.id);
 
-    if (error) {
+    if (productError) {
       setProducts(previousProducts);
-      setMessage(error.message);
+      setMessage(productError.message);
       setStockUpdatingId(null);
       return;
     }
 
+    const { error: movementError } = await supabase
+      .from("stock_movements")
+      .insert({
+        product_id: product.id,
+        product_code: product.product_code,
+        product_name: product.name,
+        movement_type: amount > 0 ? "stock_in" : "stock_out",
+        quantity: Math.abs(amount),
+        note: amount > 0 ? "Manuel stok girişi" : "Manuel stok çıkışı",
+      });
+
+    if (movementError) {
+      setMessage(
+        `Stok güncellendi ama hareket kaydı yazılamadı: ${movementError.message}`
+      );
+      setStockUpdatingId(null);
+      return;
+    }
+
+    setMessage(amount > 0 ? "Stok girişi kaydedildi." : "Stok çıkışı kaydedildi.");
     setStockUpdatingId(null);
   }
 
@@ -551,7 +571,7 @@ export default function ProductsPage() {
             </h1>
 
             <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">
-              Ürün ekle, kategorileri tekrar yazmadan seç, stokları canlı artır/azalt ve ürün QR etiketlerini yazdır.
+              Ürün ekle, kategorileri tekrar yazmadan seç, stokları canlı artır/azalt; her stok işlemi hareket geçmişine kaydedilir.
             </p>
           </div>
 
@@ -564,7 +584,7 @@ export default function ProductsPage() {
                 resetForm();
               }
             }}
-            className="rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 px-5 py-3 text-sm font-black text-white shadow-xl shadow-blue-200 transition hover:-translate-y-0.5 hover:shadow-blue-300"
+            className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700"
           >
             {formOpen ? "Kapat" : "Yeni Ürün"}
           </button>
@@ -766,7 +786,7 @@ export default function ProductsPage() {
             <button
               type="submit"
               disabled={saving}
-              className="rounded-2xl bg-gradient-to-r from-slate-950 to-blue-950 px-5 py-3 text-sm font-black text-white shadow-xl shadow-slate-200 transition hover:-translate-y-0.5 hover:shadow-blue-200 disabled:opacity-60"
+              className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-600 disabled:opacity-60"
             >
               {saving ? "Kaydediliyor..." : editingId ? "Güncelle" : "Ürün Ekle"}
             </button>
@@ -798,7 +818,7 @@ export default function ProductsPage() {
           <div>
             <h2 className="text-2xl font-black text-slate-950">Ürün Listesi</h2>
             <p className="mt-1 text-sm text-slate-500">
-              Stok + / - işlemleri sayfa yenilemeden canlı güncellenir. QR kartını açarak yazdırabilir veya indirebilirsin.
+              Stok + / - işlemleri sayfa yenilemeden canlı güncellenir ve stock_movements tablosuna hareket kaydı atılır.
             </p>
           </div>
 
@@ -880,7 +900,7 @@ export default function ProductsPage() {
                         <button
                           type="button"
                           onClick={() => editProduct(product)}
-                          className="rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 px-4 py-2.5 text-xs font-black text-white shadow-lg shadow-blue-100 transition hover:-translate-y-0.5 hover:shadow-blue-200"
+                          className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-black text-white"
                         >
                           Düzenle
                         </button>
@@ -888,7 +908,7 @@ export default function ProductsPage() {
                         <button
                           type="button"
                           onClick={() => deleteProduct(product.id)}
-                          className="rounded-2xl bg-gradient-to-r from-rose-500 to-red-500 px-4 py-2.5 text-xs font-black text-white shadow-lg shadow-red-100 transition hover:-translate-y-0.5 hover:shadow-red-200"
+                          className="rounded-xl bg-red-500 px-3 py-2 text-xs font-black text-white"
                         >
                           Sil
                         </button>
@@ -898,7 +918,7 @@ export default function ProductsPage() {
                           onClick={() =>
                             setOpenQrId(qrIsOpen ? null : product.id)
                           }
-                          className="rounded-2xl bg-gradient-to-r from-slate-950 to-blue-950 px-4 py-2.5 text-xs font-black text-white shadow-lg shadow-slate-200 transition hover:-translate-y-0.5 hover:shadow-blue-200"
+                          className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white"
                         >
                           {qrIsOpen ? "QR Kapat" : "QR Gör"}
                         </button>
@@ -997,7 +1017,7 @@ export default function ProductsPage() {
                           <button
                             type="button"
                             onClick={() => printQrLabel(product)}
-                            className="rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 px-4 py-3 text-sm font-black text-white shadow-xl shadow-blue-100 transition hover:-translate-y-0.5 hover:shadow-blue-200"
+                            className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-blue-100 transition hover:bg-blue-700"
                           >
                             Yazdır / PDF
                           </button>
@@ -1005,7 +1025,7 @@ export default function ProductsPage() {
                           <button
                             type="button"
                             onClick={() => downloadQrImage(product)}
-                            className="rounded-2xl bg-gradient-to-r from-slate-950 to-blue-950 px-4 py-3 text-sm font-black text-white shadow-xl shadow-slate-100 transition hover:-translate-y-0.5 hover:shadow-blue-200"
+                            className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-white shadow-lg shadow-slate-100 transition hover:bg-slate-800"
                           >
                             QR PNG İndir
                           </button>
