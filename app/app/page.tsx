@@ -8,44 +8,18 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-type Business = {
-  id: string;
-  owner_email: string | null;
-  name: string;
-  email: string | null;
-};
+type Business = { id: string; owner_email: string | null; name: string; email: string | null };
+type BusinessMember = { id: string; business_id: string; email: string; role_name: string | null; member_status: string | null };
+type Subscription = { id: string; business_id: string | null; plan: string | null; status: string | null; order_limit: number | null };
+type BusinessContext = { userEmail: string; business: Business; member: BusinessMember; subscription: Subscription | null; isOwner: boolean; isPro: boolean };
 
-type BusinessMember = {
-  id: string;
-  business_id: string;
-  email: string;
-  role_name: string | null;
-  member_status: string | null;
-  can_view_dashboard?: boolean | null;
-  can_manage_stock?: boolean | null;
-  can_manage_shipments?: boolean | null;
-  can_manage_returns?: boolean | null;
-  can_manage_billing?: boolean | null;
-};
-
-type Subscription = {
-  id: string;
-  business_id: string | null;
-  plan: string | null;
-  status: string | null;
-  order_limit: number | null;
-  first_month_price: number | null;
-  monthly_price: number | null;
-};
-
-type BusinessContext = {
-  userEmail: string;
-  business: Business;
-  member: BusinessMember;
-  subscription: Subscription | null;
-  isOwner: boolean;
-  isPro: boolean;
-};
+type Product = { id: string; name: string; product_code: string; category: string | null; price: number | null; stock: number | null; min_stock: number | null; created_at: string };
+type Sale = { id: string; product_code: string | null; product_name: string | null; customer_name: string | null; quantity: number | null; total_price: number | null; payment_status: string | null; created_at: string };
+type StockMovement = { id: string; product_code: string | null; product_name: string | null; movement_type: string | null; quantity: number | null; note: string | null; created_at: string };
+type Note = { id: string; title: string; note: string | null; is_done: boolean | null; created_at: string };
+type Order = { id: string; order_no: string; order_status: string | null; shipping_status: string | null; total_amount: number | null; paid_amount: number | null; remaining_amount: number | null; created_at: string };
+type ReturnItem = { id: string; status: string | null; amount: number | null; created_at: string };
+type Payment = { id: string; payment_method: string | null; amount: number | null; payment_date: string | null; created_at: string };
 
 function normalizeEmail(email: string | null | undefined) {
   return (email ?? "").trim().toLowerCase();
@@ -57,13 +31,7 @@ async function getCurrentUserEmail() {
 }
 
 async function ensureOwnerMember(businessId: string, userEmail: string) {
-  const { data: existing } = await supabase
-    .from("business_members")
-    .select("*")
-    .eq("business_id", businessId)
-    .eq("email", userEmail)
-    .maybeSingle();
-
+  const { data: existing } = await supabase.from("business_members").select("*").eq("business_id", businessId).eq("email", userEmail).maybeSingle();
   if (existing) return existing as BusinessMember;
 
   const { data, error } = await supabase
@@ -89,70 +57,37 @@ async function ensureOwnerMember(businessId: string, userEmail: string) {
     .select("*")
     .single();
 
-  if (error || !data) {
-    throw new Error(`Owner yetkisi oluşturulamadı: ${error?.message ?? "Bilinmeyen hata"}`);
-  }
-
+  if (error || !data) throw new Error("Owner yetkisi oluşturulamadı.");
   return data as BusinessMember;
 }
 
 async function ensureSubscription(businessId: string, userEmail: string) {
-  const { data: existing } = await supabase
-    .from("subscriptions")
-    .select("*")
-    .eq("business_id", businessId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
+  const { data: existing } = await supabase.from("subscriptions").select("*").eq("business_id", businessId).order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (existing) return existing as Subscription;
 
-  const { data, error } = await supabase
-    .from("subscriptions")
-    .insert({
-      business_id: businessId,
-      user_email: userEmail,
-      plan: "free",
-      status: "trial",
-      order_limit: 15,
-      first_month_price: 89,
-      monthly_price: 99,
-    })
-    .select("*")
-    .single();
+  const { data, error } = await supabase.from("subscriptions").insert({
+    business_id: businessId,
+    user_email: userEmail,
+    plan: "free",
+    status: "trial",
+    order_limit: 15,
+    first_month_price: 89,
+    monthly_price: 99,
+  }).select("*").single();
 
-  if (error || !data) {
-    throw new Error(`Abonelik oluşturulamadı: ${error?.message ?? "Bilinmeyen hata"}`);
-  }
-
+  if (error || !data) throw new Error("Abonelik oluşturulamadı.");
   return data as Subscription;
 }
 
 async function ensureBusinessForCurrentUser() {
   const userEmail = await getCurrentUserEmail();
+  if (!userEmail) throw new Error("Oturum bulunamadı. Lütfen tekrar giriş yap.");
 
-  if (!userEmail) {
-    throw new Error("Oturum bulunamadı. Lütfen tekrar giriş yap.");
-  }
-
-  const existingMember = await supabase
-    .from("business_members")
-    .select("*")
-    .eq("email", userEmail)
-    .eq("member_status", "active")
-    .limit(1)
-    .maybeSingle();
+  const existingMember = await supabase.from("business_members").select("*").eq("email", userEmail).eq("member_status", "active").limit(1).maybeSingle();
 
   if (existingMember.data?.business_id) {
-    const { data: business, error: businessError } = await supabase
-      .from("businesses")
-      .select("*")
-      .eq("id", existingMember.data.business_id)
-      .single();
-
-    if (businessError || !business) {
-      throw new Error("İşletme bilgisi alınamadı.");
-    }
+    const { data: business, error } = await supabase.from("businesses").select("*").eq("id", existingMember.data.business_id).single();
+    if (error || !business) throw new Error("İşletme bilgisi alınamadı.");
 
     const subscription = await ensureSubscription(business.id, userEmail);
 
@@ -162,16 +97,11 @@ async function ensureBusinessForCurrentUser() {
       member: existingMember.data,
       subscription,
       isOwner: normalizeEmail(business.owner_email) === userEmail,
-      isPro: subscription?.plan === "pro" && subscription?.status === "active",
+      isPro: subscription.plan === "pro" && subscription.status === "active",
     } satisfies BusinessContext;
   }
 
-  const existingBusiness = await supabase
-    .from("businesses")
-    .select("*")
-    .eq("owner_email", userEmail)
-    .limit(1)
-    .maybeSingle();
+  const existingBusiness = await supabase.from("businesses").select("*").eq("owner_email", userEmail).limit(1).maybeSingle();
 
   if (existingBusiness.data) {
     const ownerMember = await ensureOwnerMember(existingBusiness.data.id, userEmail);
@@ -183,23 +113,12 @@ async function ensureBusinessForCurrentUser() {
       member: ownerMember,
       subscription,
       isOwner: true,
-      isPro: subscription?.plan === "pro" && subscription?.status === "active",
+      isPro: subscription.plan === "pro" && subscription.status === "active",
     } satisfies BusinessContext;
   }
 
-  const { data: createdBusiness, error: businessError } = await supabase
-    .from("businesses")
-    .insert({
-      owner_email: userEmail,
-      name: "İşletmem",
-      email: userEmail,
-    })
-    .select("*")
-    .single();
-
-  if (businessError || !createdBusiness) {
-    throw new Error(`İşletme oluşturulamadı: ${businessError?.message ?? "Bilinmeyen hata"}`);
-  }
+  const { data: createdBusiness, error } = await supabase.from("businesses").insert({ owner_email: userEmail, name: "İşletmem", email: userEmail }).select("*").single();
+  if (error || !createdBusiness) throw new Error("İşletme oluşturulamadı.");
 
   const ownerMember = await ensureOwnerMember(createdBusiness.id, userEmail);
   const subscription = await ensureSubscription(createdBusiness.id, userEmail);
@@ -220,20 +139,6 @@ function withBusinessFields(context: BusinessContext) {
     created_by: context.userEmail,
   };
 }
-
-function hasPermission(context: BusinessContext | null, key: keyof BusinessMember) {
-  if (!context) return false;
-  if (context.isOwner) return true;
-  return Boolean(context.member[key]);
-}
-
-type Product = { id: string; name: string; product_code: string; category: string | null; price: number | null; stock: number | null; min_stock: number | null; created_at: string };
-type Sale = { id: string; product_code: string | null; product_name: string | null; customer_name: string | null; quantity: number | null; total_price: number | null; payment_status: string | null; created_at: string };
-type StockMovement = { id: string; product_code: string | null; product_name: string | null; movement_type: string | null; quantity: number | null; note: string | null; created_at: string };
-type Note = { id: string; title: string; note: string | null; is_done: boolean | null; created_at: string };
-type Order = { id: string; order_no: string; order_status: string | null; shipping_status: string | null; total_amount: number | null; paid_amount: number | null; remaining_amount: number | null; created_at: string };
-type ReturnItem = { id: string; status: string | null; amount: number | null; created_at: string };
-type Payment = { id: string; payment_method: string | null; amount: number | null; payment_date: string | null; created_at: string };
 
 function formatCurrency(value: number | null | undefined) {
   return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 }).format(Number(value ?? 0));
@@ -344,11 +249,13 @@ export default function DashboardPage() {
   const weeklyBars = useMemo(() => {
     const labels = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
     const totals = [0, 0, 0, 0, 0, 0, 0];
+
     sales.forEach((sale) => {
       const day = new Date(sale.created_at).getDay();
       const index = day === 0 ? 6 : day - 1;
       totals[index] += Number(sale.total_price ?? 0);
     });
+
     const max = Math.max(...totals, 1);
     return labels.map((label, i) => ({ label, total: totals[i], height: Math.max((totals[i] / max) * 100, totals[i] > 0 ? 12 : 3) }));
   }, [sales]);
@@ -361,7 +268,7 @@ export default function DashboardPage() {
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-300">Business Dashboard</p>
               <h1 className="mt-1 text-2xl font-black tracking-[-0.04em]">{context?.business.name || "İşletme Özeti"}</h1>
-              <p className="mt-1 text-xs text-slate-400">Bu dashboard sadece aktif işletmenin verilerini gösterir.</p>
+              <p className="mt-1 text-xs text-slate-400">Satış, sipariş, kargo, iade, ödeme ve abonelik özeti.</p>
             </div>
             <div className="flex gap-2">
               <button onClick={fetchData} className="rounded-xl bg-white/10 px-3 py-2 text-xs font-black transition hover:-translate-y-0.5">Yenile</button>
@@ -491,6 +398,22 @@ export default function DashboardPage() {
           <Alert label="Kargoya verilmeyen" value={`${unshippedOrders} sipariş`} tone="red" href="/app/shipments" />
           <Alert label="Aktif iade" value={`${activeReturns} talep`} tone="green" href="/app/returns" />
         </Panel>
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-2">
+        <div className="rounded-[20px] border border-white/10 bg-[#111a2e] p-4">
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Destek</p>
+          <h2 className="mt-2 text-lg font-black">Öneri, şikayet veya destek talebin mi var?</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-400">Takipio ile ilgili geri bildirim, hata bildirimi veya geliştirme önerileri için iletişim sayfasından bize ulaşabilirsin.</p>
+          <Link href="/app/contact" className="mt-4 inline-flex rounded-2xl bg-blue-600 px-4 py-3 text-sm font-black transition hover:bg-blue-500">İletişime Geç</Link>
+        </div>
+
+        <div className="rounded-[20px] border border-white/10 bg-[#111a2e] p-4">
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Rehber</p>
+          <h2 className="mt-2 text-lg font-black">Takipio nasıl kullanılır?</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-400">Ürün, stok, sipariş, kargo, iade, müşteri, fatura ve ekip yetkilerini adım adım öğren.</p>
+          <Link href="/app/help" className="mt-4 inline-flex rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-blue-200 ring-1 ring-white/10 transition hover:bg-white/15">Tıkla, Öğren</Link>
+        </div>
       </div>
     </section>
   );
