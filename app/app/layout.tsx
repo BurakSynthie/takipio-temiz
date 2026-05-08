@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";a
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
@@ -303,7 +303,7 @@ function LogoBox({ src, name, size = "md" }: { src?: string | null; name?: strin
   return (
     <div className={`flex shrink-0 items-center justify-center overflow-hidden bg-white ring-1 ring-blue-400/20 ${sizeClass}`}>
       <SmartImage
-        sources={[src, "/takipio-logo.png", "/logo.png", "/Logo.png", "/takipio.png"]}
+        sources={[src, "/takipio-logo.png"]}
         alt={name || "Takipio"}
         className="h-full w-full object-contain p-1"
         fallback={<span className="text-base font-black text-blue-600">{(name || "T").slice(0, 1).toUpperCase()}</span>}
@@ -315,7 +315,7 @@ function LogoBox({ src, name, size = "md" }: { src?: string | null; name?: strin
 function GorkiImage() {
   return (
     <SmartImage
-      sources={["/gorki.png", "/Gorki.png", "/gorki-ai.png", "/gorki_ai.png", "/robot.png"]}
+      sources={["/gorki-hero.png"]}
       alt="Gorki"
       className="h-full w-full object-cover"
       fallback={<span className="text-xl font-black text-white">G</span>}
