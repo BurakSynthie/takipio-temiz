@@ -5,7 +5,14 @@ import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    storageKey: "takipio-auth-session",
+  },
+});
 
 type Business = {
   id: string;
@@ -367,7 +374,7 @@ export default function ProfilePage() {
 
   async function signOut() {
     try {
-      await supabase.auth.signOut({ scope: "global" });
+      await supabase.auth.signOut({ scope: "local" });
 
       window.localStorage.removeItem("takipio-auth-session");
 
