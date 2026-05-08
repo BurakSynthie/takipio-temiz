@@ -51,6 +51,13 @@ type MessageItem = {
   created_at: string;
 };
 
+type UserProfile = {
+  email: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  role_name: string | null;
+};
+
 type NavItem = {
   href: string;
   label: string;
@@ -329,6 +336,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const [business, setBusiness] = useState<Business | null>(null);
   const [member, setMember] = useState<Member | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [userEmail, setUserEmail] = useState("");
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [messages, setMessages] = useState<MessageItem[]>([]);
@@ -378,7 +386,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       setBusiness(businessData ?? null);
 
-      const [notificationResult, messageResult] = await Promise.all([
+      const [notificationResult, messageResult, profileResult] = await Promise.all([
         supabase
           .from("app_notifications")
           .select("id, title, message, type, is_read, created_at")
@@ -391,10 +399,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           .eq("business_id", memberData.business_id)
           .order("created_at", { ascending: false })
           .limit(8),
+        supabase
+          .from("app_user_profiles")
+          .select("email, full_name, avatar_url, role_name")
+          .eq("email", email)
+          .maybeSingle(),
       ]);
 
       setNotifications(notificationResult.data ?? []);
       setMessages(messageResult.data ?? []);
+      setProfile(profileResult.data ?? null);
     }
 
     setLoading(false);
@@ -541,13 +555,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
 
             <div className="relative flex items-center gap-2">
-              <div className="hidden items-center gap-3 rounded-2xl bg-white/8 px-3 py-2 ring-1 ring-white/10 xl:flex">
-                <LogoBox src={business?.logo_url} name={business?.name || "Takipio"} size="sm" />
+              <Link href="/app/profile" className="hidden items-center gap-3 rounded-2xl bg-white/8 px-3 py-2 ring-1 ring-white/10 transition hover:bg-white/12 xl:flex">
+                <LogoBox src={profile?.avatar_url || business?.logo_url} name={profile?.full_name || business?.name || "Takipio"} size="sm" />
                 <div className="min-w-0">
-                  <p className="max-w-[150px] truncate text-xs font-black">{business?.name || "Takipio"}</p>
-                  <p className="text-[10px] text-slate-500">{member?.role_name || "Panel"}</p>
+                  <p className="max-w-[150px] truncate text-xs font-black">{profile?.full_name || userEmail || business?.name || "Kullanıcı"}</p>
+                  <p className="text-[10px] text-slate-500">{profile?.role_name || member?.role_name || "Panel"}</p>
                 </div>
-              </div>
+              </Link>
 
               <TopIconButton
                 label="Bildirim"
