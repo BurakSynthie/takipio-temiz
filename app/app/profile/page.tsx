@@ -305,14 +305,28 @@ export default function ProfilePage() {
         });
       }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Profil bilgisi alınamadı.");
+      const errorMessage = error instanceof Error ? error.message : "Profil bilgisi alınamadı.";
+
+      if (errorMessage.includes("Oturum bulunamadı")) {
+        window.location.replace("/login");
+        return;
+      }
+
+      setMessage(errorMessage);
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    fetchData();
+    supabase.auth.getSession().then(({ data }) => {
+      if (!data.session) {
+        window.location.replace("/login");
+        return;
+      }
+
+      fetchData();
+    });
   }, []);
 
   async function saveProfile(event: React.FormEvent<HTMLFormElement>) {
@@ -353,19 +367,29 @@ export default function ProfilePage() {
 
   async function signOut() {
     try {
-      await supabase.auth.signOut({ scope: "local" });
+      await supabase.auth.signOut({ scope: "global" });
 
       window.localStorage.removeItem("takipio-auth-session");
 
       Object.keys(window.localStorage).forEach((key) => {
-        if (key.startsWith("sb-")) {
+        if (key.startsWith("sb-") || key.includes("supabase")) {
           window.localStorage.removeItem(key);
         }
       });
 
+      window.sessionStorage.clear();
       window.location.replace("/login");
     } catch (error) {
       console.error("Çıkış yapılamadı:", error);
+
+      window.localStorage.removeItem("takipio-auth-session");
+      Object.keys(window.localStorage).forEach((key) => {
+        if (key.startsWith("sb-") || key.includes("supabase")) {
+          window.localStorage.removeItem(key);
+        }
+      });
+
+      window.sessionStorage.clear();
       window.location.replace("/login");
     }
   }
