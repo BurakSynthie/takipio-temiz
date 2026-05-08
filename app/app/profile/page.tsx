@@ -31,12 +31,66 @@ export default function ProfilePage() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    const saved = localStorage.getItem("takipio_user_profile");
-    if (saved) setProfile(JSON.parse(saved));
+    loadProfile();
   }, []);
 
-  function saveProfile(nextProfile = profile) {
-    localStorage.setItem("takipio_user_profile", JSON.stringify(nextProfile));
+  async function loadProfile() {
+    const saved = localStorage.getItem("takipio_user_profile");
+    if (saved) setProfile(JSON.parse(saved));
+
+    const { data: userData } = await supabase.auth.getUser();
+    const email = userData.user?.email;
+
+    if (!email) return;
+
+    const { data } = await supabase
+      .from("app_user_profiles")
+      .select("full_name, role_name, phone, avatar_url")
+      .eq("email", email)
+      .maybeSingle();
+
+    if (data) {
+      const nextProfile = {
+        name: data.full_name || email,
+        role: data.role_name || "Kullanıcı",
+        email,
+        phone: data.phone || "",
+        avatar: data.avatar_url || "",
+      };
+
+      setProfile(nextProfile);
+      localStorage.setItem("takipio_user_profile", JSON.stringify(nextProfile));
+      window.dispatchEvent(new Event("takipio-profile-updated"));
+    } else {
+      setProfile((current) => ({ ...current, email }));
+    }
+  }
+
+  async function saveProfile(nextProfile = profile) {
+    const { data: userData } = await supabase.auth.getUser();
+    const email = userData.user?.email || nextProfile.email;
+
+    const finalProfile = {
+      ...nextProfile,
+      email,
+    };
+
+    localStorage.setItem("takipio_user_profile", JSON.stringify(finalProfile));
+
+    await supabase.from("app_user_profiles").upsert(
+      {
+        email,
+        full_name: finalProfile.name,
+        role_name: finalProfile.role,
+        phone: finalProfile.phone,
+        avatar_url: finalProfile.avatar,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "email" }
+    );
+
+    setProfile(finalProfile);
+    window.dispatchEvent(new Event("takipio-profile-updated"));
     setMessage("Profil bilgileri kaydedildi.");
   }
 
@@ -68,7 +122,7 @@ export default function ProfilePage() {
     };
 
     setProfile(nextProfile);
-    saveProfile(nextProfile);
+    await saveProfile(nextProfile);
     setUploading(false);
   }
 
