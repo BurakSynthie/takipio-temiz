@@ -238,6 +238,31 @@ function hasPermission(context: BusinessContext | null, key: keyof BusinessMembe
   return Boolean(context.member[key]);
 }
 
+
+async function uploadImageFile(file: File, folder: string, userEmail: string) {
+  const fileExt = file.name.split(".").pop()?.toLowerCase() || "png";
+  const safeEmail = userEmail.replace(/[^a-zA-Z0-9]/g, "-");
+  const fileName = `${folder}/${safeEmail}-${Date.now()}.${fileExt}`;
+
+  const { error } = await supabase.storage
+    .from("takipio-uploads")
+    .upload(fileName, file, {
+      cacheControl: "3600",
+      upsert: true,
+    });
+
+  if (error) {
+    throw new Error(`Görsel yüklenemedi: ${error.message}`);
+  }
+
+  const { data } = supabase.storage
+    .from("takipio-uploads")
+    .getPublicUrl(fileName);
+
+  return data.publicUrl;
+}
+
+
 type Profile = {
   id?: string;
   business_id?: string | null;
@@ -264,6 +289,7 @@ export default function ProfilePage() {
   });
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   async function fetchData() {
     setLoading(true);
@@ -333,6 +359,23 @@ export default function ProfilePage() {
       fetchData();
     });
   }, []);
+
+  async function handleAvatarUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file || !context) return;
+
+    try {
+      setUploadingAvatar(true);
+      setMessage("");
+      const publicUrl = await uploadImageFile(file, "avatars", context.userEmail);
+      setForm((current) => ({ ...current, avatar_url: publicUrl }));
+      setMessage("Profil fotoğrafı yüklendi. Kaydet butonuna basınca profilinde kalıcı olur.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Profil fotoğrafı yüklenemedi.");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
 
   async function saveProfile(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -474,8 +517,23 @@ export default function ProfilePage() {
                 <input value={form.phone} onChange={(e) => setForm((c) => ({ ...c, phone: e.target.value }))} className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none" />
               </Field>
 
-              <Field label="Profil Fotoğrafı URL">
-                <input value={form.avatar_url} onChange={(e) => setForm((c) => ({ ...c, avatar_url: e.target.value }))} className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none" />
+              <Field label="Profil Fotoğrafı Yükle">
+                <div className="grid gap-3">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarUpload}
+                    disabled={uploadingAvatar}
+                    className="w-full cursor-pointer rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm text-slate-300 outline-none file:mr-4 file:rounded-xl file:border-0 file:bg-blue-600 file:px-3 file:py-2 file:text-xs file:font-black file:text-white disabled:opacity-50"
+                  />
+                  <input
+                    value={form.avatar_url}
+                    onChange={(e) => setForm((c) => ({ ...c, avatar_url: e.target.value }))}
+                    placeholder="Yüklenince otomatik dolar veya URL yapıştırabilirsin"
+                    className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none"
+                  />
+                  {uploadingAvatar ? <p className="text-xs font-bold text-blue-300">Yükleniyor...</p> : null}
+                </div>
               </Field>
             </div>
 
@@ -513,4 +571,3 @@ function Info({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-// takipio redeploy trigger
