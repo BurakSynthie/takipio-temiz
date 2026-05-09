@@ -378,15 +378,15 @@ function LaptopMockup({
 }) {
   return (
     <div className="relative mx-auto w-full max-w-[1220px]">
-      <div className="pointer-events-none absolute -left-4 top-24 z-0 hidden w-[170px] opacity-80 2xl:block">
+      <div className="pointer-events-none absolute -left-10 top-20 z-20 hidden w-[185px] takipio-float-soft 2xl:block">
         <MiniStat title="Bugünkü Sipariş" value="1.247" sub="↑ 18.6%" />
       </div>
 
-      <div className="pointer-events-none absolute -left-3 bottom-24 z-0 hidden w-[210px] opacity-80 2xl:block">
-        <div className="rounded-3xl border border-white/10 bg-[#0b1220]/80 p-4 shadow-2xl backdrop-blur-xl">
+      <div className="pointer-events-none absolute -right-10 bottom-24 z-20 hidden w-[230px] takipio-float-reverse 2xl:block">
+        <div className="rounded-3xl border border-white/10 bg-[#0b1220]/85 p-4 shadow-2xl backdrop-blur-xl">
           <p className="text-sm font-black text-white">Sipariş Durumu</p>
-          <div className="mt-4 grid grid-cols-[68px_1fr] items-center gap-4">
-            <div className="h-16 w-16 rounded-full bg-[conic-gradient(#38bdf8_0_62%,#2dd4bf_62%_86%,#fb7185_86%_100%)] p-2.5">
+          <div className="mt-4 grid grid-cols-[72px_1fr] items-center gap-4">
+            <div className="h-[72px] w-[72px] rounded-full bg-[conic-gradient(#38bdf8_0_62%,#2dd4bf_62%_86%,#fb7185_86%_100%)] p-2.5">
               <div className="h-full w-full rounded-full bg-[#0b1220]" />
             </div>
             <div className="space-y-2 text-[11px] font-bold text-slate-400">
@@ -398,7 +398,7 @@ function LaptopMockup({
         </div>
       </div>
 
-      <div className="absolute -right-6 top-16 hidden w-[220px] xl:block">
+      <div className="pointer-events-none absolute -right-8 top-16 z-20 hidden w-[220px] takipio-float-soft xl:block">
         <div className="rounded-3xl border border-blue-400/20 bg-blue-500/10 p-4 shadow-2xl shadow-blue-950/20 backdrop-blur-xl">
           <p className="text-sm font-black text-white">Yeni Sipariş</p>
           <p className="mt-1 text-xs leading-5 text-slate-400">#10245 numaralı sipariş alındı.</p>
@@ -517,7 +517,7 @@ function PhonePreview({
     <div className="mx-auto w-full max-w-[430px] rounded-[38px] border border-white/10 bg-slate-950 p-3 shadow-2xl shadow-blue-950/30 lg:hidden">
       <div className="overflow-hidden rounded-[30px] border border-white/10 bg-[#07111f]">
         <div className="flex items-center justify-between px-5 py-4">
-          <Logo />
+          <Logo headerOnly />
           <span className="rounded-full bg-blue-500/15 px-3 py-1 text-[10px] font-black text-blue-300">Mobil</span>
         </div>
 
@@ -665,6 +665,26 @@ export default function LoginPage() {
     <main className="relative min-h-screen overflow-hidden bg-[#020817] text-white">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(37,99,235,.35),transparent_30%),radial-gradient(circle_at_80%_20%,rgba(6,182,212,.15),transparent_28%),radial-gradient(circle_at_50%_90%,rgba(59,130,246,.18),transparent_32%)]" />
       <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.025)_1px,transparent_1px)] bg-[size:42px_42px]" />
+
+      <style jsx global>{`
+        @keyframes takipioFloatSoft {
+          0%, 100% { transform: translateY(0px) translateX(0px); }
+          50% { transform: translateY(-10px) translateX(6px); }
+        }
+
+        @keyframes takipioFloatReverse {
+          0%, 100% { transform: translateY(0px) translateX(0px); }
+          50% { transform: translateY(10px) translateX(-6px); }
+        }
+
+        .takipio-float-soft {
+          animation: takipioFloatSoft 6s ease-in-out infinite;
+        }
+
+        .takipio-float-reverse {
+          animation: takipioFloatReverse 7s ease-in-out infinite;
+        }
+      `}</style>
 
       <section className="relative z-10 px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
         <div className="mx-auto mb-5 flex max-w-[1320px] items-center justify-between">
