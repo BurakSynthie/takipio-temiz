@@ -364,6 +364,10 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
 
   const canManage = Boolean(context?.isOwner || context?.member.can_manage_orders || context?.member.can_manage_sales);
+  const isPro = context?.subscription?.plan === "pro" && context?.subscription?.status === "active";
+  const orderLimit = Number(context?.subscription?.order_limit ?? 15);
+  const freeOrderCount = orders.length;
+  const freeLimitReached = !isPro && freeOrderCount >= orderLimit;
 
   const selectedProduct = useMemo(() => {
     return products.find((product) => product.id === form.product_id) ?? null;
@@ -476,6 +480,11 @@ export default function OrdersPage() {
 
     if (!canManage) {
       setMessage("Bu işletmede sipariş oluşturma yetkin yok.");
+      return;
+    }
+
+    if (freeLimitReached) {
+      setMessage(`Ücretsiz planda ${orderLimit} sipariş limitine ulaştın. Yeni sipariş için Pro plana geçmelisin.`);
       return;
     }
 
@@ -712,15 +721,23 @@ export default function OrdersPage() {
             </p>
           </div>
 
-          <button
-            onClick={() => {
-              setForm(emptyForm);
-              setFormOpen((value) => !value);
-            }}
-            className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-500"
-          >
-            {formOpen ? "Formu Kapat" : "Yeni Sipariş"}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            {freeLimitReached ? (
+              <a href="/app/billing" className="rounded-2xl bg-amber-500 px-5 py-3 text-sm font-black text-slate-950 transition hover:bg-amber-400">
+                Pro’ya Geç
+              </a>
+            ) : null}
+            <button
+              disabled={freeLimitReached}
+              onClick={() => {
+                setForm(emptyForm);
+                setFormOpen((value) => !value);
+              }}
+              className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {formOpen ? "Formu Kapat" : "Yeni Sipariş"}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -735,6 +752,43 @@ export default function OrdersPage() {
               canManage ? "bg-emerald-400/10 text-emerald-300 ring-emerald-400/20" : "bg-red-400/10 text-red-300 ring-red-400/20"
             }`}>
               {canManage ? "Sipariş yönetimi açık" : "Sipariş yönetimi kapalı"}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {context ? (
+        <div className={`rounded-[22px] border p-4 ${
+          freeLimitReached
+            ? "border-amber-400/20 bg-amber-500/10"
+            : "border-white/10 bg-[#111a2e]"
+        }`}>
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Abonelik Durumu</p>
+              <p className="mt-1 text-lg font-black">
+                {isPro ? "Pro plan aktif" : `Free plan: ${freeOrderCount}/${orderLimit} sipariş`}
+              </p>
+              <p className="mt-1 text-xs text-slate-400">
+                {isPro
+                  ? "Sipariş limiti olmadan kullanabilirsin."
+                  : freeLimitReached
+                    ? "Free limit doldu. Yeni sipariş için Pro plana geçmelisin."
+                    : `${Math.max(orderLimit - freeOrderCount, 0)} ücretsiz sipariş hakkın kaldı.`}
+              </p>
+            </div>
+            <div className="min-w-[220px]">
+              <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                <div
+                  className={`h-full rounded-full ${freeLimitReached ? "bg-amber-400" : "bg-blue-500"}`}
+                  style={{ width: `${isPro ? 100 : Math.min(Math.round((freeOrderCount / orderLimit) * 100), 100)}%` }}
+                />
+              </div>
+              {!isPro ? (
+                <a href="/app/billing" className="mt-3 inline-flex rounded-xl bg-blue-600 px-3 py-2 text-xs font-black text-white">
+                  Planı Yükselt
+                </a>
+              ) : null}
             </div>
           </div>
         </div>
@@ -825,7 +879,9 @@ export default function OrdersPage() {
           </div>
 
           <div className="mt-5 flex flex-wrap gap-2">
-            <button disabled={!canManage} className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white disabled:opacity-50">Siparişi Kaydet</button>
+            <button disabled={!canManage || freeLimitReached} className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white disabled:opacity-50">
+              {freeLimitReached ? "Limit Doldu" : "Siparişi Kaydet"}
+            </button>
             <button type="button" onClick={() => { setForm(emptyForm); setFormOpen(false); }} className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-black text-slate-200">Vazgeç</button>
           </div>
         </form>
