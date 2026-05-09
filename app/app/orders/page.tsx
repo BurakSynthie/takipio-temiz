@@ -72,6 +72,9 @@ type Order = {
   shipping_status: string | null;
   marketplace: string | null;
   note: string | null;
+  carrier_name: string | null;
+  tracking_no: string | null;
+  return_status: string | null;
   created_at: string;
 };
 
@@ -875,6 +878,8 @@ export default function OrdersPage() {
                         </div>
                         <p className="mt-2 text-sm text-slate-400">{order.product_name || "Ürün yok"} · {order.quantity ?? 0} adet</p>
                         <p className="mt-1 text-xs text-slate-500">{order.customer_name || "Müşteri yok"} · {formatDate(order.created_at)}</p>
+                        <p className="mt-1 text-xs text-blue-300">Kargo: {shippingLabels[order.shipping_status || "waiting"] || order.shipping_status} {order.tracking_no ? `· ${order.tracking_no}` : ""}</p>
+                        {order.return_status && order.return_status !== "none" ? <p className="mt-1 text-xs text-amber-300">İade: {order.return_status}</p> : null}
                       </div>
 
                       <div>
