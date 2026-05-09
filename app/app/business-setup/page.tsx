@@ -233,6 +233,31 @@ function hasPermission(context: BusinessContext | null, key: keyof BusinessMembe
   return Boolean(context.member[key]);
 }
 
+
+async function uploadImageFile(file: File, folder: string, userEmail: string) {
+  const fileExt = file.name.split(".").pop()?.toLowerCase() || "png";
+  const safeEmail = userEmail.replace(/[^a-zA-Z0-9]/g, "-");
+  const fileName = `${folder}/${safeEmail}-${Date.now()}.${fileExt}`;
+
+  const { error } = await supabase.storage
+    .from("takipio-uploads")
+    .upload(fileName, file, {
+      cacheControl: "3600",
+      upsert: true,
+    });
+
+  if (error) {
+    throw new Error(`Görsel yüklenemedi: ${error.message}`);
+  }
+
+  const { data } = supabase.storage
+    .from("takipio-uploads")
+    .getPublicUrl(fileName);
+
+  return data.publicUrl;
+}
+
+
 type BusinessForm = {
   name: string;
   phone: string;
@@ -258,6 +283,7 @@ export default function BusinessSetupPage() {
   });
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   const canManageSettings = hasPermission(context, "can_manage_settings");
 
@@ -289,6 +315,23 @@ export default function BusinessSetupPage() {
   useEffect(() => {
     loadBusiness();
   }, []);
+
+  async function handleLogoUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file || !context) return;
+
+    try {
+      setUploadingLogo(true);
+      setMessage("");
+      const publicUrl = await uploadImageFile(file, "business-logos", context.userEmail);
+      setForm((current) => ({ ...current, logo_url: publicUrl }));
+      setMessage("Firma logosu yüklendi. Kaydet butonuna basınca işletme bilgisine işlenecek.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Logo yüklenemedi.");
+    } finally {
+      setUploadingLogo(false);
+    }
+  }
 
   async function saveBusiness(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -391,8 +434,24 @@ export default function BusinessSetupPage() {
                 <input disabled={!canManageSettings} value={form.tax_number} onChange={(event) => setForm((current) => ({ ...current, tax_number: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none disabled:opacity-50" />
               </Field>
 
-              <Field label="Logo URL">
-                <input disabled={!canManageSettings} value={form.logo_url} onChange={(event) => setForm((current) => ({ ...current, logo_url: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none disabled:opacity-50" />
+              <Field label="Firma Logosu Yükle">
+                <div className="grid gap-3">
+                  <input
+                    disabled={!canManageSettings || uploadingLogo}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleLogoUpload}
+                    className="w-full cursor-pointer rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm text-slate-300 outline-none file:mr-4 file:rounded-xl file:border-0 file:bg-blue-600 file:px-3 file:py-2 file:text-xs file:font-black file:text-white disabled:opacity-50"
+                  />
+                  <input
+                    disabled={!canManageSettings}
+                    value={form.logo_url}
+                    onChange={(event) => setForm((current) => ({ ...current, logo_url: event.target.value }))}
+                    placeholder="Yüklenince otomatik dolar veya URL yapıştırabilirsin"
+                    className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none disabled:opacity-50"
+                  />
+                  {uploadingLogo ? <p className="text-xs font-bold text-blue-300">Yükleniyor...</p> : null}
+                </div>
               </Field>
 
               <div className="md:col-span-2">
@@ -435,7 +494,7 @@ export default function BusinessSetupPage() {
             <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
               <h2 className="text-2xl font-black">Dosya Yükleme Notu</h2>
               <p className="mt-2 text-sm leading-6 text-slate-400">
-                Bu ekranda logo URL şimdilik çalışır. Sonraki “File Upload” paketinde bilgisayardan logo, ürün görseli ve profil fotoğrafı yükleme eklenecek.
+                Bu ekranda artık bilgisayardan veya telefondan firma logosu yükleyebilirsin. Yüklenen logo işletme bilgilerine kaydedilir.
               </p>
             </div>
           </div>
