@@ -203,20 +203,6 @@ function GorkiVisual({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function MiniStat({ title, value, sub }: { title: string; value: string; sub: string }) {
-  return (
-    <div className="rounded-3xl border border-blue-400/20 bg-blue-500/10 p-4 shadow-2xl shadow-blue-950/20 backdrop-blur-xl">
-      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-blue-200">{title}</p>
-      <p className="mt-2 text-2xl font-black text-white">{value}</p>
-      <p className="mt-1 text-xs text-emerald-300">{sub}</p>
-      <div className="mt-4 flex h-10 items-end gap-1.5">
-        {[35, 52, 45, 68, 50, 74, 62, 88].map((height, index) => (
-          <span key={index} className="w-full rounded-full bg-blue-400/60" style={{ height: `${height}%` }} />
-        ))}
-      </div>
-    </div>
-  );
-}
 
 function AuthForm({
   mode,
@@ -386,32 +372,6 @@ function LaptopMockup({
 }) {
   return (
     <div className="relative mx-auto w-full max-w-[1220px]">
-      <div className="pointer-events-none absolute right-28 top-10 z-20 hidden w-[185px] takipio-float-soft min-[1600px]:block">
-        <MiniStat title="Bugünkü Sipariş" value="1.247" sub="↑ 18.6%" />
-      </div>
-
-      <div className="pointer-events-none absolute right-16 bottom-20 z-20 hidden w-[230px] takipio-float-reverse min-[1600px]:block">
-        <div className="rounded-3xl border border-white/10 bg-[#0b1220]/85 p-4 shadow-2xl backdrop-blur-xl">
-          <p className="text-sm font-black text-white">Sipariş Durumu</p>
-          <div className="mt-4 grid grid-cols-[72px_1fr] items-center gap-4">
-            <div className="h-[72px] w-[72px] rounded-full bg-[conic-gradient(#38bdf8_0_62%,#2dd4bf_62%_86%,#fb7185_86%_100%)] p-2.5">
-              <div className="h-full w-full rounded-full bg-[#0b1220]" />
-            </div>
-            <div className="space-y-2 text-[11px] font-bold text-slate-400">
-              <p><span className="text-sky-300">●</span> Tamamlandı %62</p>
-              <p><span className="text-teal-300">●</span> Hazırlanıyor %24</p>
-              <p><span className="text-rose-300">●</span> İptal %14</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="pointer-events-none absolute right-8 top-14 z-20 hidden w-[220px] takipio-float-soft xl:block">
-        <div className="rounded-3xl border border-blue-400/20 bg-blue-500/10 p-4 shadow-2xl shadow-blue-950/20 backdrop-blur-xl">
-          <p className="text-sm font-black text-white">Yeni Sipariş</p>
-          <p className="mt-1 text-xs leading-5 text-slate-400">#10245 numaralı sipariş alındı.</p>
-        </div>
-      </div>
 
       <div className="relative z-10 rounded-[36px] border border-white/10 bg-[#111827] p-3 shadow-[0_40px_120px_rgba(15,23,42,.75)]">
         <div className="overflow-hidden rounded-[28px] border border-white/10 bg-[#07111f]">
@@ -452,7 +412,35 @@ function LaptopMockup({
                   </p>
                 </div>
 
-                <div className="mt-8 grid gap-3 xl:grid-cols-2">
+                <div className="mt-6 grid gap-3 xl:grid-cols-3">
+                  <div className="rounded-3xl border border-blue-400/20 bg-blue-500/10 p-4 shadow-2xl shadow-blue-950/20 backdrop-blur-xl">
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-200">Bugünkü Sipariş</p>
+                    <p className="mt-2 text-2xl font-black text-white">1.247</p>
+                    <p className="mt-1 text-xs font-bold text-emerald-300">↑ 18.6%</p>
+                  </div>
+
+                  <div className="rounded-3xl border border-blue-400/20 bg-blue-500/10 p-4 shadow-2xl shadow-blue-950/20 backdrop-blur-xl">
+                    <p className="text-sm font-black text-white">Yeni Sipariş</p>
+                    <p className="mt-2 text-xs leading-5 text-slate-400">#10245 numaralı sipariş alındı.</p>
+                    <span className="mt-3 inline-flex rounded-full bg-emerald-400/15 px-3 py-1 text-[10px] font-black text-emerald-300">Canlı</span>
+                  </div>
+
+                  <div className="rounded-3xl border border-white/10 bg-[#0b1220]/80 p-4 shadow-2xl backdrop-blur-xl">
+                    <p className="text-sm font-black text-white">Sipariş Durumu</p>
+                    <div className="mt-4 grid grid-cols-[58px_1fr] items-center gap-3">
+                      <div className="h-14 w-14 rounded-full bg-[conic-gradient(#38bdf8_0_62%,#2dd4bf_62%_86%,#fb7185_86%_100%)] p-2">
+                        <div className="h-full w-full rounded-full bg-[#0b1220]" />
+                      </div>
+                      <div className="space-y-1.5 text-[10px] font-bold text-slate-400">
+                        <p><span className="text-sky-300">●</span> Tamamlandı %62</p>
+                        <p><span className="text-teal-300">●</span> Hazırlanıyor %24</p>
+                        <p><span className="text-rose-300">●</span> İptal %14</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-6 grid gap-3 xl:grid-cols-2">
                   {features.map((feature) => (
                     <div key={feature.title} className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm transition hover:-translate-y-1 hover:bg-white/8">
                       <div className="flex gap-3">
@@ -673,26 +661,6 @@ export default function LoginPage() {
     <main className="relative min-h-screen overflow-hidden bg-[#020817] text-white">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(37,99,235,.35),transparent_30%),radial-gradient(circle_at_80%_20%,rgba(6,182,212,.15),transparent_28%),radial-gradient(circle_at_50%_90%,rgba(59,130,246,.18),transparent_32%)]" />
       <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.025)_1px,transparent_1px)] bg-[size:42px_42px]" />
-
-      <style jsx global>{`
-        @keyframes takipioFloatSoft {
-          0%, 100% { transform: translateY(0px) translateX(0px); }
-          50% { transform: translateY(-10px) translateX(6px); }
-        }
-
-        @keyframes takipioFloatReverse {
-          0%, 100% { transform: translateY(0px) translateX(0px); }
-          50% { transform: translateY(10px) translateX(-6px); }
-        }
-
-        .takipio-float-soft {
-          animation: takipioFloatSoft 6s ease-in-out infinite;
-        }
-
-        .takipio-float-reverse {
-          animation: takipioFloatReverse 7s ease-in-out infinite;
-        }
-      `}</style>
 
       <section className="relative z-10 px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
         <div className="mx-auto mb-5 flex max-w-[1320px] items-center justify-between">
