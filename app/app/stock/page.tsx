@@ -20,11 +20,7 @@ type BusinessMember = {
   email: string;
   role_name: string | null;
   member_status: string | null;
-  can_view_dashboard?: boolean | null;
   can_manage_stock?: boolean | null;
-  can_manage_shipments?: boolean | null;
-  can_manage_returns?: boolean | null;
-  can_manage_billing?: boolean | null;
 };
 
 type Subscription = {
@@ -32,9 +28,6 @@ type Subscription = {
   business_id: string | null;
   plan: string | null;
   status: string | null;
-  order_limit: number | null;
-  first_month_price: number | null;
-  monthly_price: number | null;
 };
 
 type BusinessContext = {
@@ -46,11 +39,39 @@ type BusinessContext = {
   isPro: boolean;
 };
 
+type Product = {
+  id: string;
+  name: string;
+  product_code: string;
+  category: string | null;
+  stock: number | null;
+  min_stock: number | null;
+  price: number | null;
+  image_url: string | null;
+};
+
+type StockMovement = {
+  id: string;
+  product_id: string | null;
+  product_code: string | null;
+  product_name: string | null;
+  movement_type: string | null;
+  quantity: number | null;
+  note: string | null;
+  created_at: string;
+  created_by: string | null;
+};
+
 function normalizeEmail(email: string | null | undefined) {
   return (email ?? "").trim().toLowerCase();
 }
 
 async function getCurrentUserEmail() {
+  const sessionResult = await supabase.auth.getSession();
+  const sessionEmail = normalizeEmail(sessionResult.data.session?.user?.email);
+
+  if (sessionEmail) return sessionEmail;
+
   const { data } = await supabase.auth.getUser();
   return normalizeEmail(data.user?.email);
 }
@@ -88,9 +109,7 @@ async function ensureOwnerMember(businessId: string, userEmail: string) {
     .select("*")
     .single();
 
-  if (error || !data) {
-    throw new Error(`Owner yetkisi oluşturulamadı: ${error?.message ?? "Bilinmeyen hata"}`);
-  }
+  if (error || !data) throw new Error(`Owner yetkisi oluşturulamadı: ${error?.message ?? "Bilinmeyen hata"}`);
 
   return data as BusinessMember;
 }
@@ -120,9 +139,7 @@ async function ensureSubscription(businessId: string, userEmail: string) {
     .select("*")
     .single();
 
-  if (error || !data) {
-    throw new Error(`Abonelik oluşturulamadı: ${error?.message ?? "Bilinmeyen hata"}`);
-  }
+  if (error || !data) throw new Error(`Abonelik oluşturulamadı: ${error?.message ?? "Bilinmeyen hata"}`);
 
   return data as Subscription;
 }
@@ -130,9 +147,7 @@ async function ensureSubscription(businessId: string, userEmail: string) {
 async function ensureBusinessForCurrentUser() {
   const userEmail = await getCurrentUserEmail();
 
-  if (!userEmail) {
-    throw new Error("Oturum bulunamadı. Lütfen tekrar giriş yap.");
-  }
+  if (!userEmail) throw new Error("Oturum bulunamadı. Lütfen tekrar giriş yap.");
 
   const existingMember = await supabase
     .from("business_members")
@@ -143,15 +158,13 @@ async function ensureBusinessForCurrentUser() {
     .maybeSingle();
 
   if (existingMember.data?.business_id) {
-    const { data: business, error: businessError } = await supabase
+    const { data: business, error } = await supabase
       .from("businesses")
       .select("*")
       .eq("id", existingMember.data.business_id)
       .single();
 
-    if (businessError || !business) {
-      throw new Error("İşletme bilgisi alınamadı.");
-    }
+    if (error || !business) throw new Error("İşletme bilgisi alınamadı.");
 
     const subscription = await ensureSubscription(business.id, userEmail);
 
@@ -186,19 +199,13 @@ async function ensureBusinessForCurrentUser() {
     } satisfies BusinessContext;
   }
 
-  const { data: createdBusiness, error: businessError } = await supabase
+  const { data: createdBusiness, error } = await supabase
     .from("businesses")
-    .insert({
-      owner_email: userEmail,
-      name: "İşletmem",
-      email: userEmail,
-    })
+    .insert({ owner_email: userEmail, name: "İşletmem", email: userEmail })
     .select("*")
     .single();
 
-  if (businessError || !createdBusiness) {
-    throw new Error(`İşletme oluşturulamadı: ${businessError?.message ?? "Bilinmeyen hata"}`);
-  }
+  if (error || !createdBusiness) throw new Error(`İşletme oluşturulamadı: ${error?.message ?? "Bilinmeyen hata"}`);
 
   const ownerMember = await ensureOwnerMember(createdBusiness.id, userEmail);
   const subscription = await ensureSubscription(createdBusiness.id, userEmail);
@@ -220,25 +227,17 @@ function withBusinessFields(context: BusinessContext) {
   };
 }
 
-function hasPermission(context: BusinessContext | null, key: keyof BusinessMember) {
-  if (!context) return false;
-  if (context.isOwner) return true;
-  return Boolean(context.member[key]);
+function formatCurrency(value: number | null | undefined) {
+  return new Intl.NumberFormat("tr-TR", {
+    style: "currency",
+    currency: "TRY",
+    maximumFractionDigits: 0,
+  }).format(Number(value ?? 0));
 }
 
-type StockMovement = {
-  id: string;
-  business_id: string | null;
-  product_id: string | null;
-  product_code: string | null;
-  product_name: string | null;
-  movement_type: string | null;
-  quantity: number | null;
-  note: string | null;
-  created_at: string;
-};
+function formatDate(date: string | null | undefined) {
+  if (!date) return "-";
 
-function formatDate(date: string) {
   return new Intl.DateTimeFormat("tr-TR", {
     dateStyle: "medium",
     timeStyle: "short",
@@ -247,68 +246,136 @@ function formatDate(date: string) {
 
 export default function StockPage() {
   const [context, setContext] = useState<BusinessContext | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
   const [movements, setMovements] = useState<StockMovement[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState("");
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("all");
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  async function loadData() {
+  const canManage = Boolean(context?.isOwner || context?.member.can_manage_stock);
+
+  async function fetchData(existingContext?: BusinessContext) {
     setLoading(true);
     setMessage("");
 
     try {
-      const ctx = await ensureBusinessForCurrentUser();
+      const ctx = existingContext ?? await ensureBusinessForCurrentUser();
       setContext(ctx);
 
-      const { data, error } = await supabase
-        .from("stock_movements")
-        .select("*")
-        .eq("business_id", ctx.business.id)
-        .order("created_at", { ascending: false });
+      const [productsResult, movementsResult] = await Promise.all([
+        supabase
+          .from("products")
+          .select("id, name, product_code, category, stock, min_stock, price, image_url")
+          .eq("business_id", ctx.business.id)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("stock_movements")
+          .select("*")
+          .eq("business_id", ctx.business.id)
+          .order("created_at", { ascending: false })
+          .limit(80),
+      ]);
 
-      if (error) {
-        setMessage(`Stok hareketleri alınamadı: ${error.message}`);
-        setLoading(false);
+      if (productsResult.error) {
+        setMessage(`Ürünler alınamadı: ${productsResult.error.message}`);
         return;
       }
 
-      setMovements(data || []);
+      if (movementsResult.error) {
+        setMessage(`Stok hareketleri alınamadı: ${movementsResult.error.message}`);
+        return;
+      }
+
+      setProducts(productsResult.data ?? []);
+      setMovements(movementsResult.data ?? []);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "İşletme bağlantısı kurulamadı.");
+      const errorMessage = error instanceof Error ? error.message : "Stok verisi alınamadı.";
+
+      if (errorMessage.includes("Oturum bulunamadı")) {
+        window.location.replace("/login");
+        return;
+      }
+
+      setMessage(errorMessage);
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    loadData();
+    fetchData();
   }, []);
 
-  const filteredMovements = useMemo(() => {
-    return movements.filter((item) => {
-      const query = search.toLowerCase();
+  const filteredProducts = useMemo(() => {
+    const query = search.trim().toLowerCase();
 
-      const matchesSearch =
+    return products.filter((product) => {
+      return (
         !query ||
-        item.product_name?.toLowerCase().includes(query) ||
-        item.product_code?.toLowerCase().includes(query) ||
-        item.note?.toLowerCase().includes(query);
-
-      const matchesFilter =
-        filter === "all"
-          ? true
-          : filter === "in"
-          ? item.movement_type === "stock_in"
-          : item.movement_type === "stock_out";
-
-      return matchesSearch && matchesFilter;
+        product.name.toLowerCase().includes(query) ||
+        product.product_code.toLowerCase().includes(query) ||
+        (product.category ?? "").toLowerCase().includes(query)
+      );
     });
-  }, [movements, search, filter]);
+  }, [products, search]);
 
-  const totalIn = movements.filter((item) => item.movement_type === "stock_in").reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-  const totalOut = movements.filter((item) => item.movement_type === "stock_out").reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-  const canView = hasPermission(context, "can_manage_stock") || hasPermission(context, "can_view_dashboard");
+  const totalStock = products.reduce((sum, product) => sum + Number(product.stock ?? 0), 0);
+  const stockValue = products.reduce((sum, product) => sum + Number(product.stock ?? 0) * Number(product.price ?? 0), 0);
+  const criticalCount = products.filter((product) => Number(product.min_stock ?? 0) > 0 && Number(product.stock ?? 0) <= Number(product.min_stock ?? 0)).length;
+  const outOfStockCount = products.filter((product) => Number(product.stock ?? 0) <= 0).length;
+
+  async function updateStock(product: Product, diff: number) {
+    if (!context) return;
+
+    if (!canManage) {
+      setMessage("Bu işletmede stok değiştirme yetkin yok.");
+      return;
+    }
+
+    const currentStock = Number(product.stock ?? 0);
+    const nextStock = currentStock + diff;
+
+    if (nextStock < 0) return;
+
+    setUpdatingId(product.id);
+    setProducts((current) => current.map((item) => item.id === product.id ? { ...item, stock: nextStock } : item));
+
+    const { error } = await supabase
+      .from("products")
+      .update({ stock: nextStock })
+      .eq("business_id", context.business.id)
+      .eq("id", product.id);
+
+    if (error) {
+      setMessage(`Stok güncellenemedi: ${error.message}`);
+      setProducts((current) => current.map((item) => item.id === product.id ? { ...item, stock: currentStock } : item));
+      setUpdatingId(null);
+      return;
+    }
+
+    const movementPayload = {
+      ...withBusinessFields(context),
+      product_id: product.id,
+      product_code: product.product_code,
+      product_name: product.name,
+      movement_type: diff > 0 ? "stock_in" : "stock_out",
+      quantity: Math.abs(diff),
+      note: diff > 0 ? "Stok sayfasından hızlı artırıldı" : "Stok sayfasından hızlı azaltıldı",
+    };
+
+    const movementResult = await supabase
+      .from("stock_movements")
+      .insert(movementPayload)
+      .select("*")
+      .single();
+
+    if (movementResult.data) {
+      setMovements((current) => [movementResult.data, ...current].slice(0, 80));
+    }
+
+    setUpdatingId(null);
+  }
 
   return (
     <section className="mx-auto w-full max-w-[1500px] space-y-4 pb-10 text-white">
@@ -316,15 +383,18 @@ export default function StockPage() {
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="mb-3 inline-flex rounded-full bg-blue-500/15 px-3 py-2 text-xs font-black text-blue-300">
-              Stock Business Core v1
+              Stock Live Control v2
             </div>
-            <h1 className="text-[34px] font-black tracking-[-0.05em] sm:text-5xl">Stok Hareketleri</h1>
+            <h1 className="text-[34px] font-black tracking-[-0.05em] sm:text-5xl">Stok</h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
-              Stok hareketleri artık sadece aktif işletmenin kayıtlarını gösterir.
+              Stok adetlerini sayfa yenilenmeden canlı artırıp azaltabilirsin. Her işlem hareket geçmişine kaydolur.
             </p>
           </div>
 
-          <button onClick={loadData} className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-500">
+          <button
+            onClick={() => fetchData(context ?? undefined)}
+            className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-500"
+          >
             Yenile
           </button>
         </div>
@@ -332,8 +402,17 @@ export default function StockPage() {
 
       {context ? (
         <div className="rounded-[22px] border border-white/10 bg-[#111a2e] p-4">
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Aktif İşletme</p>
-          <p className="mt-1 text-lg font-black">{context.business.name}</p>
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Aktif İşletme</p>
+              <p className="mt-1 text-lg font-black">{context.business.name}</p>
+            </div>
+            <div className={`rounded-2xl px-4 py-3 text-sm font-black ring-1 ${
+              canManage ? "bg-emerald-400/10 text-emerald-300 ring-emerald-400/20" : "bg-red-400/10 text-red-300 ring-red-400/20"
+            }`}>
+              {canManage ? "Stok yönetimi açık" : "Stok yönetimi kapalı"}
+            </div>
+          </div>
         </div>
       ) : null}
 
@@ -343,78 +422,123 @@ export default function StockPage() {
         </div>
       ) : null}
 
-      {!canView && !loading ? (
-        <div className="rounded-[26px] border border-red-500/20 bg-red-500/10 p-8 text-center text-sm font-bold text-red-200">
-          Bu işletmede stok hareketlerini görüntüleme yetkin yok.
-        </div>
-      ) : (
-        <>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Metric label="Toplam Hareket" value={String(movements.length)} valueClass="text-white" />
-            <Metric label="Stok Girişi" value={`+${totalIn}`} valueClass="text-emerald-300" />
-            <Metric label="Stok Çıkışı" value={`-${totalOut}`} valueClass="text-red-300" />
-            <Metric label="Son Güncelleme" value={movements[0] ? formatDate(movements[0].created_at) : "-"} valueClass="text-blue-300 text-base" />
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Metric label="Toplam Stok" value={String(totalStock)} valueClass="text-blue-300" />
+        <Metric label="Stok Değeri" value={formatCurrency(stockValue)} valueClass="text-emerald-300" />
+        <Metric label="Kritik Stok" value={String(criticalCount)} valueClass="text-amber-300" />
+        <Metric label="Tükenen" value={String(outOfStockCount)} valueClass="text-red-300" />
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[1fr_0.75fr]">
+        <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
+          <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h2 className="text-2xl font-black">Ürün Stokları</h2>
+              <p className="mt-1 text-sm text-slate-400">+ / - butonları canlı çalışır, sayfa yenilenmez.</p>
+            </div>
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Ürün, kod veya kategori ara..."
+              className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none placeholder:text-slate-500 lg:w-[320px]"
+            />
           </div>
 
-          <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
-            <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <h2 className="text-2xl font-black">Hareket Geçmişi</h2>
-                <p className="mt-1 text-sm text-slate-400">Aktif işletmenin stok giriş ve çıkış kayıtları.</p>
-              </div>
-
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Ürün ara..." className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none placeholder:text-slate-500 sm:w-[240px]" />
-                <select value={filter} onChange={(e) => setFilter(e.target.value)} className="rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none">
-                  <option value="all">Tüm Hareketler</option>
-                  <option value="in">Stok Girişi</option>
-                  <option value="out">Stok Çıkışı</option>
-                </select>
-              </div>
+          {loading ? (
+            <div className="grid gap-3">{[1, 2, 3].map((item) => <div key={item} className="h-24 animate-pulse rounded-[24px] bg-white/5" />)}</div>
+          ) : filteredProducts.length === 0 ? (
+            <div className="rounded-[24px] border border-dashed border-white/10 bg-[#0b1220] p-10 text-center">
+              <h3 className="text-xl font-black">Stok bulunamadı</h3>
+              <p className="mt-2 text-sm text-slate-500">Ürün eklediğinde burada görünecek.</p>
             </div>
+          ) : (
+            <div className="grid gap-3">
+              {filteredProducts.map((product) => {
+                const currentStock = Number(product.stock ?? 0);
+                const minStock = Number(product.min_stock ?? 0);
+                const isCritical = minStock > 0 && currentStock <= minStock;
+                const isUpdating = updatingId === product.id;
 
-            {loading ? (
-              <div className="grid gap-3">{[1, 2, 3].map((item) => <div key={item} className="h-24 animate-pulse rounded-[24px] bg-white/5" />)}</div>
-            ) : filteredMovements.length === 0 ? (
-              <div className="rounded-[24px] border border-dashed border-white/10 bg-[#0b1220] p-10 text-center">
-                <h3 className="text-xl font-black">Hareket bulunamadı</h3>
-                <p className="mt-2 text-sm text-slate-500">Ürünler sayfasında stok değiştirince burada gözükecek.</p>
-              </div>
-            ) : (
-              <div className="grid gap-3">
-                {filteredMovements.map((item) => {
-                  const isIn = item.movement_type === "stock_in";
-
-                  return (
-                    <div key={item.id} className="rounded-[22px] border border-white/10 bg-[#0b1220] p-4 transition hover:bg-[#101a31]">
-                      <div className="grid gap-4 lg:grid-cols-[1fr_auto_auto] lg:items-center">
+                return (
+                  <div key={product.id} className="rounded-[22px] border border-white/10 bg-[#0b1220] p-4 transition hover:bg-[#101a31]">
+                    <div className="grid gap-4 lg:grid-cols-[1fr_auto_auto] lg:items-center">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10">
+                          {product.image_url ? (
+                            <img src={product.image_url} alt={product.name} className="h-full w-full object-cover" />
+                          ) : (
+                            <span className="text-lg font-black text-blue-300">{product.name.slice(0, 1).toUpperCase()}</span>
+                          )}
+                        </div>
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="truncate text-lg font-black">{item.product_name || "Ürün yok"}</h3>
-                            <span className="rounded-full bg-white/8 px-3 py-1 text-xs font-black text-slate-400">{item.product_code || "-"}</span>
+                            <h3 className="truncate text-lg font-black">{product.name}</h3>
+                            {isCritical ? <span className="rounded-full bg-red-500/15 px-3 py-1 text-[10px] font-black text-red-300">Kritik</span> : null}
                           </div>
-                          <p className="mt-2 text-sm text-slate-400">{item.note || "-"}</p>
-                          <p className="mt-2 text-xs font-bold text-slate-500">{formatDate(item.created_at)}</p>
-                        </div>
-
-                        <div>
-                          <span className={["rounded-full px-4 py-2 text-xs font-black", isIn ? "bg-emerald-400/15 text-emerald-300" : "bg-red-400/15 text-red-300"].join(" ")}>
-                            {isIn ? "Stok Girişi" : "Stok Çıkışı"}
-                          </span>
-                        </div>
-
-                        <div>
-                          <p className={["text-3xl font-black", isIn ? "text-emerald-300" : "text-red-300"].join(" ")}>{isIn ? "+" : "-"}{item.quantity}</p>
+                          <p className="mt-1 text-xs text-slate-500">{product.product_code} · {product.category || "Kategori yok"}</p>
                         </div>
                       </div>
+
+                      <div className="rounded-2xl bg-[#111a2e] px-4 py-3 ring-1 ring-white/10">
+                        <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Mevcut Stok</p>
+                        <p className="mt-1 text-2xl font-black">{currentStock}</p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          disabled={isUpdating || !canManage || currentStock <= 0}
+                          onClick={() => updateStock(product, -1)}
+                          className="flex h-11 w-11 items-center justify-center rounded-2xl bg-red-500/15 text-xl font-black text-red-300 transition hover:bg-red-500/25 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          -
+                        </button>
+                        <button
+                          disabled={isUpdating || !canManage}
+                          onClick={() => updateStock(product, 1)}
+                          className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500/15 text-xl font-black text-emerald-300 transition hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          +
+                        </button>
+                      </div>
                     </div>
-                  );
-                })}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
+          <h2 className="text-2xl font-black">Hareket Geçmişi</h2>
+          <p className="mt-1 text-sm text-slate-400">Son stok giriş/çıkış kayıtları.</p>
+
+          <div className="mt-5 grid gap-3">
+            {movements.length === 0 ? (
+              <div className="rounded-[24px] border border-dashed border-white/10 bg-[#0b1220] p-10 text-center">
+                <h3 className="text-xl font-black">Hareket yok</h3>
+                <p className="mt-2 text-sm text-slate-500">Stok değişimi yaptığında burada görünecek.</p>
               </div>
+            ) : (
+              movements.slice(0, 18).map((movement) => (
+                <div key={movement.id} className="rounded-[18px] bg-[#0b1220] p-4 ring-1 ring-white/10">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-black">{movement.product_name || "Ürün yok"}</p>
+                      <p className="mt-1 text-xs text-slate-500">{movement.note || "Stok hareketi"}</p>
+                      <p className="mt-1 text-[11px] text-slate-600">{formatDate(movement.created_at)}</p>
+                    </div>
+                    <span className={`rounded-full px-3 py-1 text-xs font-black ${
+                      movement.movement_type === "stock_in" ? "bg-emerald-400/15 text-emerald-300" : "bg-red-400/15 text-red-300"
+                    }`}>
+                      {movement.movement_type === "stock_in" ? "+" : "-"}{movement.quantity ?? 0}
+                    </span>
+                  </div>
+                </div>
+              ))
             )}
           </div>
-        </>
-      )}
+        </div>
+      </div>
     </section>
   );
 }
