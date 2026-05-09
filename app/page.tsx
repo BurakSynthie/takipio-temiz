@@ -103,10 +103,10 @@ const footerGroups = [
   {
     title: "YASAL",
     links: [
-      { label: "Gizlilik Politikası", href: "#legal" },
-      { label: "Kullanım Koşulları", href: "#legal" },
-      { label: "KVKK", href: "#legal" },
-      { label: "Çerez Politikası", href: "#legal" },
+      { label: "Gizlilik Politikası", href: "/gizlilik-politikasi" },
+      { label: "Kullanım Koşulları", href: "/kullanim-kosullari" },
+      { label: "KVKK", href: "/kvkk" },
+      { label: "Çerez Politikası", href: "/cerez-politikasi" },
     ],
   },
 ];
