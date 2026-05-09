@@ -314,6 +314,31 @@ function createQrImageUrl(productCode: string, size = 260) {
   return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(createQrTarget(productCode))}`;
 }
 
+
+async function uploadImageFile(file: File, folder: string, userEmail: string) {
+  const fileExt = file.name.split(".").pop()?.toLowerCase() || "png";
+  const safeEmail = userEmail.replace(/[^a-zA-Z0-9]/g, "-");
+  const fileName = `${folder}/${safeEmail}-${Date.now()}.${fileExt}`;
+
+  const { error } = await supabase.storage
+    .from("takipio-uploads")
+    .upload(fileName, file, {
+      cacheControl: "3600",
+      upsert: true,
+    });
+
+  if (error) {
+    throw new Error(`Görsel yüklenemedi: ${error.message}`);
+  }
+
+  const { data } = supabase.storage
+    .from("takipio-uploads")
+    .getPublicUrl(fileName);
+
+  return data.publicUrl;
+}
+
+
 export default function ProductsPage() {
   const [context, setContext] = useState<BusinessContext | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
@@ -327,6 +352,7 @@ export default function ProductsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [stockUpdatingId, setStockUpdatingId] = useState<string | null>(null);
   const [openQrId, setOpenQrId] = useState<string | null>(null);
+  const [uploadingProductImage, setUploadingProductImage] = useState(false);
 
   const existingCategories = useMemo(() => {
     const set = new Set<string>();
@@ -413,6 +439,23 @@ export default function ProductsPage() {
     const nextNumber = existingNumbers.length ? Math.max(...existingNumbers) + 1 : 1;
 
     return `${prefix}-${String(nextNumber).padStart(3, "0")}`;
+  }
+
+  async function handleProductImageUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file || !context) return;
+
+    try {
+      setUploadingProductImage(true);
+      setMessage("");
+      const publicUrl = await uploadImageFile(file, "product-images", context.userEmail);
+      setForm((current) => ({ ...current, image_url: publicUrl }));
+      setMessage("Ürün görseli yüklendi. Kaydet butonuna basınca ürün kartına işlenecek.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Ürün görseli yüklenemedi.");
+    } finally {
+      setUploadingProductImage(false);
+    }
   }
 
   async function saveProduct(event: React.FormEvent<HTMLFormElement>) {
@@ -688,8 +731,24 @@ export default function ProductsPage() {
               <input type="number" value={form.min_stock} onChange={(e) => setForm((c) => ({ ...c, min_stock: e.target.value }))} className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none" />
             </Field>
 
-            <Field label="Görsel URL">
-              <input value={form.image_url} onChange={(e) => setForm((c) => ({ ...c, image_url: e.target.value }))} className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none" />
+            <Field label="Ürün Görseli Yükle">
+              <div className="grid gap-3">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleProductImageUpload}
+                  disabled={uploadingProductImage || !isAllowed}
+                  className="w-full cursor-pointer rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm text-slate-300 outline-none file:mr-4 file:rounded-xl file:border-0 file:bg-blue-600 file:px-3 file:py-2 file:text-xs file:font-black file:text-white disabled:opacity-50"
+                />
+                <input
+                  value={form.image_url}
+                  onChange={(e) => setForm((c) => ({ ...c, image_url: e.target.value }))}
+                  placeholder="Yüklenince otomatik dolar veya URL yapıştırabilirsin"
+                  className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none"
+                />
+                {uploadingProductImage ? <p className="text-xs font-bold text-blue-300">Yükleniyor...</p> : null}
+                {form.image_url ? <img src={form.image_url} alt="Ürün önizleme" className="h-24 w-24 rounded-2xl object-cover ring-1 ring-white/10" /> : null}
+              </div>
             </Field>
 
             <Field label="Açıklama">
@@ -740,14 +799,23 @@ export default function ProductsPage() {
                 <div key={product.id} className="rounded-[22px] border border-white/10 bg-[#0b1220] p-4 transition hover:bg-[#101a31]">
                   <div className="grid gap-4 xl:grid-cols-[1.4fr_0.6fr_0.7fr_0.8fr_auto] xl:items-center">
                     <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="truncate text-lg font-black">{product.name}</h3>
+                      <div className="flex items-start gap-3">
+                        {product.image_url ? (
+                          <img src={product.image_url} alt={product.name} className="h-14 w-14 shrink-0 rounded-2xl object-cover ring-1 ring-white/10" />
+                        ) : (
+                          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/5 text-xs font-black text-slate-500 ring-1 ring-white/10">IMG</div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="truncate text-lg font-black">{product.name}</h3>
                         <span className="rounded-full bg-white/8 px-3 py-1 text-xs font-black text-slate-400">{product.product_code}</span>
                         {product.category ? <span className="rounded-full bg-blue-500/15 px-3 py-1 text-xs font-black text-blue-300">{product.category}</span> : null}
                         {critical ? <span className="rounded-full bg-amber-400/15 px-3 py-1 text-xs font-black text-amber-300">Kritik stok</span> : null}
                       </div>
-                      {product.description ? <p className="mt-2 text-sm text-slate-400">{product.description}</p> : null}
-                      <p className="mt-2 text-xs text-slate-500">Min stok: {product.min_stock ?? 0} · Ekleyen: {product.created_by || "-"}</p>
+                          {product.description ? <p className="mt-2 text-sm text-slate-400">{product.description}</p> : null}
+                          <p className="mt-2 text-xs text-slate-500">Min stok: {product.min_stock ?? 0} · Ekleyen: {product.created_by || "-"}</p>
+                        </div>
+                      </div>
                     </div>
 
                     <div>
