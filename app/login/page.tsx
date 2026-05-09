@@ -152,7 +152,15 @@ function Icon({ name, className = "" }: { name: string; className?: string }) {
   return null;
 }
 
-function Logo() {
+function Logo({ headerOnly = false }: { headerOnly?: boolean }) {
+  if (headerOnly) {
+    return (
+      <div className="flex h-14 w-40 items-center justify-start overflow-hidden">
+        <img src="/takipio-logo.png" alt="Takipio" className="h-full w-auto object-contain" />
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-center gap-3">
       <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-white/10 ring-1 ring-white/10">
@@ -370,18 +378,18 @@ function LaptopMockup({
 }) {
   return (
     <div className="relative mx-auto w-full max-w-[1220px]">
-      <div className="absolute -left-7 top-12 hidden w-[190px] xl:block">
+      <div className="pointer-events-none absolute -left-4 top-24 z-0 hidden w-[170px] opacity-80 2xl:block">
         <MiniStat title="Bugünkü Sipariş" value="1.247" sub="↑ 18.6%" />
       </div>
 
-      <div className="absolute -left-10 bottom-16 hidden w-[230px] xl:block">
+      <div className="pointer-events-none absolute -left-3 bottom-24 z-0 hidden w-[210px] opacity-80 2xl:block">
         <div className="rounded-3xl border border-white/10 bg-[#0b1220]/80 p-4 shadow-2xl backdrop-blur-xl">
           <p className="text-sm font-black text-white">Sipariş Durumu</p>
-          <div className="mt-4 grid grid-cols-[80px_1fr] items-center gap-4">
-            <div className="h-20 w-20 rounded-full bg-[conic-gradient(#38bdf8_0_62%,#2dd4bf_62%_86%,#fb7185_86%_100%)] p-3">
+          <div className="mt-4 grid grid-cols-[68px_1fr] items-center gap-4">
+            <div className="h-16 w-16 rounded-full bg-[conic-gradient(#38bdf8_0_62%,#2dd4bf_62%_86%,#fb7185_86%_100%)] p-2.5">
               <div className="h-full w-full rounded-full bg-[#0b1220]" />
             </div>
-            <div className="space-y-2 text-xs font-bold text-slate-400">
+            <div className="space-y-2 text-[11px] font-bold text-slate-400">
               <p><span className="text-sky-300">●</span> Tamamlandı %62</p>
               <p><span className="text-teal-300">●</span> Hazırlanıyor %24</p>
               <p><span className="text-rose-300">●</span> İptal %14</p>
@@ -397,11 +405,11 @@ function LaptopMockup({
         </div>
       </div>
 
-      <div className="rounded-[36px] border border-white/10 bg-[#111827] p-3 shadow-[0_40px_120px_rgba(15,23,42,.75)]">
+      <div className="relative z-10 rounded-[36px] border border-white/10 bg-[#111827] p-3 shadow-[0_40px_120px_rgba(15,23,42,.75)]">
         <div className="overflow-hidden rounded-[28px] border border-white/10 bg-[#07111f]">
           <div className="grid min-h-[680px] gap-0 lg:grid-cols-[430px_1fr]">
             <div className="border-b border-white/10 bg-[#0b1220]/80 p-5 lg:border-b-0 lg:border-r lg:p-7">
-              <Logo />
+              <Logo headerOnly />
               <div className="mt-7">
                 <AuthForm
                   mode={mode}
@@ -713,4 +721,3 @@ export default function LoginPage() {
     </main>
   );
 }
-// takipio redeploy trigger
