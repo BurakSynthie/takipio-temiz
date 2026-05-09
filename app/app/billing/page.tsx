@@ -20,21 +20,22 @@ type BusinessMember = {
   email: string;
   role_name: string | null;
   member_status: string | null;
-  can_view_dashboard?: boolean | null;
-  can_manage_stock?: boolean | null;
-  can_manage_shipments?: boolean | null;
-  can_manage_returns?: boolean | null;
   can_manage_billing?: boolean | null;
 };
 
 type Subscription = {
   id: string;
   business_id: string | null;
+  user_email: string | null;
   plan: string | null;
   status: string | null;
   order_limit: number | null;
   first_month_price: number | null;
   monthly_price: number | null;
+  current_period_start: string | null;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean | null;
+  created_at: string;
 };
 
 type BusinessContext = {
@@ -46,11 +47,22 @@ type BusinessContext = {
   isPro: boolean;
 };
 
+type Order = {
+  id: string;
+  total_amount: number | null;
+  created_at: string;
+};
+
 function normalizeEmail(email: string | null | undefined) {
   return (email ?? "").trim().toLowerCase();
 }
 
 async function getCurrentUserEmail() {
+  const sessionResult = await supabase.auth.getSession();
+  const sessionEmail = normalizeEmail(sessionResult.data.session?.user?.email);
+
+  if (sessionEmail) return sessionEmail;
+
   const { data } = await supabase.auth.getUser();
   return normalizeEmail(data.user?.email);
 }
@@ -88,9 +100,7 @@ async function ensureOwnerMember(businessId: string, userEmail: string) {
     .select("*")
     .single();
 
-  if (error || !data) {
-    throw new Error(`Owner yetkisi oluşturulamadı: ${error?.message ?? "Bilinmeyen hata"}`);
-  }
+  if (error || !data) throw new Error(`Owner yetkisi oluşturulamadı: ${error?.message ?? "Bilinmeyen hata"}`);
 
   return data as BusinessMember;
 }
@@ -116,13 +126,12 @@ async function ensureSubscription(businessId: string, userEmail: string) {
       order_limit: 15,
       first_month_price: 89,
       monthly_price: 99,
+      current_period_start: new Date().toISOString(),
     })
     .select("*")
     .single();
 
-  if (error || !data) {
-    throw new Error(`Abonelik oluşturulamadı: ${error?.message ?? "Bilinmeyen hata"}`);
-  }
+  if (error || !data) throw new Error(`Abonelik oluşturulamadı: ${error?.message ?? "Bilinmeyen hata"}`);
 
   return data as Subscription;
 }
@@ -130,9 +139,7 @@ async function ensureSubscription(businessId: string, userEmail: string) {
 async function ensureBusinessForCurrentUser() {
   const userEmail = await getCurrentUserEmail();
 
-  if (!userEmail) {
-    throw new Error("Oturum bulunamadı. Lütfen tekrar giriş yap.");
-  }
+  if (!userEmail) throw new Error("Oturum bulunamadı. Lütfen tekrar giriş yap.");
 
   const existingMember = await supabase
     .from("business_members")
@@ -143,15 +150,13 @@ async function ensureBusinessForCurrentUser() {
     .maybeSingle();
 
   if (existingMember.data?.business_id) {
-    const { data: business, error: businessError } = await supabase
+    const { data: business, error } = await supabase
       .from("businesses")
       .select("*")
       .eq("id", existingMember.data.business_id)
       .single();
 
-    if (businessError || !business) {
-      throw new Error("İşletme bilgisi alınamadı.");
-    }
+    if (error || !business) throw new Error("İşletme bilgisi alınamadı.");
 
     const subscription = await ensureSubscription(business.id, userEmail);
 
@@ -186,19 +191,13 @@ async function ensureBusinessForCurrentUser() {
     } satisfies BusinessContext;
   }
 
-  const { data: createdBusiness, error: businessError } = await supabase
+  const { data: createdBusiness, error } = await supabase
     .from("businesses")
-    .insert({
-      owner_email: userEmail,
-      name: "İşletmem",
-      email: userEmail,
-    })
+    .insert({ owner_email: userEmail, name: "İşletmem", email: userEmail })
     .select("*")
     .single();
 
-  if (businessError || !createdBusiness) {
-    throw new Error(`İşletme oluşturulamadı: ${businessError?.message ?? "Bilinmeyen hata"}`);
-  }
+  if (error || !createdBusiness) throw new Error(`İşletme oluşturulamadı: ${error?.message ?? "Bilinmeyen hata"}`);
 
   const ownerMember = await ensureOwnerMember(createdBusiness.id, userEmail);
   const subscription = await ensureSubscription(createdBusiness.id, userEmail);
@@ -213,47 +212,38 @@ async function ensureBusinessForCurrentUser() {
   } satisfies BusinessContext;
 }
 
-function withBusinessFields(context: BusinessContext) {
-  return {
-    business_id: context.business.id,
-    created_by: context.userEmail,
-  };
-}
-
-function hasPermission(context: BusinessContext | null, key: keyof BusinessMember) {
-  if (!context) return false;
-  if (context.isOwner) return true;
-  return Boolean(context.member[key]);
-}
-
-type Order = { id: string; order_no: string; created_at: string; business_id: string | null };
-type BillingEvent = { id: string; subscription_id: string | null; event_type: string | null; amount: number | null; currency: string | null; status: string | null; note: string | null; created_at: string };
-
-const lockedFeatures = [
-  "Pazaryeri entegrasyonları",
-  "Ekip ve yetki yönetimi",
-  "Gelişmiş raporlar",
-  "Toplu QR / PDF çıktı",
-  "Mobil tam senkron",
-  "Gorki AI gelişmiş kullanım",
-];
-
 function formatCurrency(value: number | null | undefined) {
-  return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 }).format(Number(value ?? 0));
+  return new Intl.NumberFormat("tr-TR", {
+    style: "currency",
+    currency: "TRY",
+    maximumFractionDigits: 0,
+  }).format(Number(value ?? 0));
 }
 
 function formatDate(date: string | null | undefined) {
   if (!date) return "-";
-  return new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(date));
+
+  return new Intl.DateTimeFormat("tr-TR", {
+    dateStyle: "medium",
+  }).format(new Date(date));
 }
 
 export default function BillingPage() {
   const [context, setContext] = useState<BusinessContext | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [events, setEvents] = useState<BillingEvent[]>([]);
-  const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
-  const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const subscription = context?.subscription ?? null;
+  const isPro = subscription?.plan === "pro" && subscription?.status === "active";
+  const orderLimit = Number(subscription?.order_limit ?? 15);
+  const orderCount = orders.length;
+  const remainingOrders = isPro ? "Sınırsız" : Math.max(orderLimit - orderCount, 0);
+  const usagePercentage = isPro ? 100 : Math.min(Math.round((orderCount / orderLimit) * 100), 100);
+  const canManage = Boolean(context?.isOwner || context?.member.can_manage_billing);
+
+  const revenue = useMemo(() => orders.reduce((sum, order) => sum + Number(order.total_amount ?? 0), 0), [orders]);
 
   async function fetchData() {
     setLoading(true);
@@ -263,15 +253,27 @@ export default function BillingPage() {
       const ctx = await ensureBusinessForCurrentUser();
       setContext(ctx);
 
-      const [ordersResult, eventsResult] = await Promise.all([
-        supabase.from("orders").select("id, order_no, created_at, business_id").eq("business_id", ctx.business.id).order("created_at", { ascending: false }),
-        supabase.from("billing_events").select("*").eq("subscription_id", ctx.subscription?.id ?? "00000000-0000-0000-0000-000000000000").order("created_at", { ascending: false }),
-      ]);
+      const ordersResult = await supabase
+        .from("orders")
+        .select("id, total_amount, created_at")
+        .eq("business_id", ctx.business.id)
+        .order("created_at", { ascending: false });
+
+      if (ordersResult.error) {
+        setMessage(`Sipariş verisi alınamadı: ${ordersResult.error.message}`);
+        return;
+      }
 
       setOrders(ordersResult.data ?? []);
-      setEvents(eventsResult.data ?? []);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "İşletme bağlantısı kurulamadı.");
+      const errorMessage = error instanceof Error ? error.message : "Abonelik verisi alınamadı.";
+
+      if (errorMessage.includes("Oturum bulunamadı")) {
+        window.location.replace("/login");
+        return;
+      }
+
+      setMessage(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -281,74 +283,49 @@ export default function BillingPage() {
     fetchData();
   }, []);
 
-  const subscription = context?.subscription ?? null;
-  const isPro = subscription?.plan === "pro";
-  const orderLimit = Number(subscription?.order_limit ?? 15);
-  const usedOrders = orders.length;
-  const remainingOrders = Math.max(orderLimit - usedOrders, 0);
-  const usagePercentage = isPro ? 100 : Math.min(Math.round((usedOrders / orderLimit) * 100), 100);
-  const canManage = hasPermission(context, "can_manage_billing");
+  async function updatePlan(nextPlan: "free" | "pro") {
+    if (!context?.subscription || !canManage) return;
 
-  async function simulateUpgrade() {
-    if (!context?.subscription) return;
+    setSaving(true);
+    setMessage("");
 
-    if (!canManage) {
-      setMessage("Bu işletmede abonelik güncelleme yetkin yok.");
-      return;
-    }
+    const now = new Date();
+    const nextMonth = new Date(now);
+    nextMonth.setMonth(nextMonth.getMonth() + 1);
+
+    const payload =
+      nextPlan === "pro"
+        ? {
+            plan: "pro",
+            status: "active",
+            order_limit: 999999,
+            current_period_start: now.toISOString(),
+            current_period_end: nextMonth.toISOString(),
+            updated_at: now.toISOString(),
+          }
+        : {
+            plan: "free",
+            status: "trial",
+            order_limit: 15,
+            current_period_start: now.toISOString(),
+            current_period_end: null,
+            updated_at: now.toISOString(),
+          };
 
     const { error } = await supabase
       .from("subscriptions")
-      .update({
-        plan: "pro",
-        status: "active",
-        order_limit: 999999,
-        business_id: context.business.id,
-        updated_at: new Date().toISOString(),
-      })
+      .update(payload)
       .eq("business_id", context.business.id)
       .eq("id", context.subscription.id);
 
     if (error) {
-      setMessage(`Paket güncellenemedi: ${error.message}`);
+      setMessage(`Plan güncellenemedi: ${error.message}`);
+      setSaving(false);
       return;
     }
 
-    await supabase.from("billing_events").insert({
-      subscription_id: context.subscription.id,
-      event_type: "upgrade_simulation",
-      amount: 89,
-      currency: "TRY",
-      status: "success",
-      note: `${context.business.name} için demo Pro geçişi.`,
-    });
-
-    setMessage("Demo olarak Pro pakete geçirildi.");
-    setUpgradeOpen(false);
-    await fetchData();
-  }
-
-  async function resetFreePlan() {
-    if (!context?.subscription) return;
-
-    if (!canManage) {
-      setMessage("Bu işletmede abonelik güncelleme yetkin yok.");
-      return;
-    }
-
-    await supabase
-      .from("subscriptions")
-      .update({
-        plan: "free",
-        status: "trial",
-        order_limit: 15,
-        business_id: context.business.id,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("business_id", context.business.id)
-      .eq("id", context.subscription.id);
-
-    setMessage("Paket tekrar ücretsiz denemeye alındı.");
+    setMessage(nextPlan === "pro" ? "Demo Pro plan aktif edildi." : "Free plana dönüldü.");
+    setSaving(false);
     await fetchData();
   }
 
@@ -357,159 +334,179 @@ export default function BillingPage() {
       <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <div className="mb-3 inline-flex rounded-full bg-blue-500/15 px-3 py-2 text-xs font-black text-blue-300">Billing Business Core v1</div>
+            <div className="mb-3 inline-flex rounded-full bg-blue-500/15 px-3 py-2 text-xs font-black text-blue-300">
+              Billing / Subscription v6
+            </div>
             <h1 className="text-[34px] font-black tracking-[-0.05em] sm:text-5xl">Abonelik</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">Abonelik artık aktif işletmeye bağlı. Web ve mobil aynı işletme aboneliğini kullanacak.</p>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
+              Free sipariş limitini takip et, Pro plana geç ve Takipio kullanımını yönet.
+            </p>
           </div>
 
-          {!isPro ? (
-            <button onClick={() => setUpgradeOpen(true)} className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white">Paketi Yükselt</button>
-          ) : (
-            <button onClick={resetFreePlan} className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-black text-slate-200">Demo Free Yap</button>
-          )}
+          <button onClick={fetchData} className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-500">
+            Yenile
+          </button>
         </div>
       </div>
 
-      {context ? (
-        <div className="rounded-[22px] border border-white/10 bg-[#111a2e] p-4">
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Aktif İşletme</p>
-          <p className="mt-1 text-lg font-black">{context.business.name}</p>
+      {message ? (
+        <div className="rounded-2xl bg-blue-500/10 px-4 py-3 text-sm font-bold text-blue-200 ring-1 ring-blue-400/20">
+          {message}
         </div>
       ) : null}
-
-      {message ? <div className="rounded-2xl bg-blue-500/10 px-4 py-3 text-sm font-bold text-blue-200 ring-1 ring-blue-400/20">{message}</div> : null}
 
       <div className="grid gap-4 xl:grid-cols-[1fr_0.85fr]">
-        <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="rounded-[28px] border border-white/10 bg-[#111a2e] p-5">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Mevcut Paket</p>
-              <h2 className="mt-2 text-3xl font-black">{isPro ? "Takipio Pro" : "Ücretsiz Deneme"}</h2>
-              <p className="mt-2 text-sm text-slate-400">Durum: <span className="font-black text-blue-300">{subscription?.status === "active" ? "Aktif" : "Deneme"}</span></p>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Mevcut Plan</p>
+              <h2 className="mt-2 text-4xl font-black tracking-[-0.05em]">
+                {loading ? "Yükleniyor" : isPro ? "Takipio Pro" : "Takipio Free"}
+              </h2>
+              <p className="mt-3 max-w-xl text-sm leading-6 text-slate-400">
+                {isPro
+                  ? "Pro plan aktif. Sipariş limiti olmadan tüm operasyon modüllerini kullanabilirsin."
+                  : "Free planda 15 siparişe kadar Takipio’yu deneyebilirsin. Limit dolunca yeni sipariş için Pro plana geçmen gerekir."}
+              </p>
             </div>
 
-            <div className="rounded-[22px] bg-[#0b1220] p-4 text-right ring-1 ring-white/10">
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Kullanım</p>
-              <p className="mt-2 text-3xl font-black">{isPro ? "∞" : `${usedOrders}/${orderLimit}`}</p>
-              <p className="mt-1 text-xs text-slate-500">{isPro ? "Sınırsız sipariş" : `${remainingOrders} ücretsiz sipariş kaldı`}</p>
-            </div>
+            <span className={`rounded-full px-4 py-2 text-xs font-black ${
+              isPro ? "bg-emerald-400/15 text-emerald-300" : "bg-blue-400/15 text-blue-300"
+            }`}>
+              {isPro ? "PRO AKTİF" : "FREE DENEME"}
+            </span>
           </div>
 
-          <div className="mt-6">
-            <div className="mb-2 flex items-center justify-between text-xs font-black">
-              <span className="text-slate-400">Sipariş kullanım limiti</span>
-              <span className={isPro ? "text-emerald-300" : "text-blue-300"}>{isPro ? "Pro aktif" : `%${usagePercentage}`}</span>
+          <div className="mt-7 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <Metric label="Sipariş" value={String(orderCount)} valueClass="text-blue-300" />
+            <Metric label="Kalan Hak" value={String(remainingOrders)} valueClass={isPro ? "text-emerald-300" : "text-amber-300"} />
+            <Metric label="Ciro" value={formatCurrency(revenue)} valueClass="text-cyan-300" />
+            <Metric label="Dönem Sonu" value={formatDate(subscription?.current_period_end)} valueClass="text-slate-200" />
+          </div>
+
+          <div className="mt-7 rounded-[22px] bg-[#0b1220] p-5 ring-1 ring-white/10">
+            <div className="mb-2 flex justify-between text-sm font-black">
+              <span>{isPro ? "Pro kullanım" : `Free kullanım: ${orderCount}/${orderLimit}`}</span>
+              <span>{usagePercentage}%</span>
             </div>
             <div className="h-3 overflow-hidden rounded-full bg-white/8">
-              <div className={isPro ? "h-full rounded-full bg-emerald-400" : "h-full rounded-full bg-blue-500"} style={{ width: `${usagePercentage}%` }} />
+              <div className={`h-full rounded-full ${isPro ? "bg-emerald-400" : orderCount >= orderLimit ? "bg-amber-400" : "bg-blue-500"}`} style={{ width: `${usagePercentage}%` }} />
             </div>
+            {!isPro && orderCount >= orderLimit ? (
+              <p className="mt-3 text-sm font-bold text-amber-300">Free limit doldu. Yeni sipariş için Pro plana geçmelisin.</p>
+            ) : null}
           </div>
 
-          <div className="mt-6 grid gap-3 md:grid-cols-3">
-            <SmallMetric label="İlk Ay" value={formatCurrency(subscription?.first_month_price ?? 89)} />
-            <SmallMetric label="Sonraki Aylar" value={`${formatCurrency(subscription?.monthly_price ?? 99)} / ay`} />
-            <SmallMetric label="Web + Mobil" value="Tek abonelik" />
+          <div className="mt-7 flex flex-wrap gap-2">
+            <button
+              disabled={saving || !canManage || isPro}
+              onClick={() => updatePlan("pro")}
+              className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Demo Pro’ya Geç
+            </button>
+            <button
+              disabled={saving || !canManage || !isPro}
+              onClick={() => updatePlan("free")}
+              className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-black text-slate-200 transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Free’ye Dön
+            </button>
           </div>
+
+          <p className="mt-4 text-xs leading-5 text-slate-500">
+            Not: Bu ekranda ödeme alınmıyor. Şimdilik demo abonelik yönetimi var. Gerçek ödeme için sonraki pakette iyzico/PayTR bağlantısı kurulacak.
+          </p>
         </div>
 
-        <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
-          <h2 className="text-2xl font-black">Paket Özeti</h2>
+        <div className="grid gap-4">
+          <PlanCard
+            title="Free"
+            price="₺0"
+            badge="Başlangıç"
+            active={!isPro}
+            features={[
+              "15 siparişe kadar kullanım",
+              "Ürün / stok / QR",
+              "Sipariş ve ödeme takibi",
+              "Kargo ve iade modülü",
+              "Gorki temel veri cevapları",
+            ]}
+          />
 
-          <div className="mt-5 grid gap-3">
-            <PlanCard title="Free" price="₺0" desc="15 siparişe kadar sistemi denemek için." active={!isPro} features={["Dashboard", "Ürün", "Stok", "15 sipariş", "Basit kargo"]} />
-            <PlanCard title="Pro" price="₺89 ilk ay" desc="Sonraki aylar ₺99. Sınırsız operasyon." active={isPro} features={["Sınırsız sipariş", "Entegrasyonlar", "Ekip yetkileri", "Gelişmiş raporlar", "Mobil senkron"]} />
-          </div>
+          <PlanCard
+            title="Pro"
+            price="İlk ay ₺89"
+            sub="Sonraki ay ₺99"
+            badge="Önerilen"
+            active={isPro}
+            features={[
+              "Sipariş limiti yok",
+              "Tüm operasyon modülleri",
+              "Gorki canlı panel cevapları",
+              "Pazaryeri hazırlık modülleri",
+              "Mobil uygulama uyumlu kullanım",
+            ]}
+          />
         </div>
       </div>
 
       <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
-        <h2 className="text-2xl font-black">Free Planda Kilitli Özellikler</h2>
-        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {lockedFeatures.map((feature) => (
-            <div key={feature} className="rounded-[22px] border border-white/10 bg-[#0b1220] p-4">
-              <div className="mb-4 inline-flex rounded-full bg-amber-500/15 px-3 py-1 text-[10px] font-black text-amber-300">{isPro ? "Açık" : "Pro"}</div>
-              <h3 className="text-lg font-black">{feature}</h3>
-            </div>
-          ))}
-        </div>
+        <h2 className="text-2xl font-black">Sonraki Ödeme Aşaması</h2>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+          Gerçek ödeme bağlantısında kullanıcı Pro’ya geç dediğinde iyzico veya PayTR ödeme sayfasına yönlenecek.
+          Ödeme başarılıysa bu ekrandaki Pro plan otomatik aktif olacak. Başarısızsa Free planda kalacak.
+        </p>
       </div>
-
-      <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
-        <h2 className="text-2xl font-black">Fatura / Ödeme Geçmişi</h2>
-        <div className="mt-5 space-y-2">
-          {events.length === 0 ? (
-            <div className="rounded-[20px] border border-dashed border-white/10 bg-[#0b1220] p-8 text-center text-sm text-slate-500">Henüz ödeme geçmişi yok.</div>
-          ) : (
-            events.map((event) => (
-              <div key={event.id} className="rounded-[18px] bg-[#0b1220] p-4 ring-1 ring-white/10">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-black">{event.event_type || "billing_event"}</p>
-                    <p className="mt-1 text-xs text-slate-500">{event.note || "Not yok"}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-black text-emerald-300">{formatCurrency(event.amount)}</p>
-                    <p className="mt-1 text-xs text-slate-500">{formatDate(event.created_at)}</p>
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-
-      {upgradeOpen ? (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-[560px] rounded-[30px] border border-white/10 bg-[#111a2e] p-5 shadow-2xl">
-            <div className="mb-5 flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-300">Takipio Pro</p>
-                <h2 className="mt-2 text-3xl font-black">İlk ay ₺89</h2>
-                <p className="mt-2 text-sm leading-6 text-slate-400">Sonraki aylar ₺99. Sınırsız sipariş, entegrasyonlar, ekip yetkileri, gelişmiş raporlar ve mobil tam senkron.</p>
-              </div>
-              <button onClick={() => setUpgradeOpen(false)} className="rounded-2xl bg-white/10 px-4 py-2 text-lg font-black">×</button>
-            </div>
-
-            <div className="rounded-2xl bg-[#0b1220] p-4 ring-1 ring-white/10">
-              <p className="text-sm font-black">Gerçek ödeme entegrasyonu sonraki aşama</p>
-              <p className="mt-2 text-xs leading-5 text-slate-400">Bu buton şimdilik demo olarak Pro planı açar.</p>
-            </div>
-
-            <div className="mt-5 flex flex-wrap gap-2">
-              <button onClick={simulateUpgrade} className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white">Demo Pro Yap</button>
-              <button onClick={() => setUpgradeOpen(false)} className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-black text-slate-200">Vazgeç</button>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </section>
   );
 }
 
-function SmallMetric({ label, value }: { label: string; value: string }) {
+function Metric({ label, value, valueClass }: { label: string; value: string; valueClass?: string }) {
   return (
-    <div className="rounded-[18px] bg-[#0b1220] p-4 ring-1 ring-white/10">
+    <div className="rounded-[20px] border border-white/10 bg-[#0b1220] p-4">
       <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">{label}</p>
-      <p className="mt-2 text-lg font-black">{value}</p>
+      <p className={["mt-2 text-2xl font-black", valueClass || "text-white"].join(" ")}>{value}</p>
     </div>
   );
 }
 
-function PlanCard({ title, price, desc, active, features }: { title: string; price: string; desc: string; active: boolean; features: string[] }) {
+function PlanCard({
+  title,
+  price,
+  sub,
+  badge,
+  active,
+  features,
+}: {
+  title: string;
+  price: string;
+  sub?: string;
+  badge: string;
+  active: boolean;
+  features: string[];
+}) {
   return (
-    <div className={`rounded-[22px] border p-4 ${active ? "border-blue-500 bg-blue-500/10" : "border-white/10 bg-[#0b1220]"}`}>
-      <div className="flex items-start justify-between gap-3">
+    <div className={`rounded-[28px] border p-5 ${
+      active ? "border-blue-400/30 bg-blue-500/10" : "border-white/10 bg-[#111a2e]"
+    }`}>
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h3 className="text-xl font-black">{title}</h3>
-          <p className="mt-1 text-sm text-slate-400">{desc}</p>
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{badge}</p>
+          <h3 className="mt-2 text-3xl font-black">{title}</h3>
+          <p className="mt-2 text-2xl font-black text-blue-300">{price}</p>
+          {sub ? <p className="mt-1 text-sm font-bold text-slate-400">{sub}</p> : null}
         </div>
-        {active ? <span className="rounded-full bg-blue-500 px-3 py-1 text-[10px] font-black text-white">Aktif</span> : null}
+        {active ? <span className="rounded-full bg-emerald-400/15 px-3 py-1 text-xs font-black text-emerald-300">Aktif</span> : null}
       </div>
 
-      <p className="mt-4 text-2xl font-black">{price}</p>
-
-      <div className="mt-4 space-y-2">
-        {features.map((feature) => <p key={feature} className="text-xs font-bold text-slate-300">✓ {feature}</p>)}
+      <div className="mt-5 space-y-3">
+        {features.map((feature) => (
+          <div key={feature} className="flex items-start gap-3 rounded-2xl bg-[#0b1220] p-3 ring-1 ring-white/10">
+            <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-500/15 text-xs font-black text-blue-300">✓</span>
+            <p className="text-sm font-bold leading-5 text-slate-300">{feature}</p>
+          </div>
+        ))}
       </div>
     </div>
   );
