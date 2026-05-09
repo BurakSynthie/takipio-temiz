@@ -152,10 +152,18 @@ function Icon({ name, className = "" }: { name: string; className?: string }) {
   return null;
 }
 
-function Logo({ headerOnly = false }: { headerOnly?: boolean }) {
+function Logo({ headerOnly = false, compact = false }: { headerOnly?: boolean; compact?: boolean }) {
   if (headerOnly) {
     return (
-      <div className="flex h-14 w-40 items-center justify-start overflow-hidden">
+      <div className="flex h-12 w-40 items-center justify-start overflow-hidden">
+        <img src="/takipio-logo.png" alt="Takipio" className="h-full w-auto object-contain" />
+      </div>
+    );
+  }
+
+  if (compact) {
+    return (
+      <div className="flex h-14 w-44 items-center justify-start overflow-hidden">
         <img src="/takipio-logo.png" alt="Takipio" className="h-full w-auto object-contain" />
       </div>
     );
@@ -378,11 +386,11 @@ function LaptopMockup({
 }) {
   return (
     <div className="relative mx-auto w-full max-w-[1220px]">
-      <div className="pointer-events-none absolute -left-10 top-20 z-20 hidden w-[185px] takipio-float-soft 2xl:block">
+      <div className="pointer-events-none absolute right-28 top-10 z-20 hidden w-[185px] takipio-float-soft min-[1600px]:block">
         <MiniStat title="Bugünkü Sipariş" value="1.247" sub="↑ 18.6%" />
       </div>
 
-      <div className="pointer-events-none absolute -right-10 bottom-24 z-20 hidden w-[230px] takipio-float-reverse 2xl:block">
+      <div className="pointer-events-none absolute right-16 bottom-20 z-20 hidden w-[230px] takipio-float-reverse min-[1600px]:block">
         <div className="rounded-3xl border border-white/10 bg-[#0b1220]/85 p-4 shadow-2xl backdrop-blur-xl">
           <p className="text-sm font-black text-white">Sipariş Durumu</p>
           <div className="mt-4 grid grid-cols-[72px_1fr] items-center gap-4">
@@ -398,7 +406,7 @@ function LaptopMockup({
         </div>
       </div>
 
-      <div className="pointer-events-none absolute -right-8 top-16 z-20 hidden w-[220px] takipio-float-soft xl:block">
+      <div className="pointer-events-none absolute right-8 top-14 z-20 hidden w-[220px] takipio-float-soft xl:block">
         <div className="rounded-3xl border border-blue-400/20 bg-blue-500/10 p-4 shadow-2xl shadow-blue-950/20 backdrop-blur-xl">
           <p className="text-sm font-black text-white">Yeni Sipariş</p>
           <p className="mt-1 text-xs leading-5 text-slate-400">#10245 numaralı sipariş alındı.</p>
