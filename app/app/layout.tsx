@@ -347,6 +347,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [gorkiOpen, setGorkiOpen] = useState(false);
   const [gorkiInput, setGorkiInput] = useState("");
+  const [gorkiLoading, setGorkiLoading] = useState(false);
   const [gorkiMessages, setGorkiMessages] = useState([
     { role: "assistant", text: "Merhaba, ben Gorki. Bugün panelde sana nasıl yardımcı olabilirim?" },
   ]);
@@ -468,21 +469,61 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     else router.push("/app");
   }
 
+  async function askGorki(question: string) {
+    const clean = question.trim();
+
+    if (!clean || gorkiLoading) return;
+
+    setGorkiInput("");
+    setGorkiLoading(true);
+    setGorkiMessages((current) => [...current, { role: "user", text: clean }]);
+
+    try {
+      const sessionResult = await supabase.auth.getSession();
+      const accessToken = sessionResult.data.session?.access_token;
+
+      if (!accessToken) {
+        setGorkiMessages((current) => [
+          ...current,
+          { role: "assistant", text: "Oturum bulunamadı. Lütfen tekrar giriş yap." },
+        ]);
+        return;
+      }
+
+      const response = await fetch("/api/gorki", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ question: clean }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result?.error || "Gorki cevap oluşturamadı.");
+      }
+
+      setGorkiMessages((current) => [
+        ...current,
+        { role: "assistant", text: result.answer || "Şu an net bir cevap oluşturamadım." },
+      ]);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Gorki şu an cevap veremedi.";
+
+      setGorkiMessages((current) => [
+        ...current,
+        { role: "assistant", text: `Bir sorun oldu: ${errorMessage}` },
+      ]);
+    } finally {
+      setGorkiLoading(false);
+    }
+  }
+
   function sendGorkiMessage(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    const clean = gorkiInput.trim();
-    if (!clean) return;
-
-    setGorkiMessages((current) => [
-      ...current,
-      { role: "user", text: clean },
-      {
-        role: "assistant",
-        text: "Şimdilik demo sohbet ekranındayım. Bir sonraki AI paketinde sipariş, stok, iade ve fatura verilerine bakarak canlı cevap vereceğim.",
-      },
-    ]);
-    setGorkiInput("");
+    askGorki(gorkiInput);
   }
 
   async function signOut() {
@@ -763,16 +804,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   <button
                     key={question}
                     type="button"
-                    onClick={() => {
-                      setGorkiMessages((current) => [
-                        ...current,
-                        { role: "user", text: question },
-                        {
-                          role: "assistant",
-                          text: "Bu hazır soru için canlı veri cevabını AI bağlantı paketinde aktif edeceğiz. Şimdilik bu sohbet ekranı arayüz olarak hazır.",
-                        },
-                      ]);
-                    }}
+                    onClick={() => askGorki(question)}
+                    disabled={gorkiLoading}
                     className="rounded-2xl bg-white/10 px-3 py-2 text-left text-[11px] font-black text-slate-200 transition hover:bg-white/15"
                   >
                     {question}
@@ -784,10 +817,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <input
                   value={gorkiInput}
                   onChange={(event) => setGorkiInput(event.target.value)}
-                  placeholder="Gorki'ye yaz..."
-                  className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-[#07111f] px-3 py-2 text-xs font-bold text-white outline-none placeholder:text-slate-500"
+                  placeholder={gorkiLoading ? "Gorki düşünüyor..." : "Gorki'ye yaz..."}
+                  disabled={gorkiLoading}
+                  className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-[#07111f] px-3 py-2 text-xs font-bold text-white outline-none placeholder:text-slate-500 disabled:opacity-60"
                 />
-                <button className="rounded-2xl bg-blue-600 px-4 py-2 text-xs font-black text-white">Gönder</button>
+                <button disabled={gorkiLoading} className="rounded-2xl bg-blue-600 px-4 py-2 text-xs font-black text-white disabled:opacity-60">
+                  {gorkiLoading ? "..." : "Gönder"}
+                </button>
               </form>
             </div>
           </div>
@@ -881,4 +917,3 @@ function PanelItem({ title, text, sub, icon, onDelete }: { title: string; text: 
     </div>
   );
 }
-// takipio redeploy trigger
