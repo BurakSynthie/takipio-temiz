@@ -1,9 +1,12 @@
 import Link from "next/link";
 
-type Section = {
-  title: string;
-  text: string;
-};
+const sections = [
+  { title: 'Toplanan Bilgiler', text: 'Takipio; hesap oluşturma, giriş yapma ve panel kullanımı sırasında ad, e-posta, işletme adı, telefon, ürün, sipariş, ödeme, stok, kargo ve iade gibi işletme operasyon verilerini işleyebilir.' },
+  { title: 'Verilerin Kullanım Amacı', text: 'Veriler; kullanıcı hesabını oluşturmak, işletme panelini çalıştırmak, sipariş/stok/kargo/iade süreçlerini yönetmek, abonelik durumunu takip etmek ve kullanıcı deneyimini geliştirmek amacıyla kullanılır.' },
+  { title: 'Verilerin Saklanması', text: 'Veriler, Takipio altyapısında kullanılan güvenli servislerde saklanır. Kullanıcılar yalnızca yetkili oldukları işletme verilerine erişebilir.' },
+  { title: 'Üçüncü Taraf Servisler', text: 'Takipio; kimlik doğrulama, veritabanı, dosya depolama, ödeme ve ileride pazaryeri entegrasyonları için üçüncü taraf servislerden yararlanabilir.' },
+  { title: 'Haklarınız', text: 'Kullanıcılar, kendilerine ait verilerle ilgili bilgi talep etme, düzeltme, silme veya erişim taleplerini iletme hakkına sahiptir.' }
+];
 
 function Logo() {
   return (
@@ -19,17 +22,7 @@ function Logo() {
   );
 }
 
-export default function LegalPageTemplate({
-  badge,
-  title,
-  description,
-  sections,
-}: {
-  badge: string;
-  title: string;
-  description: string;
-  sections: Section[];
-}) {
+export default function Page() {
   return (
     <main className="min-h-screen bg-[#020817] text-white">
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_20%_0%,rgba(37,99,235,.28),transparent_30%),radial-gradient(circle_at_85%_20%,rgba(6,182,212,.13),transparent_30%)]" />
@@ -53,13 +46,13 @@ export default function LegalPageTemplate({
         <div className="rounded-[34px] border border-white/10 bg-[#07111f]/82 p-6 shadow-2xl backdrop-blur-xl lg:p-9">
           <div className="mb-8">
             <div className="mb-4 inline-flex rounded-full bg-blue-500/15 px-4 py-2 text-xs font-black uppercase tracking-[0.14em] text-blue-300 ring-1 ring-blue-400/20">
-              {badge}
+              Yasal
             </div>
             <h1 className="text-[42px] font-black leading-tight tracking-[-0.06em] text-white sm:text-6xl">
-              {title}
+              Gizlilik Politikası
             </h1>
             <p className="mt-5 max-w-3xl text-sm leading-7 text-slate-400">
-              {description}
+              Takipio kullanıcılarının kişisel verilerinin ve işletme bilgilerinin nasıl işlendiğini açıklayan bilgilendirme sayfasıdır.
             </p>
             <p className="mt-3 text-xs font-bold text-slate-600">
               Son güncelleme: 2026
@@ -78,7 +71,7 @@ export default function LegalPageTemplate({
           <div className="mt-8 rounded-[24px] border border-blue-400/20 bg-blue-500/10 p-5">
             <h2 className="text-lg font-black text-white">İletişim</h2>
             <p className="mt-3 text-sm leading-7 text-slate-300">
-              Bu sayfadaki konularla ilgili bize ulaşmak için:{" "}
+              Bu sayfadaki konularla ilgili bize ulaşmak için: 
               <a href="mailto:takipioinfo@gmail.com" className="font-black text-blue-300">
                 takipioinfo@gmail.com
               </a>
@@ -87,25 +80,5 @@ export default function LegalPageTemplate({
         </div>
       </section>
     </main>
-  );
-}
-
-
-const sections = [
-  { title: 'Toplanan Bilgiler', text: 'Takipio; hesap oluşturma, giriş yapma ve panel kullanımı sırasında ad, e-posta, işletme adı, telefon, ürün, sipariş, ödeme, stok, kargo ve iade gibi işletme operasyon verilerini işleyebilir.' },
-  { title: 'Verilerin Kullanım Amacı', text: 'Veriler; kullanıcı hesabını oluşturmak, işletme panelini çalıştırmak, sipariş/stok/kargo/iade süreçlerini yönetmek, abonelik durumunu takip etmek ve kullanıcı deneyimini geliştirmek amacıyla kullanılır.' },
-  { title: 'Verilerin Saklanması', text: 'Veriler, Takipio altyapısında kullanılan güvenli servislerde saklanır. Kullanıcılar yalnızca yetkili oldukları işletme verilerine erişebilir.' },
-  { title: 'Üçüncü Taraf Servisler', text: 'Takipio; kimlik doğrulama, veritabanı, dosya depolama, ödeme ve ileride pazaryeri entegrasyonları için üçüncü taraf servislerden yararlanabilir. Bu servisler yalnızca hizmetin çalışması için gerekli bilgilerle sınırlı olarak kullanılır.' },
-  { title: 'Haklarınız', text: 'Kullanıcılar, kendilerine ait verilerle ilgili bilgi talep etme, düzeltme, silme veya erişim taleplerini iletme hakkına sahiptir.' }
-];
-
-export default function Page() {
-  return (
-    <LegalPageTemplate
-      badge='Yasal'
-      title='Gizlilik Politikası'
-      description='Takipio kullanıcılarının kişisel verilerinin ve işletme bilgilerinin nasıl işlendiğini açıklayan bilgilendirme sayfasıdır.'
-      sections={sections}
-    />
   );
 }
