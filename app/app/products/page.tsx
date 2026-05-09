@@ -610,24 +610,129 @@ export default function ProductsPage() {
     setStockUpdatingId(null);
   }
 
-  function printQr(product: Product) {
-    const qrUrl = createQrImageUrl(product.product_code, 400);
-    const newWindow = window.open("", "_blank", "width=800,height=900");
+  function openQrDocument(product: Product, autoPrint = false) {
+    const qrUrl = createQrImageUrl(product.product_code, 420);
+    const targetUrl = createQrTarget(product.product_code);
+    const newWindow = window.open("", "_blank", "width=860,height=980");
 
-    if (!newWindow) return;
+    if (!newWindow) {
+      setMessage("Pop-up engellendi. Tarayıcıda pop-up izni verip tekrar dene.");
+      return;
+    }
 
     newWindow.document.write(`
       <html>
-        <head><title>${product.name} QR</title></head>
-        <body style="font-family:Arial,sans-serif;padding:24px;text-align:center;">
-          <h2>${product.name}</h2>
-          <p>${product.product_code}</p>
-          <img src="${qrUrl}" style="width:320px;height:320px;" />
-          <script>window.onload = () => window.print();</script>
+        <head>
+          <title>${product.name} QR Etiketi</title>
+          <style>
+            * { box-sizing: border-box; }
+            body {
+              margin: 0;
+              padding: 28px;
+              font-family: Arial, sans-serif;
+              background: #f3f7fb;
+              color: #0f172a;
+            }
+            .sheet {
+              max-width: 560px;
+              margin: 0 auto;
+              background: #ffffff;
+              border: 1px solid #dbe5f0;
+              border-radius: 28px;
+              padding: 28px;
+              text-align: center;
+              box-shadow: 0 24px 80px rgba(15, 23, 42, .10);
+            }
+            .brand {
+              font-size: 13px;
+              font-weight: 900;
+              letter-spacing: .16em;
+              color: #2563eb;
+              text-transform: uppercase;
+              margin-bottom: 18px;
+            }
+            h1 {
+              margin: 0;
+              font-size: 30px;
+              line-height: 1.1;
+              letter-spacing: -.04em;
+            }
+            .code {
+              margin-top: 10px;
+              font-size: 14px;
+              font-weight: 800;
+              color: #64748b;
+            }
+            img {
+              width: 320px;
+              height: 320px;
+              margin: 24px auto 14px;
+              display: block;
+              border: 1px solid #e2e8f0;
+              border-radius: 22px;
+              padding: 12px;
+            }
+            .url {
+              word-break: break-all;
+              color: #2563eb;
+              font-size: 12px;
+              line-height: 1.5;
+            }
+            .actions {
+              margin-top: 22px;
+              display: flex;
+              justify-content: center;
+              gap: 10px;
+            }
+            button {
+              border: 0;
+              border-radius: 14px;
+              padding: 12px 16px;
+              background: #2563eb;
+              color: white;
+              font-weight: 900;
+              cursor: pointer;
+            }
+            .secondary { background: #0f172a; }
+            .hint {
+              margin-top: 18px;
+              color: #64748b;
+              font-size: 12px;
+              line-height: 1.5;
+            }
+            @media print {
+              body { background: white; padding: 0; }
+              .sheet { box-shadow: none; border: 0; }
+              .actions, .hint { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="sheet">
+            <div class="brand">Takipio QR Etiketi</div>
+            <h1>${product.name}</h1>
+            <div class="code">${product.product_code}</div>
+            <img src="${qrUrl}" />
+            <div class="url">${targetUrl}</div>
+            <div class="actions">
+              <button onclick="window.print()">PDF / Yazdır</button>
+              <button class="secondary" onclick="window.close()">Kapat</button>
+            </div>
+            <div class="hint">PDF indirmek için açılan yazdırma ekranında “PDF olarak kaydet” seçeneğini kullanabilirsin.</div>
+          </div>
+          ${autoPrint ? "<script>window.onload = () => setTimeout(() => window.print(), 500);</script>" : ""}
         </body>
       </html>
     `);
     newWindow.document.close();
+  }
+
+  function printQr(product: Product) {
+    openQrDocument(product, true);
+  }
+
+  function downloadQrPdf(product: Product) {
+    openQrDocument(product, false);
   }
 
   return (
@@ -836,6 +941,7 @@ export default function ProductsPage() {
                       <button onClick={() => startEdit(product)} className="rounded-xl bg-blue-500/15 px-3 py-2 text-xs font-black text-blue-300">Düzenle</button>
                       <button onClick={() => deleteProduct(product.id)} className="rounded-xl bg-red-500/15 px-3 py-2 text-xs font-black text-red-300">Sil</button>
                       <button onClick={() => setOpenQrId(openQrId === product.id ? null : product.id)} className="rounded-xl bg-violet-500/15 px-3 py-2 text-xs font-black text-violet-300">QR Gör</button>
+                      <button onClick={() => downloadQrPdf(product)} className="rounded-xl bg-cyan-500/15 px-3 py-2 text-xs font-black text-cyan-300">PDF</button>
                       <button onClick={() => printQr(product)} className="rounded-xl bg-white/10 px-3 py-2 text-xs font-black text-slate-200">Yazdır</button>
                     </div>
 
@@ -854,6 +960,10 @@ export default function ProductsPage() {
                         <p className="text-base font-black">{product.name}</p>
                         <p className="mt-1 text-xs text-slate-500">{product.product_code}</p>
                         <p className="mt-2 break-all text-xs text-blue-300">{createQrTarget(product.product_code)}</p>
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <button onClick={() => downloadQrPdf(product)} className="rounded-xl bg-cyan-500/15 px-3 py-2 text-xs font-black text-cyan-300">PDF / Etiket Aç</button>
+                          <button onClick={() => printQr(product)} className="rounded-xl bg-white/10 px-3 py-2 text-xs font-black text-slate-200">Direkt Yazdır</button>
+                        </div>
                       </div>
                     </div>
                   ) : null}
