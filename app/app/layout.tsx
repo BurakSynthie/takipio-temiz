@@ -106,17 +106,31 @@ function pageTitle(pathname: string) {
 }
 
 function routePermission(pathname: string): keyof Member | null {
-  const all = [...operationItems, ...businessItems, ...centerItems];
+  const rules: Array<{ prefix: string; permission: keyof Member | null }> = [
+    { prefix: "/app/settings", permission: "can_manage_settings" },
+    { prefix: "/app/business-setup", permission: "can_manage_settings" },
+    { prefix: "/app/billing", permission: "can_manage_billing" },
+    { prefix: "/app/integrations", permission: "can_manage_integrations" },
+    { prefix: "/app/invoices", permission: "can_manage_invoices" },
+    { prefix: "/app/customers", permission: "can_manage_customers" },
+    { prefix: "/app/orders", permission: "can_manage_orders" },
+    { prefix: "/app/shipments", permission: "can_manage_shipments" },
+    { prefix: "/app/returns", permission: "can_manage_returns" },
+    { prefix: "/app/products", permission: "can_manage_products" },
+    { prefix: "/app/qr", permission: "can_manage_products" },
+    { prefix: "/app/stock", permission: "can_manage_stock" },
+    { prefix: "/app/sales", permission: "can_manage_sales" },
+    { prefix: "/app/reports", permission: "can_view_dashboard" },
+    { prefix: "/app/notifications", permission: "can_view_dashboard" },
+    { prefix: "/app/downloads", permission: "can_view_dashboard" },
+    { prefix: "/app", permission: "can_view_dashboard" },
+  ];
 
-  const exact = all.find((item) => item.href === pathname);
-  if (exact?.permission) return exact.permission;
+  const match = rules
+    .sort((a, b) => b.prefix.length - a.prefix.length)
+    .find((rule) => pathname === rule.prefix || pathname.startsWith(`${rule.prefix}/`));
 
-  const nested = all
-    .filter((item) => item.href !== "/app")
-    .sort((a, b) => b.href.length - a.href.length)
-    .find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`));
-
-  return nested?.permission ?? null;
+  return match?.permission ?? null;
 }
 
 function isAlwaysAllowedAppRoute(pathname: string) {
@@ -536,9 +550,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   function canSee(item: NavItem) {
     if (!item.permission) return true;
-    if (isOwner || member?.role_name === "Sahip") return true;
+    if (isOwner) return true;
     if (!member) return false;
-    return Boolean(member[item.permission]);
+    if (member.role_name === "Sahip") return true;
+    return member[item.permission] === true;
   }
 
   const visibleOperationItems = useMemo(() => operationItems.filter(canSee), [member, isOwner]);
@@ -554,7 +569,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     !requiredPermission ||
     isOwner ||
     member?.role_name === "Sahip" ||
-    Boolean(member?.[requiredPermission]);
+    member?.[requiredPermission] === true;
 
   function toggleTheme() {
     const next = theme === "dark" ? "light" : "dark";
@@ -970,9 +985,9 @@ function AccessDeniedScreen({ title, onBack }: { title: string; onBack: () => vo
         <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-[24px] bg-red-500/15 text-red-300 ring-1 ring-red-400/20">
           <Icon name="settings" className="h-7 w-7" />
         </div>
-        <h2 className="text-3xl font-black tracking-[-0.04em]">Erişim yetkin yok</h2>
+        <h2 className="text-3xl font-black tracking-[-0.04em]">Erişim alanı dışında</h2>
         <p className="mt-3 text-sm leading-6 text-slate-400">
-          {title} sayfasını kullanmak için bu modüle ait yetkin açık olmalı. İşletme sahibinden rol/yetki güncellemesi isteyebilirsin.
+          Bu sayfa senin yetki alanının dışında. Bu modüle erişmek için işletme sahibinin ilgili yetkiyi açması gerekir.
         </p>
         <button onClick={onBack} className="mt-6 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-500">
           Dashboard’a Dön
