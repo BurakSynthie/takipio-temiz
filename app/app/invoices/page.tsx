@@ -365,6 +365,8 @@ function calculateItem(line: LineForm, subtotal: number, discount: number) {
 function validateInvoiceLike(input: {
   settings: InvoiceSettings | null;
   customer_name: string;
+  customer_phone?: string | null;
+  customer_email?: string | null;
   customer_tax_id: string | null;
   customer_tax_office: string | null;
   billing_address: string | null;
@@ -653,6 +655,8 @@ export default function InvoicesPage() {
     const validationErrors = validateInvoiceLike({
       settings,
       customer_name: form.customer_name,
+      customer_phone: form.customer_phone,
+      customer_email: form.customer_email,
       customer_tax_id: form.customer_tax_id,
       customer_tax_office: form.customer_tax_office,
       billing_address: form.billing_address,
@@ -774,6 +778,8 @@ export default function InvoicesPage() {
     return validateInvoiceLike({
       settings,
       customer_name: invoice.customer_name,
+      customer_phone: invoice.customer_phone,
+      customer_email: invoice.customer_email,
       customer_tax_id: invoice.customer_tax_id,
       customer_tax_office: invoice.customer_tax_office,
       billing_address: invoice.billing_address,
