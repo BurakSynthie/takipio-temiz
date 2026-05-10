@@ -164,35 +164,16 @@ export async function POST(
     const integration = await getIntegration(supabase, business.businessId, marketplace);
     const now = new Date().toISOString();
 
+    const missingFields = validateCredentials(marketplace, integration);
 
-
-    if (!integration.is_active) {
-      const errorMessage = `${marketplaceName(marketplace)} bağlantısı aktif değil. Önce Aktif Bağlantı seçeneğini açıp kaydet.`;
-
-      await supabase
-        .from("marketplace_integrations")
-        .update({
-          connection_status: "error",
-          last_sync_at: now,
-          last_sync_status: "failed",
-          last_error: errorMessage,
-          updated_at: now,
-        })
-        .eq("business_id", business.businessId)
-        .eq("id", integration.id);
-
-      return NextResponse.json({ error: errorMessage }, { status: 400 });
-    }
-
-    if (!hasMinimumCredential(marketplace, integration)) {
-      const errorMessage = `${marketplaceName(marketplace)} için minimum API bilgileri eksik.`;
+    if (missingFields.length > 0) {
+      const errorMessage = `${marketplaceName(marketplace)} için eksik alanlar: ${missingFields.join(", ")}`;
 
       await supabase
         .from("marketplace_integrations")
         .update({
           connection_status: "error",
-          last_sync_at: now,
-          last_sync_status: "failed",
+          last_test_at: now,
           last_error: errorMessage,
           updated_at: now,
         })
@@ -205,9 +186,8 @@ export async function POST(
     await supabase
       .from("marketplace_integrations")
       .update({
-        connection_status: "sync_ready",
-        last_sync_at: now,
-        last_sync_status: "success",
+        connection_status: "test_success",
+        last_test_at: now,
         last_error: null,
         updated_at: now,
       })
@@ -216,13 +196,12 @@ export async function POST(
 
     return NextResponse.json({
       ok: true,
-      message: `${marketplaceName(marketplace)} backend senkron route’u hazır. Gerçek API adaptörü sonraki pakette bağlanacak.`,
+      message: `${marketplaceName(marketplace)} bağlantı bilgileri backend route üzerinden doğrulandı.`,
       marketplace,
-      syncedAt: now,
-      simulated: true,
+      checkedAt: now,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Senkron işlemi yapılamadı.";
+    const message = error instanceof Error ? error.message : "Bağlantı testi yapılamadı.";
 
     return NextResponse.json({ error: message }, { status: 500 });
   }
