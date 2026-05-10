@@ -211,6 +211,22 @@ function buildCustomerName(pkg: TrendyolPackage) {
   return "Trendyol Müşterisi";
 }
 
+function safeRawPackage(pkg: TrendyolPackage) {
+  return {
+    id: pkg.id ?? null,
+    orderNumber: pkg.orderNumber ?? null,
+    packageNumber: pkg.packageNumber ?? null,
+    status: pkg.status ?? null,
+    cargoProviderName: pkg.cargoProviderName ?? null,
+    cargoTrackingNumber: pkg.cargoTrackingNumber ?? null,
+    cargoTrackingLink: pkg.cargoTrackingLink ?? null,
+    orderDate: pkg.orderDate ?? null,
+    createdDate: pkg.createdDate ?? null,
+    lastModifiedDate: pkg.lastModifiedDate ?? null,
+    lineCount: Array.isArray(pkg.lines) ? pkg.lines.length : 0,
+  };
+}
+
 function buildOrderPayload(pkg: TrendyolPackage, businessId: string, userEmail: string) {
   const lines = Array.isArray(pkg.lines) ? pkg.lines : [];
   const quantity = lines.reduce((sum, line) => sum + toNumber(line.quantity || 1), 0) || 1;
@@ -231,6 +247,11 @@ function buildOrderPayload(pkg: TrendyolPackage, businessId: string, userEmail: 
     business_id: businessId,
     created_by: userEmail,
     order_no: orderNo,
+    marketplace_order_no: pkg.orderNumber ? String(pkg.orderNumber) : null,
+    marketplace_package_id: packageId || null,
+    marketplace_status: pkg.status || null,
+    marketplace_tracking_link: pkg.cargoTrackingLink || null,
+    marketplace_raw: safeRawPackage(pkg),
     product_id: null,
     product_code: firstLine.productCode || firstLine.merchantSku || firstLine.barcode || null,
     product_name: productNames || firstLine.productName || "Trendyol Siparişi",
@@ -375,6 +396,37 @@ async function upsertTrendyolOrders(supabase: any, businessId: string, userEmail
   };
 }
 
+async function insertSyncLog(
+  supabase: any,
+  input: {
+    businessId: string;
+    integrationId: string;
+    marketplace: string;
+    status: "success" | "failed";
+    message?: string;
+    errorMessage?: string;
+    received?: number;
+    inserted?: number;
+    updated?: number;
+    startedAt: string;
+  }
+) {
+  await supabase.from("marketplace_sync_logs").insert({
+    business_id: input.businessId,
+    integration_id: input.integrationId,
+    marketplace: input.marketplace,
+    sync_type: "manual",
+    status: input.status,
+    message: input.message || null,
+    received_count: input.received ?? 0,
+    inserted_count: input.inserted ?? 0,
+    updated_count: input.updated ?? 0,
+    error_message: input.errorMessage || null,
+    started_at: input.startedAt,
+    finished_at: new Date().toISOString(),
+  });
+}
+
 async function runTrendyolSync(supabase: any, businessId: string, userEmail: string, integration: MarketplaceIntegrationRow) {
   const packages = await fetchTrendyolPackages(integration);
   return upsertTrendyolOrders(supabase, businessId, userEmail, packages);
@@ -386,6 +438,7 @@ export async function POST(
 ) {
   const params = await context.params;
   const marketplace = String(params.marketplace || "").toLowerCase();
+  const startedAt = new Date().toISOString();
 
   try {
     if (!allowedMarketplaces.includes(marketplace)) {
@@ -425,6 +478,15 @@ export async function POST(
         .eq("business_id", business.businessId)
         .eq("id", integration.id);
 
+      await insertSyncLog(supabase, {
+        businessId: business.businessId,
+        integrationId: integration.id,
+        marketplace,
+        status: "failed",
+        errorMessage,
+        startedAt,
+      });
+
       return NextResponse.json({ error: errorMessage }, { status: 400 });
     }
 
@@ -445,6 +507,15 @@ export async function POST(
         .eq("business_id", business.businessId)
         .eq("id", integration.id);
 
+      await insertSyncLog(supabase, {
+        businessId: business.businessId,
+        integrationId: integration.id,
+        marketplace,
+        status: "failed",
+        errorMessage,
+        startedAt,
+      });
+
       return NextResponse.json({ error: errorMessage }, { status: 400 });
     }
 
@@ -461,6 +532,15 @@ export async function POST(
         .eq("business_id", business.businessId)
         .eq("id", integration.id);
 
+      await insertSyncLog(supabase, {
+        businessId: business.businessId,
+        integrationId: integration.id,
+        marketplace,
+        status: "success",
+        message: `${marketplaceName(marketplace)} backend route hazır. Gerçek API adaptörü sonraki pakette bağlanacak.`,
+        startedAt,
+      });
+
       return NextResponse.json({
         ok: true,
         message: `${marketplaceName(marketplace)} backend senkron route’u hazır. Gerçek API adaptörü sonraki pakette bağlanacak.`,
@@ -471,24 +551,38 @@ export async function POST(
     }
 
     const syncResult = await runTrendyolSync(supabase, business.businessId, business.userEmail, integration);
+    const finishedAt = new Date().toISOString();
+    const message = `Trendyol senkron tamamlandı. Gelen paket: ${syncResult.received}, yeni eklenen: ${syncResult.inserted}, güncellenen: ${syncResult.updated}.`;
 
     await supabase
       .from("marketplace_integrations")
       .update({
         connection_status: "sync_ready",
-        last_sync_at: new Date().toISOString(),
+        last_sync_at: finishedAt,
         last_sync_status: "success",
         last_error: null,
-        updated_at: new Date().toISOString(),
+        updated_at: finishedAt,
       })
       .eq("business_id", business.businessId)
       .eq("id", integration.id);
 
+    await insertSyncLog(supabase, {
+      businessId: business.businessId,
+      integrationId: integration.id,
+      marketplace,
+      status: "success",
+      message,
+      received: syncResult.received,
+      inserted: syncResult.inserted,
+      updated: syncResult.updated,
+      startedAt,
+    });
+
     return NextResponse.json({
       ok: true,
-      message: `Trendyol senkron tamamlandı. Gelen paket: ${syncResult.received}, yeni eklenen: ${syncResult.inserted}, güncellenen: ${syncResult.updated}.`,
+      message,
       marketplace,
-      syncedAt: new Date().toISOString(),
+      syncedAt: finishedAt,
       result: syncResult,
     });
   } catch (error) {
@@ -520,6 +614,15 @@ export async function POST(
         })
         .eq("business_id", business.businessId)
         .eq("id", integration.id);
+
+      await insertSyncLog(supabase, {
+        businessId: business.businessId,
+        integrationId: integration.id,
+        marketplace,
+        status: "failed",
+        errorMessage: message,
+        startedAt,
+      });
     } catch {
       // Hata güncelleme de başarısız olursa API cevabını yine döndür.
     }
