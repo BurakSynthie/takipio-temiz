@@ -8,40 +8,11 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-type Invite = {
-  id: string;
-  business_id: string;
-  email: string;
-  display_name: string | null;
-  role_name: string | null;
-  token: string | null;
-  status: string | null;
-  invited_by: string | null;
-  sent_at: string | null;
-  accepted_at: string | null;
-  expires_at: string | null;
-  created_at: string | null;
-};
-
 function normalizeEmail(email: string | null | undefined) {
   return (email ?? "").trim().toLowerCase();
 }
 
-function formatDate(date: string | null | undefined) {
-  if (!date) return "-";
-
-  return new Intl.DateTimeFormat("tr-TR", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(date));
-}
-
-function isExpired(date: string | null | undefined) {
-  if (!date) return false;
-  return new Date(date).getTime() < Date.now();
-}
-
-export default function RegisterPage() {
+export default function AppRegisterPage() {
   return (
     <Suspense fallback={<RegisterLoading />}>
       <RegisterClient />
@@ -69,165 +40,78 @@ function RegisterClient() {
   const [email, setEmail] = useState(invitedEmail);
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
-  const [invite, setInvite] = useState<Invite | null>(null);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
-  const [checking, setChecking] = useState(true);
+  const [sessionEmail, setSessionEmail] = useState("");
 
-  const inviteState = useMemo(() => {
-    if (!inviteToken) return "missing";
-    if (!invite) return "unknown";
-    if (invite.status === "accepted") return "accepted";
-    if (isExpired(invite.expires_at)) return "expired";
-    return "valid";
-  }, [invite, inviteToken]);
+  const hasInvite = useMemo(() => Boolean(inviteToken), [inviteToken]);
 
-  async function loadInvite() {
-    setChecking(true);
-    setMessage("");
+  async function loadSession() {
+    const sessionResult = await supabase.auth.getSession();
+    const currentEmail = normalizeEmail(sessionResult.data.session?.user?.email);
 
-    try {
-      if (!inviteToken) {
-        setMessage("Davet bağlantısı eksik. Maildeki davet linkine tekrar tıkla.");
-        setChecking(false);
-        return;
-      }
+    setSessionEmail(currentEmail);
 
-      const sessionResult = await supabase.auth.getSession();
-      const sessionEmail = normalizeEmail(sessionResult.data.session?.user?.email);
-
-      // Kullanıcı henüz giriş yapmadıysa invite RLS nedeniyle daveti okuyamayabilir.
-      // Bu normal. Önce formu gösteriyoruz, kabul işlemi girişten sonra yapılacak.
-      if (!sessionEmail) {
-        setChecking(false);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("team_invites")
-        .select("*")
-        .eq("token", inviteToken)
-        .maybeSingle();
-
-      if (error) {
-        setMessage(`Davet kontrol edilemedi: ${error.message}`);
-        setChecking(false);
-        return;
-      }
-
-      if (data) {
-        const foundInvite = data as Invite;
-        setInvite(foundInvite);
-        setEmail(normalizeEmail(foundInvite.email || invitedEmail || sessionEmail));
-        setDisplayName(foundInvite.display_name || "");
-      }
-    } finally {
-      setChecking(false);
+    if (currentEmail && !email) {
+      setEmail(currentEmail);
     }
   }
 
   useEffect(() => {
-    loadInvite();
+    loadSession();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inviteToken]);
+  }, []);
 
   async function acceptInvite() {
-    const sessionResult = await supabase.auth.getSession();
-    const session = sessionResult.data.session;
-    const sessionEmail = normalizeEmail(session?.user?.email);
+    setBusy(true);
+    setMessage("");
 
-    if (!session || !sessionEmail) {
-      setMessage("Davet kabulü için önce giriş yapman gerekiyor.");
-      return false;
-    }
+    try {
+      const sessionResult = await supabase.auth.getSession();
+      const session = sessionResult.data.session;
+      const currentEmail = normalizeEmail(session?.user?.email);
 
-    const inviteResult = await supabase
-      .from("team_invites")
-      .select("*")
-      .eq("token", inviteToken)
-      .maybeSingle();
+      if (!session?.access_token || !currentEmail) {
+        setMessage("Davet kabulü için önce giriş yapman gerekiyor.");
+        setBusy(false);
+        return false;
+      }
 
-    if (inviteResult.error) {
-      setMessage(`Davet bulunamadı: ${inviteResult.error.message}`);
-      return false;
-    }
+      if (invitedEmail && currentEmail !== invitedEmail) {
+        setMessage(`Bu davet ${invitedEmail} adresi için. Şu an ${currentEmail} ile giriş yaptın.`);
+        setBusy(false);
+        return false;
+      }
 
-    if (!inviteResult.data) {
-      setMessage("Davet bulunamadı. Link hatalı olabilir veya davet iptal edilmiş olabilir.");
-      return false;
-    }
+      const response = await fetch("/api/team-invites/accept", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          inviteToken,
+        }),
+      });
 
-    const foundInvite = inviteResult.data as Invite;
-    setInvite(foundInvite);
+      const payload = await response.json();
 
-    if (normalizeEmail(foundInvite.email) !== sessionEmail) {
-      setMessage(`Bu davet ${foundInvite.email} adresi için oluşturulmuş. Şu an ${sessionEmail} ile giriş yaptın.`);
-      return false;
-    }
+      if (!response.ok) {
+        setMessage(payload.error || "Davet kabul edilemedi.");
+        setBusy(false);
+        return false;
+      }
 
-    if (foundInvite.status === "accepted") {
-      window.location.href = "/app";
+      setMessage(`${payload.businessName || "İşletme"} paneline bağlandın. Yönlendiriliyorsun...`);
+
+      window.setTimeout(() => {
+        window.location.href = "/app";
+      }, 600);
+
       return true;
+    } finally {
+      setBusy(false);
     }
-
-    if (isExpired(foundInvite.expires_at)) {
-      setMessage("Bu davetin süresi dolmuş. İşletme sahibinden yeni davet istemelisin.");
-      return false;
-    }
-
-    const memberResult = await supabase
-      .from("business_members")
-      .select("*")
-      .eq("business_id", foundInvite.business_id)
-      .eq("email", sessionEmail)
-      .maybeSingle();
-
-    if (memberResult.error) {
-      setMessage(`Üyelik kontrol edilemedi: ${memberResult.error.message}`);
-      return false;
-    }
-
-    if (!memberResult.data) {
-      setMessage("Davet bulundu ama ekip üyeliğin oluşturulmamış. İşletme sahibinden seni tekrar eklemesini iste.");
-      return false;
-    }
-
-    if (memberResult.data.member_status === "disabled") {
-      setMessage("Bu ekip üyeliği pasif görünüyor. İşletme sahibi tekrar aktif yapmalı.");
-      return false;
-    }
-
-    const updateResult = await supabase
-      .from("team_invites")
-      .update({
-        status: "accepted",
-        accepted_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", foundInvite.id)
-      .eq("email", sessionEmail);
-
-    if (updateResult.error) {
-      setMessage(`Davet kabul edilemedi: ${updateResult.error.message}`);
-      return false;
-    }
-
-    await supabase.from("notifications").insert({
-      business_id: foundInvite.business_id,
-      created_by: sessionEmail,
-      target_email: null,
-      title: "Ekip daveti kabul edildi",
-      message: `${sessionEmail} Takipio davetini kabul etti.`,
-      type: "success",
-      href: "/app/settings",
-    });
-
-    setMessage("Davet kabul edildi. Panele yönlendiriliyorsun...");
-    window.setTimeout(() => {
-      window.location.href = "/app";
-    }, 700);
-
-    return true;
   }
 
   async function handleSignup(event: React.FormEvent<HTMLFormElement>) {
@@ -274,13 +158,16 @@ function RegisterClient() {
       }
 
       if (!result.data.session) {
-        setMessage("Kayıt oluşturuldu. E-posta doğrulaması açıksa gelen doğrulama mailini onayla, sonra bu davet linkine tekrar tıkla.");
+        setMessage("Kayıt oluşturuldu. E-posta doğrulaması açıksa gelen doğrulama mailini onayla, sonra davet linkine tekrar tıkla.");
         setBusy(false);
         return;
       }
 
+      setBusy(false);
       await acceptInvite();
-    } finally {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Kayıt tamamlanamadı.";
+      setMessage(errorMessage);
       setBusy(false);
     }
   }
@@ -316,8 +203,11 @@ function RegisterClient() {
         return;
       }
 
+      setBusy(false);
       await acceptInvite();
-    } finally {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Giriş tamamlanamadı.";
+      setMessage(errorMessage);
       setBusy(false);
     }
   }
@@ -331,21 +221,21 @@ function RegisterClient() {
           </div>
 
           <h1 className="text-[38px] font-black tracking-[-0.06em] sm:text-5xl">
-            Takipio ekibine katıl
+            İşletme paneline katıl
           </h1>
 
           <p className="mt-4 max-w-xl text-sm leading-6 text-slate-400">
-            Sana gönderilen daveti kabul etmek için davet edilen e-posta adresinle kayıt ol veya mevcut hesabınla giriş yap.
+            Bu sayfa seni davet eden işletmenin paneline bağlar. Yetkilerin işletme sahibi tarafından belirlenir.
           </p>
 
           <div className="mt-6 grid gap-3">
             <InfoLine label="Davet e-postası" value={invitedEmail || "Mail linkinden okunamadı"} />
-            <InfoLine label="Davet durumu" value={checking ? "Kontrol ediliyor..." : inviteState === "accepted" ? "Daha önce kabul edilmiş" : inviteState === "expired" ? "Süresi dolmuş" : inviteState === "valid" ? "Geçerli" : "Giriş sonrası kontrol edilecek"} />
-            {invite?.expires_at ? <InfoLine label="Geçerlilik" value={formatDate(invite.expires_at)} /> : null}
+            <InfoLine label="Mevcut oturum" value={sessionEmail || "Henüz giriş yok"} />
+            <InfoLine label="Davet bağlantısı" value={hasInvite ? "Aktif" : "Eksik"} />
           </div>
 
           <div className="mt-6 rounded-2xl border border-amber-400/20 bg-amber-500/10 p-4 text-sm leading-6 text-amber-100">
-            Davet linki çalışsa bile, güvenlik için sadece davet edilen e-posta adresiyle kabul edilebilir.
+            Güvenlik için davet sadece davet edilen e-posta adresiyle kabul edilebilir.
           </div>
         </section>
 
@@ -409,7 +299,7 @@ function RegisterClient() {
               disabled={busy || !email || !password || !inviteToken}
               className="rounded-2xl bg-blue-600 px-5 py-4 text-sm font-black text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {busy ? "İşleniyor..." : mode === "signup" ? "Kayıt Ol ve Daveti Kabul Et" : "Giriş Yap ve Daveti Kabul Et"}
+              {busy ? "İşleniyor..." : mode === "signup" ? "Kayıt Ol ve İşletmeye Katıl" : "Giriş Yap ve İşletmeye Katıl"}
             </button>
 
             <button
@@ -418,7 +308,7 @@ function RegisterClient() {
               disabled={busy || !inviteToken}
               className="rounded-2xl bg-emerald-500/15 px-5 py-4 text-sm font-black text-emerald-300 ring-1 ring-emerald-400/20 transition hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Zaten giriş yaptım, daveti kabul et
+              Zaten giriş yaptım, işletmeye bağlan
             </button>
           </form>
         </section>
