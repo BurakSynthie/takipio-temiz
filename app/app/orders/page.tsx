@@ -311,6 +311,22 @@ function withBusinessFields(context: BusinessContext) {
   };
 }
 
+function getMarketplaceLabel(marketplace: string | null | undefined) {
+  if (marketplace === "trendyol") return "Trendyol";
+  if (marketplace === "hepsiburada") return "Hepsiburada";
+  if (marketplace === "amazon") return "Amazon";
+  if (marketplace === "ciceksepeti") return "ÇiçekSepeti";
+  return null;
+}
+
+function getMarketplaceBadgeClass(marketplace: string | null | undefined) {
+  if (marketplace === "trendyol") return "bg-orange-500/15 text-orange-300 ring-orange-400/20";
+  if (marketplace === "hepsiburada") return "bg-red-500/15 text-red-300 ring-red-400/20";
+  if (marketplace === "amazon") return "bg-amber-500/15 text-amber-300 ring-amber-400/20";
+  if (marketplace === "ciceksepeti") return "bg-pink-500/15 text-pink-300 ring-pink-400/20";
+  return "bg-slate-500/15 text-slate-300 ring-white/10";
+}
+
 function formatCurrency(value: number | null | undefined) {
   return new Intl.NumberFormat("tr-TR", {
     style: "currency",
@@ -935,18 +951,18 @@ export default function OrdersPage() {
                           <span className={`rounded-full px-3 py-1 text-xs font-black ${order.payment_status === "paid" ? "bg-emerald-500/15 text-emerald-300" : order.payment_status === "partial" ? "bg-amber-500/15 text-amber-300" : "bg-red-500/15 text-red-300"}`}>
                             {order.payment_status === "paid" ? "Ödendi" : order.payment_status === "partial" ? "Kısmi" : "Bekliyor"}
                           </span>
-                          {order.marketplace === "trendyol" ? (
-                            <span className="rounded-full bg-orange-500/15 px-3 py-1 text-xs font-black text-orange-300 ring-1 ring-orange-400/20">
-                              Trendyol
+                          {getMarketplaceLabel(order.marketplace) ? (
+                            <span className={`rounded-full px-3 py-1 text-xs font-black ring-1 ${getMarketplaceBadgeClass(order.marketplace)}`}>
+                              {getMarketplaceLabel(order.marketplace)}
                             </span>
                           ) : null}
                         </div>
                         <p className="mt-2 text-sm text-slate-400">{order.product_name || "Ürün yok"} · {order.quantity ?? 0} adet</p>
                         <p className="mt-1 text-xs text-slate-500">{order.customer_name || "Müşteri yok"} · {formatDate(order.created_at)}</p>
                         <p className="mt-1 text-xs text-blue-300">Kargo: {shippingLabels[order.shipping_status || "waiting"] || order.shipping_status} {order.tracking_no ? `· ${order.tracking_no}` : ""}</p>
-                        {order.marketplace === "trendyol" ? (
+                        {getMarketplaceLabel(order.marketplace) ? (
                           <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-bold">
-                            {order.marketplace_order_no ? <span className="rounded-full bg-orange-500/10 px-2.5 py-1 text-orange-300">TY Sipariş: {order.marketplace_order_no}</span> : null}
+                            {order.marketplace_order_no ? <span className="rounded-full bg-orange-500/10 px-2.5 py-1 text-orange-300">Pazaryeri Sipariş: {order.marketplace_order_no}</span> : null}
                             {order.marketplace_package_id ? <span className="rounded-full bg-orange-500/10 px-2.5 py-1 text-orange-300">Paket: {order.marketplace_package_id}</span> : null}
                             {order.marketplace_status ? <span className="rounded-full bg-white/8 px-2.5 py-1 text-slate-300">Durum: {order.marketplace_status}</span> : null}
                             {order.marketplace_tracking_link ? (
