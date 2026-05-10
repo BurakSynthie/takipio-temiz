@@ -466,6 +466,50 @@ export default function IntegrationsPage() {
     await fetchData(context);
   }
 
+  async function deleteDemoOrders() {
+    if (!context) {
+      setMessage("Önce işletme bilgisi yüklenmeli.");
+      return;
+    }
+
+    if (!canManage) {
+      setMessage("Bu işletmede demo temizleme yetkin yok.");
+      return;
+    }
+
+    const approved = confirm(`${meta.name} için oluşturulan demo siparişler silinsin mi? Gerçek siparişlere dokunulmaz.`);
+
+    if (!approved) return;
+
+    setMessage(`${meta.name} demo siparişleri temizleniyor...`);
+
+    const sessionResult = await supabase.auth.getSession();
+    const accessToken = sessionResult.data.session?.access_token;
+
+    if (!accessToken) {
+      setMessage("Oturum bulunamadı. Lütfen tekrar giriş yap.");
+      return;
+    }
+
+    const response = await fetch(`/api/integrations/${selected}/delete-demo`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      setMessage(result?.error || "Demo siparişleri silinemedi.");
+      await fetchData(context);
+      return;
+    }
+
+    setMessage(result?.message || `${meta.name} demo siparişleri silindi.`);
+    await fetchData(context);
+  }
+
   async function deleteIntegration() {
     if (!context || !current) return;
     if (!canManage) {
@@ -602,6 +646,7 @@ export default function IntegrationsPage() {
               <button type="button" onClick={testConnection} disabled={!current || !canManage} className="rounded-2xl bg-emerald-500/15 px-5 py-3 text-sm font-black text-emerald-300 ring-1 ring-emerald-400/20 transition hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-40">Test Et</button>
               <button type="button" onClick={manualSync} disabled={!current || !canManage} className="rounded-2xl bg-cyan-500/15 px-5 py-3 text-sm font-black text-cyan-300 ring-1 ring-cyan-400/20 transition hover:bg-cyan-500/25 disabled:cursor-not-allowed disabled:opacity-40">Manuel Senkron</button>
               <button type="button" onClick={demoImport} disabled={!canManage} className="rounded-2xl bg-purple-500/15 px-5 py-3 text-sm font-black text-purple-300 ring-1 ring-purple-400/20 transition hover:bg-purple-500/25 disabled:cursor-not-allowed disabled:opacity-40">Demo Sipariş Oluştur</button>
+              <button type="button" onClick={deleteDemoOrders} disabled={!canManage} className="rounded-2xl bg-slate-500/15 px-5 py-3 text-sm font-black text-slate-300 ring-1 ring-white/10 transition hover:bg-slate-500/25 disabled:cursor-not-allowed disabled:opacity-40">Demo Siparişleri Sil</button>
               {current ? <button type="button" onClick={deleteIntegration} disabled={!canManage} className="rounded-2xl bg-red-500/15 px-5 py-3 text-sm font-black text-red-300 ring-1 ring-red-400/20 transition hover:bg-red-500/25 disabled:cursor-not-allowed disabled:opacity-40">Sil</button> : null}
             </div>
           </form>
