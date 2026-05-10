@@ -9,66 +9,78 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 type Business = { id: string; owner_email: string | null; name: string; email: string | null };
 type BusinessMember = { id: string; business_id: string; email: string; role_name: string | null; member_status: string | null; can_manage_integrations?: boolean | null };
-type Subscription = { id: string; business_id: string | null; plan: string | null; status: string | null; order_limit: number | null };
+type Subscription = { id: string; business_id: string | null; plan: string | null; status: string | null };
 type BusinessContext = { userEmail: string; business: Business; member: BusinessMember; subscription: Subscription | null; isOwner: boolean; isPro: boolean };
+type MarketplaceKey = "trendyol" | "hepsiburada" | "amazon" | "ciceksepeti";
 
-type Order = {
+type Integration = {
   id: string;
-  marketplace: string | null;
-  order_status: string | null;
-  shipping_status: string | null;
-  total_amount: number | null;
-  created_at: string;
+  marketplace: MarketplaceKey;
+  display_name: string | null;
+  is_active: boolean | null;
+  connection_status: string | null;
+  api_key: string | null;
+  api_secret: string | null;
+  seller_id: string | null;
+  merchant_id: string | null;
+  store_name: string | null;
+  region: string | null;
+  last_test_at: string | null;
+  last_sync_at: string | null;
+  last_sync_status: string | null;
+  last_error: string | null;
+  sync_orders: boolean | null;
+  sync_products: boolean | null;
+  sync_stock: boolean | null;
+  sync_returns: boolean | null;
+  note: string | null;
 };
 
-type ReturnItem = {
-  id: string;
-  marketplace: string | null;
-  status: string | null;
-  amount: number | null;
-  created_at: string;
+type FormState = {
+  api_key: string;
+  api_secret: string;
+  seller_id: string;
+  merchant_id: string;
+  store_name: string;
+  region: string;
+  is_active: boolean;
+  sync_orders: boolean;
+  sync_products: boolean;
+  sync_stock: boolean;
+  sync_returns: boolean;
+  note: string;
 };
 
-const marketplaces = [
-  {
-    key: "trendyol",
-    name: "Trendyol",
-    short: "TY",
-    color: "from-orange-500 to-amber-300",
-    desc: "Sipariş, stok, iade ve kargo senkronu.",
-    status: "Hazırlanıyor",
-  },
-  {
-    key: "hepsiburada",
-    name: "Hepsiburada",
-    short: "HB",
-    color: "from-orange-600 to-yellow-400",
-    desc: "Pazaryeri siparişleri ve kargo operasyonları.",
-    status: "Hazırlanıyor",
-  },
-  {
-    key: "amazon",
-    name: "Amazon",
-    short: "AZ",
-    color: "from-slate-700 to-amber-300",
-    desc: "Satış, iade ve ürün veri takibi.",
-    status: "Yakında",
-  },
-  {
-    key: "ciceksepeti",
-    name: "ÇiçekSepeti",
-    short: "ÇS",
-    color: "from-pink-600 to-rose-300",
-    desc: "Sipariş, teslimat ve iade karşılaştırması.",
-    status: "Yakında",
-  },
+const marketplaces: Array<{ key: MarketplaceKey; name: string; short: string; gradient: string; desc: string; required: string[] }> = [
+  { key: "trendyol", name: "Trendyol", short: "TY", gradient: "from-orange-500 to-amber-400", desc: "Trendyol sipariş, stok ve iade akışları için API hazırlığı.", required: ["API Key", "API Secret", "Supplier ID"] },
+  { key: "hepsiburada", name: "Hepsiburada", short: "HB", gradient: "from-orange-600 to-red-500", desc: "Hepsiburada mağaza ve sipariş senkron hazırlığı.", required: ["Merchant ID", "API Key", "API Secret"] },
+  { key: "amazon", name: "Amazon", short: "AZ", gradient: "from-slate-700 to-amber-400", desc: "Amazon mağaza bölgesi ve API bilgileri için temel bağlantı alanı.", required: ["Seller ID", "Region", "API credentials"] },
+  { key: "ciceksepeti", name: "ÇiçekSepeti", short: "ÇS", gradient: "from-pink-500 to-rose-500", desc: "ÇiçekSepeti sipariş ve iade entegrasyonu için API hazırlığı.", required: ["API Key", "Seller ID"] },
 ];
+
+const emptyForm: FormState = {
+  api_key: "",
+  api_secret: "",
+  seller_id: "",
+  merchant_id: "",
+  store_name: "",
+  region: "TR",
+  is_active: false,
+  sync_orders: true,
+  sync_products: false,
+  sync_stock: false,
+  sync_returns: true,
+  note: "",
+};
 
 function normalizeEmail(email: string | null | undefined) {
   return (email ?? "").trim().toLowerCase();
 }
 
 async function getCurrentUserEmail() {
+  const sessionResult = await supabase.auth.getSession();
+  const sessionEmail = normalizeEmail(sessionResult.data.session?.user?.email);
+  if (sessionEmail) return sessionEmail;
   const { data } = await supabase.auth.getUser();
   return normalizeEmail(data.user?.email);
 }
@@ -96,7 +108,7 @@ async function ensureOwnerMember(businessId: string, userEmail: string) {
     can_manage_settings: true,
   }).select("*").single();
 
-  if (error || !data) throw new Error("Owner yetkisi oluşturulamadı.");
+  if (error || !data) throw new Error(`Owner yetkisi oluşturulamadı: ${error?.message ?? "Bilinmeyen hata"}`);
   return data as BusinessMember;
 }
 
@@ -114,7 +126,7 @@ async function ensureSubscription(businessId: string, userEmail: string) {
     monthly_price: 99,
   }).select("*").single();
 
-  if (error || !data) throw new Error("Abonelik oluşturulamadı.");
+  if (error || !data) throw new Error(`Abonelik oluşturulamadı: ${error?.message ?? "Bilinmeyen hata"}`);
   return data as Subscription;
 }
 
@@ -127,16 +139,14 @@ async function ensureBusinessForCurrentUser() {
   if (existingMember.data?.business_id) {
     const { data: business, error } = await supabase.from("businesses").select("*").eq("id", existingMember.data.business_id).single();
     if (error || !business) throw new Error("İşletme bilgisi alınamadı.");
-
     const subscription = await ensureSubscription(business.id, userEmail);
-
     return {
       userEmail,
       business,
       member: existingMember.data,
       subscription,
       isOwner: normalizeEmail(business.owner_email) === userEmail,
-      isPro: subscription.plan === "pro" && subscription.status === "active",
+      isPro: subscription?.plan === "pro" && subscription?.status === "active",
     } satisfies BusinessContext;
   }
 
@@ -145,20 +155,18 @@ async function ensureBusinessForCurrentUser() {
   if (existingBusiness.data) {
     const ownerMember = await ensureOwnerMember(existingBusiness.data.id, userEmail);
     const subscription = await ensureSubscription(existingBusiness.data.id, userEmail);
-
     return {
       userEmail,
       business: existingBusiness.data,
       member: ownerMember,
       subscription,
       isOwner: true,
-      isPro: subscription.plan === "pro" && subscription.status === "active",
+      isPro: subscription?.plan === "pro" && subscription?.status === "active",
     } satisfies BusinessContext;
   }
 
   const { data: createdBusiness, error } = await supabase.from("businesses").insert({ owner_email: userEmail, name: "İşletmem", email: userEmail }).select("*").single();
-  if (error || !createdBusiness) throw new Error("İşletme oluşturulamadı.");
-
+  if (error || !createdBusiness) throw new Error(`İşletme oluşturulamadı: ${error?.message ?? "Bilinmeyen hata"}`);
   const ownerMember = await ensureOwnerMember(createdBusiness.id, userEmail);
   const subscription = await ensureSubscription(createdBusiness.id, userEmail);
 
@@ -172,60 +180,72 @@ async function ensureBusinessForCurrentUser() {
   } satisfies BusinessContext;
 }
 
-function formatCurrency(value: number | null | undefined) {
-  return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 }).format(Number(value ?? 0));
+function withBusinessFields(context: BusinessContext) {
+  return { business_id: context.business.id, created_by: context.userEmail };
 }
 
-function isToday(date: string) {
-  const d = new Date(date);
-  const n = new Date();
-  return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate();
+function formatDate(date: string | null | undefined) {
+  if (!date) return "Henüz yok";
+  return new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(date));
 }
 
-function isThisWeek(date: string) {
-  const d = new Date(date);
-  const n = new Date();
-  const diff = n.getTime() - d.getTime();
-  return diff >= 0 && diff <= 7 * 24 * 60 * 60 * 1000;
+function statusLabel(status: string | null | undefined) {
+  if (status === "connected") return "Bağlı";
+  if (status === "test_success") return "Test başarılı";
+  if (status === "sync_ready") return "Senkron hazır";
+  if (status === "error") return "Hata";
+  return "Bağlı değil";
+}
+
+function statusClass(status: string | null | undefined) {
+  if (status === "connected" || status === "test_success" || status === "sync_ready") return "bg-emerald-400/15 text-emerald-300 ring-emerald-400/20";
+  if (status === "error") return "bg-red-400/15 text-red-300 ring-red-400/20";
+  return "bg-slate-400/10 text-slate-300 ring-white/10";
+}
+
+function mask(value: string | null | undefined) {
+  if (!value) return "Yok";
+  if (value.length <= 6) return "••••••";
+  return `${value.slice(0, 3)}••••${value.slice(-3)}`;
 }
 
 export default function IntegrationsPage() {
   const [context, setContext] = useState<BusinessContext | null>(null);
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [returns, setReturns] = useState<ReturnItem[]>([]);
+  const [integrations, setIntegrations] = useState<Integration[]>([]);
+  const [selected, setSelected] = useState<MarketplaceKey>("trendyol");
+  const [form, setForm] = useState<FormState>(emptyForm);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  async function fetchData() {
+  const canManage = Boolean(context?.isOwner || context?.member.can_manage_integrations);
+  const meta = marketplaces.find((item) => item.key === selected) ?? marketplaces[0];
+  const current = integrations.find((item) => item.marketplace === selected) ?? null;
+  const activeCount = integrations.filter((item) => item.is_active).length;
+  const connectedCount = integrations.filter((item) => item.is_active && item.connection_status !== "error").length;
+  const errorCount = integrations.filter((item) => item.connection_status === "error").length;
+  const syncReadyCount = integrations.filter((item) => item.last_sync_status === "success").length;
+
+  async function fetchData(existingContext?: BusinessContext) {
     setLoading(true);
     setMessage("");
-
     try {
-      const ctx = await ensureBusinessForCurrentUser();
+      const ctx = existingContext ?? await ensureBusinessForCurrentUser();
       setContext(ctx);
 
-      const [ordersResult, returnsResult] = await Promise.all([
-        supabase
-          .from("orders")
-          .select("id, marketplace, order_status, shipping_status, total_amount, created_at")
-          .eq("business_id", ctx.business.id)
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("returns")
-          .select("id, marketplace, status, amount, created_at")
-          .eq("business_id", ctx.business.id)
-          .order("created_at", { ascending: false }),
-      ]);
-
-      if (ordersResult.error) {
-        setMessage(`Siparişler alınamadı: ${ordersResult.error.message}`);
+      const { data, error } = await supabase.from("marketplace_integrations").select("*").eq("business_id", ctx.business.id).order("created_at", { ascending: true });
+      if (error) {
+        setMessage(`Entegrasyonlar alınamadı: ${error.message}`);
         return;
       }
-
-      setOrders(ordersResult.data ?? []);
-      setReturns(returnsResult.data ?? []);
+      setIntegrations((data ?? []) as Integration[]);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "İşletme bağlantısı kurulamadı.");
+      const errorMessage = error instanceof Error ? error.message : "Entegrasyon verisi alınamadı.";
+      if (errorMessage.includes("Oturum bulunamadı")) {
+        window.location.replace("/login");
+        return;
+      }
+      setMessage(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -235,175 +255,303 @@ export default function IntegrationsPage() {
     fetchData();
   }, []);
 
-  const stats = useMemo(() => {
-    return marketplaces.map((marketplace) => {
-      const marketOrders = orders.filter((order) => order.marketplace === marketplace.key);
-      const marketReturns = returns.filter((item) => item.marketplace === marketplace.key);
-      const revenue = marketOrders.reduce((sum, order) => sum + Number(order.total_amount ?? 0), 0);
-      const todayOrders = marketOrders.filter((order) => isToday(order.created_at));
-      const weeklyOrders = marketOrders.filter((order) => isThisWeek(order.created_at));
-      const shipped = marketOrders.filter((order) => order.shipping_status === "shipped" || order.shipping_status === "delivered").length;
-      const waitingCargo = marketOrders.filter((order) => order.shipping_status !== "shipped" && order.shipping_status !== "delivered").length;
-      const returnAmount = marketReturns.reduce((sum, item) => sum + Number(item.amount ?? 0), 0);
-
-      return {
-        ...marketplace,
-        orders: marketOrders.length,
-        todayOrders: todayOrders.length,
-        weeklyOrders: weeklyOrders.length,
-        revenue,
-        shipped,
-        waitingCargo,
-        returns: marketReturns.length,
-        returnAmount,
-      };
+  useEffect(() => {
+    const found = integrations.find((item) => item.marketplace === selected);
+    if (!found) {
+      setForm(emptyForm);
+      return;
+    }
+    setForm({
+      api_key: found.api_key ?? "",
+      api_secret: found.api_secret ?? "",
+      seller_id: found.seller_id ?? "",
+      merchant_id: found.merchant_id ?? "",
+      store_name: found.store_name ?? "",
+      region: found.region ?? "TR",
+      is_active: Boolean(found.is_active),
+      sync_orders: found.sync_orders ?? true,
+      sync_products: found.sync_products ?? false,
+      sync_stock: found.sync_stock ?? false,
+      sync_returns: found.sync_returns ?? true,
+      note: found.note ?? "",
     });
-  }, [orders, returns]);
+  }, [selected, integrations]);
 
-  const topMarket = [...stats].sort((a, b) => b.revenue - a.revenue)[0];
-  const totalRevenue = stats.reduce((sum, item) => sum + item.revenue, 0);
-  const totalOrders = stats.reduce((sum, item) => sum + item.orders, 0);
-  const totalReturns = stats.reduce((sum, item) => sum + item.returns, 0);
-  const maxRevenue = Math.max(...stats.map((item) => item.revenue), 1);
+  async function saveIntegration(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!context) return;
+    if (!canManage) {
+      setMessage("Bu işletmede entegrasyon yönetimi yetkin yok.");
+      return;
+    }
+    setSaving(true);
+    setMessage("");
+
+    const payload = {
+      ...withBusinessFields(context),
+      marketplace: selected,
+      display_name: meta.name,
+      is_active: form.is_active,
+      connection_status: form.is_active ? "connected" : "not_connected",
+      api_key: form.api_key.trim() || null,
+      api_secret: form.api_secret.trim() || null,
+      seller_id: form.seller_id.trim() || null,
+      merchant_id: form.merchant_id.trim() || null,
+      store_name: form.store_name.trim() || null,
+      region: form.region.trim() || "TR",
+      sync_orders: form.sync_orders,
+      sync_products: form.sync_products,
+      sync_stock: form.sync_stock,
+      sync_returns: form.sync_returns,
+      note: form.note.trim() || null,
+      updated_at: new Date().toISOString(),
+    };
+
+    const result = current
+      ? await supabase.from("marketplace_integrations").update(payload).eq("business_id", context.business.id).eq("id", current.id)
+      : await supabase.from("marketplace_integrations").insert(payload);
+
+    if (result.error) {
+      setMessage(`Entegrasyon kaydedilemedi: ${result.error.message}`);
+      setSaving(false);
+      return;
+    }
+
+    setMessage(`${meta.name} bağlantı bilgileri kaydedildi.`);
+    setSaving(false);
+    await fetchData(context);
+  }
+
+  async function testConnection() {
+    if (!context || !current) {
+      setMessage("Önce bağlantı bilgilerini kaydetmelisin.");
+      return;
+    }
+    if (!canManage) {
+      setMessage("Bu işletmede entegrasyon test etme yetkin yok.");
+      return;
+    }
+
+    const hasCredential = Boolean(current.api_key || current.api_secret || current.seller_id || current.merchant_id);
+    const { error } = await supabase.from("marketplace_integrations").update({
+      connection_status: hasCredential ? "test_success" : "error",
+      last_test_at: new Date().toISOString(),
+      last_error: hasCredential ? null : "API bilgisi eksik. Gerçek bağlantı için gerekli alanları doldur.",
+      updated_at: new Date().toISOString(),
+    }).eq("business_id", context.business.id).eq("id", current.id);
+
+    if (error) {
+      setMessage(`Bağlantı testi kaydedilemedi: ${error.message}`);
+      return;
+    }
+    setMessage(hasCredential ? `${meta.name} test bağlantısı başarılı görünüyor.` : `${meta.name} için API bilgisi eksik.`);
+    await fetchData(context);
+  }
+
+  async function manualSync() {
+    if (!context || !current) {
+      setMessage("Önce bağlantı bilgilerini kaydetmelisin.");
+      return;
+    }
+    if (!canManage) {
+      setMessage("Bu işletmede senkron yönetimi yetkin yok.");
+      return;
+    }
+    if (!current.is_active) {
+      setMessage("Manuel senkron için entegrasyon aktif olmalı.");
+      return;
+    }
+
+    const { error } = await supabase.from("marketplace_integrations").update({
+      connection_status: "sync_ready",
+      last_sync_at: new Date().toISOString(),
+      last_sync_status: "success",
+      last_error: null,
+      updated_at: new Date().toISOString(),
+    }).eq("business_id", context.business.id).eq("id", current.id);
+
+    if (error) {
+      setMessage(`Senkron durumu kaydedilemedi: ${error.message}`);
+      return;
+    }
+    setMessage(`${meta.name} için manuel senkron simülasyonu tamamlandı. Gerçek API sonraki pakette bağlanacak.`);
+    await fetchData(context);
+  }
+
+  async function deleteIntegration() {
+    if (!context || !current) return;
+    if (!canManage) {
+      setMessage("Bu işletmede entegrasyon silme yetkin yok.");
+      return;
+    }
+    if (!confirm(`${meta.name} bağlantısı silinsin mi?`)) return;
+
+    const { error } = await supabase.from("marketplace_integrations").delete().eq("business_id", context.business.id).eq("id", current.id);
+    if (error) {
+      setMessage(`Entegrasyon silinemedi: ${error.message}`);
+      return;
+    }
+    setMessage(`${meta.name} bağlantısı silindi.`);
+    await fetchData(context);
+  }
+
+  const selectedStats = useMemo(() => ({
+    apiKey: mask(current?.api_key),
+    apiSecret: mask(current?.api_secret),
+    sellerId: current?.seller_id || current?.merchant_id || "Yok",
+    storeName: current?.store_name || "Mağaza adı yok",
+  }), [current]);
 
   return (
     <section className="mx-auto w-full max-w-[1500px] space-y-4 pb-10 text-white">
       <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <div className="mb-3 inline-flex rounded-full bg-blue-500/15 px-3 py-2 text-xs font-black text-blue-300">
-              Marketplace Intelligence
-            </div>
+            <div className="mb-3 inline-flex rounded-full bg-blue-500/15 px-3 py-2 text-xs font-black text-blue-300">Marketplace API Hub v9</div>
             <h1 className="text-[34px] font-black tracking-[-0.05em] sm:text-5xl">Entegrasyonlar</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
-              Trendyol, Hepsiburada, Amazon ve ÇiçekSepeti için satış, iade, kargo ve performans karşılaştırması.
-            </p>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">Pazaryeri API bilgilerini kaydet, bağlantı durumunu takip et ve gerçek senkron aşamasına hazır hale getir.</p>
           </div>
-
-          <div className="flex flex-wrap gap-2">
-            <button onClick={fetchData} className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-black text-slate-200 transition hover:bg-white/15">
-              Yenile
-            </button>
-            <button className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-500">
-              API Bağlantılarını Hazırla
-            </button>
-          </div>
+          <button onClick={() => fetchData(context ?? undefined)} className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-500">Yenile</button>
         </div>
       </div>
 
       {context ? (
         <div className="rounded-[22px] border border-white/10 bg-[#111a2e] p-4">
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Aktif İşletme</p>
-          <p className="mt-1 text-lg font-black">{context.business.name}</p>
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Aktif İşletme</p>
+              <p className="mt-1 text-lg font-black">{context.business.name}</p>
+            </div>
+            <div className={`rounded-2xl px-4 py-3 text-sm font-black ring-1 ${canManage ? "bg-emerald-400/10 text-emerald-300 ring-emerald-400/20" : "bg-red-400/10 text-red-300 ring-red-400/20"}`}>
+              {canManage ? "Entegrasyon yönetimi açık" : "Entegrasyon yönetimi kapalı"}
+            </div>
+          </div>
         </div>
       ) : null}
 
-      {message ? (
-        <div className="rounded-2xl bg-blue-500/10 px-4 py-3 text-sm font-bold text-blue-200 ring-1 ring-blue-400/20">
-          {message}
-        </div>
-      ) : null}
+      {message ? <div className="rounded-2xl bg-blue-500/10 px-4 py-3 text-sm font-bold text-blue-200 ring-1 ring-blue-400/20">{message}</div> : null}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Metric label="Toplam Sipariş" value={loading ? "..." : String(totalOrders)} valueClass="text-white" />
-        <Metric label="Toplam Ciro" value={loading ? "..." : formatCurrency(totalRevenue)} valueClass="text-blue-300" />
-        <Metric label="Toplam İade" value={loading ? "..." : String(totalReturns)} valueClass="text-amber-300" />
-        <Metric label="Lider Kanal" value={loading ? "..." : topMarket?.name || "-"} valueClass="text-emerald-300" />
+        <Metric label="Aktif Bağlantı" value={loading ? "..." : String(activeCount)} valueClass="text-blue-300" />
+        <Metric label="Bağlı" value={loading ? "..." : String(connectedCount)} valueClass="text-emerald-300" />
+        <Metric label="Senkron Hazır" value={loading ? "..." : String(syncReadyCount)} valueClass="text-cyan-300" />
+        <Metric label="Hata" value={loading ? "..." : String(errorCount)} valueClass="text-red-300" />
       </div>
 
-      <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h2 className="text-2xl font-black">Pazaryeri Karşılaştırması</h2>
-            <p className="mt-1 text-sm text-slate-400">Her kanal için haftalık satış, bugünkü sipariş, iade ve kargo bekleyenleri gör.</p>
+      <div className="grid gap-4 xl:grid-cols-[0.75fr_1.25fr]">
+        <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
+          <h2 className="text-2xl font-black">Pazaryerleri</h2>
+          <p className="mt-1 text-sm text-slate-400">Bağlantı kurmak istediğin pazaryerini seç.</p>
+          <div className="mt-5 grid gap-3">
+            {marketplaces.map((marketplace) => {
+              const integration = integrations.find((item) => item.marketplace === marketplace.key);
+              const isSelected = selected === marketplace.key;
+              return (
+                <button key={marketplace.key} onClick={() => setSelected(marketplace.key)} className={`rounded-[22px] border p-4 text-left transition hover:-translate-y-0.5 ${isSelected ? "border-blue-400/40 bg-blue-500/10" : "border-white/10 bg-[#0b1220] hover:bg-[#101a31]"}`}>
+                  <div className="flex items-center gap-3">
+                    <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br ${marketplace.gradient} text-sm font-black text-white shadow-lg`}>{marketplace.short}</div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-black">{marketplace.name}</p>
+                        <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ring-1 ${statusClass(integration?.connection_status)}`}>{statusLabel(integration?.connection_status)}</span>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500">{integration?.store_name || "Henüz mağaza adı yok"}</p>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
           </div>
-          <span className="rounded-full bg-amber-500/15 px-3 py-2 text-xs font-black text-amber-300">API bağlantıları sonraki aşama</span>
         </div>
 
-        <div className="mt-5 grid gap-4 xl:grid-cols-2">
-          {stats.map((marketplace) => {
-            const width = Math.round((marketplace.revenue / maxRevenue) * 100);
+        <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className={`mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br ${meta.gradient} text-lg font-black text-white`}>{meta.short}</div>
+              <h2 className="text-3xl font-black tracking-[-0.04em]">{meta.name}</h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">{meta.desc}</p>
+            </div>
+            <span className={`self-start rounded-full px-3 py-1.5 text-xs font-black ring-1 ${statusClass(current?.connection_status)}`}>{statusLabel(current?.connection_status)}</span>
+          </div>
 
-            return (
-              <div key={marketplace.key} className="rounded-[24px] border border-white/10 bg-[#0b1220] p-5 transition hover:-translate-y-1 hover:bg-[#101a31]">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className={`flex h-16 w-16 items-center justify-center rounded-[24px] bg-gradient-to-br ${marketplace.color} text-lg font-black text-white shadow-lg shadow-black/30`}>
-                      {marketplace.short}
-                    </div>
-                    <div>
-                      <h3 className="text-2xl font-black">{marketplace.name}</h3>
-                      <p className="mt-1 text-sm text-slate-400">{marketplace.desc}</p>
-                    </div>
-                  </div>
-                  <span className="rounded-full bg-white/8 px-3 py-1 text-xs font-black text-slate-300">{marketplace.status}</span>
-                </div>
+          <div className="mt-5 grid gap-3 lg:grid-cols-4">
+            <SmallInfo label="API Key" value={selectedStats.apiKey} />
+            <SmallInfo label="Secret" value={selectedStats.apiSecret} />
+            <SmallInfo label="Satıcı ID" value={selectedStats.sellerId} />
+            <SmallInfo label="Son Senkron" value={formatDate(current?.last_sync_at)} />
+          </div>
 
-                <div className="mt-5 grid grid-cols-2 gap-3">
-                  <SmallMetric label="Toplam Sipariş" value={String(marketplace.orders)} />
-                  <SmallMetric label="Ciro" value={formatCurrency(marketplace.revenue)} />
-                  <SmallMetric label="Bugünkü Sipariş" value={String(marketplace.todayOrders)} />
-                  <SmallMetric label="Bu Hafta" value={String(marketplace.weeklyOrders)} />
-                  <SmallMetric label="Kargo Bekleyen" value={String(marketplace.waitingCargo)} />
-                  <SmallMetric label="İade" value={`${marketplace.returns} / ${formatCurrency(marketplace.returnAmount)}`} />
-                </div>
+          <form onSubmit={saveIntegration} className="mt-6">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <Field label="Mağaza Adı"><input value={form.store_name} onChange={(e) => setForm((c) => ({ ...c, store_name: e.target.value }))} className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none" /></Field>
+              <Field label="API Key"><input value={form.api_key} onChange={(e) => setForm((c) => ({ ...c, api_key: e.target.value }))} className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none" /></Field>
+              <Field label="API Secret"><input type="password" value={form.api_secret} onChange={(e) => setForm((c) => ({ ...c, api_secret: e.target.value }))} className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none" /></Field>
+              <Field label="Seller / Supplier ID"><input value={form.seller_id} onChange={(e) => setForm((c) => ({ ...c, seller_id: e.target.value }))} className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none" /></Field>
+              <Field label="Merchant ID"><input value={form.merchant_id} onChange={(e) => setForm((c) => ({ ...c, merchant_id: e.target.value }))} className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none" /></Field>
+              <Field label="Bölge">
+                <select value={form.region} onChange={(e) => setForm((c) => ({ ...c, region: e.target.value }))} className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none">
+                  <option value="TR">Türkiye</option>
+                  <option value="EU">Avrupa</option>
+                  <option value="US">Amerika</option>
+                </select>
+              </Field>
+            </div>
 
-                <div className="mt-5">
-                  <div className="mb-2 flex justify-between text-xs font-black">
-                    <span className="text-slate-400">Ciro karşılaştırması</span>
-                    <span className="text-blue-300">{formatCurrency(marketplace.revenue)}</span>
-                  </div>
-                  <div className="h-3 overflow-hidden rounded-full bg-white/8">
-                    <div className="h-full rounded-full bg-blue-500" style={{ width: `${width}%` }} />
-                  </div>
-                </div>
+            <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <Toggle label="Aktif Bağlantı" checked={form.is_active} onChange={(v) => setForm((c) => ({ ...c, is_active: v }))} />
+              <Toggle label="Siparişleri Senkronla" checked={form.sync_orders} onChange={(v) => setForm((c) => ({ ...c, sync_orders: v }))} />
+              <Toggle label="Ürünleri Senkronla" checked={form.sync_products} onChange={(v) => setForm((c) => ({ ...c, sync_products: v }))} />
+              <Toggle label="Stokları Senkronla" checked={form.sync_stock} onChange={(v) => setForm((c) => ({ ...c, sync_stock: v }))} />
+              <Toggle label="İadeleri Senkronla" checked={form.sync_returns} onChange={(v) => setForm((c) => ({ ...c, sync_returns: v }))} />
+            </div>
 
-                <div className="mt-5 rounded-2xl bg-[#111a2e] p-4 ring-1 ring-white/10">
-                  <p className="text-sm font-black">Operasyon Yorumu</p>
-                  <p className="mt-2 text-xs leading-5 text-slate-400">
-                    {marketplace.orders === 0
-                      ? `${marketplace.name} tarafında henüz sipariş yok. API bağlandığında otomatik veriler buraya düşecek.`
-                      : `${marketplace.name} üzerinde ${marketplace.waitingCargo} kargo bekleyen sipariş ve ${marketplace.returns} iade kaydı var.`}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
+            <Field label="Not">
+              <textarea value={form.note} onChange={(e) => setForm((c) => ({ ...c, note: e.target.value }))} className="mt-1 min-h-24 w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none" />
+            </Field>
+
+            <div className="mt-5 flex flex-wrap gap-2">
+              <button disabled={saving || !canManage} className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50">{saving ? "Kaydediliyor..." : "Bağlantıyı Kaydet"}</button>
+              <button type="button" onClick={testConnection} disabled={!current || !canManage} className="rounded-2xl bg-emerald-500/15 px-5 py-3 text-sm font-black text-emerald-300 ring-1 ring-emerald-400/20 transition hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-40">Test Et</button>
+              <button type="button" onClick={manualSync} disabled={!current || !canManage} className="rounded-2xl bg-cyan-500/15 px-5 py-3 text-sm font-black text-cyan-300 ring-1 ring-cyan-400/20 transition hover:bg-cyan-500/25 disabled:cursor-not-allowed disabled:opacity-40">Manuel Senkron</button>
+              {current ? <button type="button" onClick={deleteIntegration} disabled={!canManage} className="rounded-2xl bg-red-500/15 px-5 py-3 text-sm font-black text-red-300 ring-1 ring-red-400/20 transition hover:bg-red-500/25 disabled:cursor-not-allowed disabled:opacity-40">Sil</button> : null}
+            </div>
+          </form>
+
+          <div className="mt-6 grid gap-3 lg:grid-cols-2">
+            <div className="rounded-[22px] border border-white/10 bg-[#0b1220] p-4">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Gerekli Bilgiler</p>
+              <div className="mt-3 flex flex-wrap gap-2">{meta.required.map((item) => <span key={item} className="rounded-full bg-white/8 px-3 py-1 text-xs font-black text-slate-300 ring-1 ring-white/10">{item}</span>)}</div>
+            </div>
+            <div className="rounded-[22px] border border-amber-400/20 bg-amber-500/10 p-4">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-amber-300">Önemli Not</p>
+              <p className="mt-3 text-sm leading-6 text-amber-100/80">Bu paket gerçek API’den veri çekmez. Bilgileri kaydeder ve senkron altyapısını hazırlar. Gerçek sipariş/ürün/stok çekme işlemi sonraki pakette pazaryeri bazlı bağlanacak.</p>
+            </div>
+          </div>
+
+          {current?.last_error ? <div className="mt-4 rounded-2xl bg-red-500/10 px-4 py-3 text-sm font-bold text-red-200 ring-1 ring-red-400/20">{current.last_error}</div> : null}
         </div>
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-3">
-        <InfoCard title="Sipariş Senkronu" text="API bağlandığında pazaryerinden gelen siparişler otomatik olarak Takipio sipariş ekranına düşecek." />
-        <InfoCard title="Stok Senkronu" text="Ürün satıldığında ilgili pazaryerindeki stokları güncellemek için ortak stok mantığı kurulacak." />
-        <InfoCard title="İade & Kargo" text="İade talepleri ve kargo durumları pazaryeriyle çift yönlü senkronlanacak." />
       </div>
     </section>
   );
 }
 
 function Metric({ label, value, valueClass }: { label: string; value: string; valueClass?: string }) {
-  return (
-    <div className="rounded-[22px] border border-white/10 bg-[#111a2e] p-5">
-      <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">{label}</p>
-      <p className={["mt-3 text-3xl font-black", valueClass || "text-white"].join(" ")}>{value}</p>
-    </div>
-  );
+  return <div className="rounded-[22px] border border-white/10 bg-[#111a2e] p-5"><p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">{label}</p><p className={["mt-3 text-3xl font-black", valueClass || "text-white"].join(" ")}>{value}</p></div>;
 }
 
-function SmallMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-[18px] bg-[#111a2e] p-4 ring-1 ring-white/10">
-      <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">{label}</p>
-      <p className="mt-2 text-lg font-black">{value}</p>
-    </div>
-  );
+function SmallInfo({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-[18px] border border-white/10 bg-[#0b1220] p-4"><p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">{label}</p><p className="mt-2 truncate text-sm font-black text-white">{value}</p></div>;
 }
 
-function InfoCard({ title, text }: { title: string; text: string }) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return <label className="block"><span className="mb-1.5 block text-xs font-black text-slate-400">{label}</span>{children}</label>;
+}
+
+function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (value: boolean) => void }) {
   return (
-    <div className="rounded-[24px] border border-white/10 bg-[#111a2e] p-5">
-      <h3 className="text-xl font-black">{title}</h3>
-      <p className="mt-2 text-sm leading-6 text-slate-400">{text}</p>
-    </div>
+    <button type="button" onClick={() => onChange(!checked)} className={`flex items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm font-black transition ${checked ? "border-blue-400/30 bg-blue-500/10 text-blue-200" : "border-white/10 bg-[#0b1220] text-slate-400"}`}>
+      <span>{label}</span>
+      <span className={`ml-3 h-5 w-9 rounded-full p-0.5 transition ${checked ? "bg-blue-500" : "bg-white/10"}`}><span className={`block h-4 w-4 rounded-full bg-white transition ${checked ? "translate-x-4" : "translate-x-0"}`} /></span>
+    </button>
   );
 }
