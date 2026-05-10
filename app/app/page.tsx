@@ -692,6 +692,126 @@ export default function DashboardPage() {
         <StatusCard title="Aktif İade" value={String(stats.activeReturns)} text="Para iadesi/reddedilme bekleyenler" colorClass="text-red-300" />
         <StatusCard title="Pazaryeri Cirosu" value={formatCurrency(stats.marketplaceRevenue)} text="Demo + gerçek pazaryeri siparişleri" colorClass="text-orange-300" />
       </div>
+
+      <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+        <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
+          <div className="mb-5 flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-black">Stok Uyarıları</h2>
+              <p className="mt-1 text-sm text-slate-400">Minimum stok seviyesine yaklaşan ürünler burada görünür.</p>
+            </div>
+            <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs font-black text-amber-300 ring-1 ring-amber-400/20">
+              {stats.criticalProducts.length} kritik
+            </span>
+          </div>
+
+          {stats.criticalProducts.length === 0 ? (
+            <div className="rounded-[22px] border border-dashed border-white/10 bg-[#0b1220] p-8 text-center">
+              <p className="text-sm font-bold text-slate-500">Şu an kritik stok uyarısı yok. Stok tarafı temiz görünüyor.</p>
+            </div>
+          ) : (
+            <div className="grid gap-3">
+              {stats.criticalProducts.slice(0, 6).map((product) => (
+                <div key={product.id} className="rounded-[20px] border border-amber-400/15 bg-amber-500/10 p-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="font-black text-white">{product.name}</p>
+                      <p className="mt-1 text-xs font-bold text-amber-200/80">
+                        Minimum: {product.min_stock ?? 0} · Mevcut: {product.stock ?? 0}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-amber-400/15 px-3 py-1 text-xs font-black text-amber-300">
+                      Kritik
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
+          <div className="mb-5">
+            <h2 className="text-2xl font-black">Nasıl Kullanılır?</h2>
+            <p className="mt-1 text-sm text-slate-400">Takipio panelini hızlı kullanmak için kısa yol akışı.</p>
+          </div>
+
+          <div className="grid gap-3">
+            <HowToStep
+              number="01"
+              title="Ürünlerini ekle"
+              text="Ürün adı, stok, minimum stok ve satış fiyatını gir. İstersen ürün görseli de yükle."
+            />
+            <HowToStep
+              number="02"
+              title="Sipariş oluştur veya demo import kullan"
+              text="Manuel sipariş ekleyebilir ya da Entegrasyonlar sayfasından demo pazaryeri siparişleri oluşturabilirsin."
+            />
+            <HowToStep
+              number="03"
+              title="Tahsilatı takip et"
+              text="Nakit, kart, havale ve pazaryeri ödemeleri dashboard üzerinde ayrı ayrı görünür."
+            />
+            <HowToStep
+              number="04"
+              title="Kargo ve iade sürecini yönet"
+              text="Kargo takip numarası gir, teslim durumunu güncelle, gerekirse iade talebi oluştur."
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
+          <div className="mb-5">
+            <h2 className="text-2xl font-black">Eksik İşlemler</h2>
+            <p className="mt-1 text-sm text-slate-400">Bekleyen ödeme, kargo ve iade aksiyonlarını hızlı gör.</p>
+          </div>
+
+          <div className="grid gap-3">
+            <ActionRow
+              title="Bekleyen Tahsilat"
+              value={formatCurrency(stats.totalRemaining)}
+              text="Kısmi veya ödenmemiş siparişlerden kalan tutar."
+              tone="amber"
+            />
+            <ActionRow
+              title="Kargo Bekleyen"
+              value={String(orders.filter((order) => order.shipping_status !== "shipped" && order.shipping_status !== "delivered").length)}
+              text="Henüz kargoya verilmemiş veya hazırlıkta görünen siparişler."
+              tone="blue"
+            />
+            <ActionRow
+              title="Aktif İade"
+              value={String(stats.activeReturns)}
+              text="Para iadesi ya da red kararı bekleyen iade kayıtları."
+              tone="red"
+            />
+          </div>
+        </div>
+
+        <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
+          <div className="mb-5">
+            <h2 className="text-2xl font-black">Gorki Hızlı Sorular</h2>
+            <p className="mt-1 text-sm text-slate-400">Sağ alttaki Gorki’ye bu soruları yazabilirsin.</p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            {[
+              "Bugünkü özeti göster",
+              "Kritik stok var mı?",
+              "Bekleyen ödemeler",
+              "Kargo bekleyenler",
+              "İadeleri özetle",
+              "Son siparişleri göster",
+            ].map((question) => (
+              <div key={question} className="rounded-2xl bg-[#0b1220] px-4 py-3 text-sm font-black text-blue-100 ring-1 ring-white/10">
+                {question}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     </section>
   );
 }
@@ -734,6 +854,55 @@ function EmptyState({ text }: { text: string }) {
   return (
     <div className="rounded-[22px] border border-dashed border-white/10 bg-[#0b1220] p-8 text-center">
       <p className="text-sm font-bold text-slate-500">{text}</p>
+    </div>
+  );
+}
+
+function HowToStep({ number, title, text }: { number: string; title: string; text: string }) {
+  return (
+    <div className="rounded-[20px] border border-white/10 bg-[#0b1220] p-4">
+      <div className="flex gap-4">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-500/15 text-xs font-black text-blue-300 ring-1 ring-blue-400/20">
+          {number}
+        </div>
+        <div>
+          <p className="font-black text-white">{title}</p>
+          <p className="mt-1 text-sm leading-6 text-slate-400">{text}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ActionRow({
+  title,
+  value,
+  text,
+  tone,
+}: {
+  title: string;
+  value: string;
+  text: string;
+  tone: "amber" | "blue" | "red";
+}) {
+  const toneClass =
+    tone === "amber"
+      ? "text-amber-300 bg-amber-500/10 ring-amber-400/20"
+      : tone === "blue"
+        ? "text-blue-300 bg-blue-500/10 ring-blue-400/20"
+        : "text-red-300 bg-red-500/10 ring-red-400/20";
+
+  return (
+    <div className="rounded-[20px] border border-white/10 bg-[#0b1220] p-4">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="font-black text-white">{title}</p>
+          <p className="mt-1 text-sm leading-6 text-slate-400">{text}</p>
+        </div>
+        <span className={`shrink-0 rounded-2xl px-3 py-2 text-sm font-black ring-1 ${toneClass}`}>
+          {value}
+        </span>
+      </div>
     </div>
   );
 }
