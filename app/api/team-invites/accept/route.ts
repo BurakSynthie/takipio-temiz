@@ -97,21 +97,6 @@ function permissionsFromInvite(invite: Record<string, unknown>, roleName: string
   return result;
 }
 
-function preserveExistingPermissions(member: Record<string, unknown>, invite: Record<string, unknown>, roleName: string) {
-  const invitePermissions = permissionsFromInvite(invite, roleName);
-  const result: Record<string, boolean> = {};
-
-  permissionKeys.forEach((key) => {
-    if (typeof member[key] === "boolean") {
-      result[key] = Boolean(member[key]);
-    } else {
-      result[key] = invitePermissions[key];
-    }
-  });
-
-  return result;
-}
-
 export async function POST(request: Request) {
   try {
     if (!serviceRoleKey) {
@@ -203,9 +188,10 @@ export async function POST(request: Request) {
     const roleName = String(invite.role_name || memberResult.data?.role_name || "Satış");
 
     if (memberResult.data) {
-      // Kritik fix: mevcut business_members içindeki seçilmiş yetkileri EZME.
-      // Sadece aktif yap, rol/display güncelle. Eğer bazı yetki alanları null ise invite'tan doldur.
-      const preservedPermissions = preserveExistingPermissions(memberResult.data as Record<string, unknown>, invite, roleName);
+      // Kritik fix v25.1:
+      // Davette seçilen baloncuk yetkileri kesin kaynak kabul edilir.
+      // Eski business_members kaydı daha önce settings açık kaldıysa bile burada ezilir.
+      const invitePermissions = permissionsFromInvite(invite, roleName);
 
       const updateMember = await serviceClient
         .from("business_members")
@@ -214,7 +200,7 @@ export async function POST(request: Request) {
           role_name: roleName,
           member_status: "active",
           invited_by: invite.invited_by || memberResult.data.invited_by,
-          ...preservedPermissions,
+          ...invitePermissions,
           updated_at: new Date().toISOString(),
         })
         .eq("id", memberResult.data.id);
