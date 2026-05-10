@@ -29,6 +29,8 @@ type Subscription = {
   plan: string | null;
   status: string | null;
   order_limit?: number | null;
+  first_month_price?: number | null;
+  monthly_price?: number | null;
 };
 
 type BusinessContext = {
@@ -81,6 +83,21 @@ type ReturnItem = {
   amount: number | null;
   created_at: string;
 };
+
+type DashboardTask = {
+  id: string;
+  business_id: string;
+  created_by: string | null;
+  title: string;
+  description: string | null;
+  is_done: boolean | null;
+  priority: string | null;
+  due_date: string | null;
+  created_at: string;
+  updated_at: string | null;
+};
+
+type ChartRange = "7" | "15" | "30" | "90";
 
 function normalizeEmail(email: string | null | undefined) {
   return (email ?? "").trim().toLowerCase();
@@ -323,15 +340,25 @@ function methodClass(method: string | null | undefined) {
   return "text-slate-300";
 }
 
+function rangeLabel(range: ChartRange) {
+  if (range === "7") return "Son 7 gün";
+  if (range === "15") return "Son 15 gün";
+  if (range === "30") return "Son 30 gün";
+  return "Son 3 ay";
+}
+
 export default function DashboardPage() {
   const [context, setContext] = useState<BusinessContext | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [returns, setReturns] = useState<ReturnItem[]>([]);
-  const [note, setNote] = useState("");
+  const [tasks, setTasks] = useState<DashboardTask[]>([]);
+  const [taskTitle, setTaskTitle] = useState("");
+  const [chartRange, setChartRange] = useState<ChartRange>("7");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
+  const [taskSaving, setTaskSaving] = useState(false);
 
   async function fetchData() {
     setLoading(true);
@@ -341,7 +368,7 @@ export default function DashboardPage() {
       const ctx = await ensureBusinessForCurrentUser();
       setContext(ctx);
 
-      const [ordersResult, paymentsResult, productsResult, returnsResult] = await Promise.all([
+      const [ordersResult, paymentsResult, productsResult, returnsResult, tasksResult] = await Promise.all([
         supabase
           .from("orders")
           .select("*")
@@ -361,6 +388,12 @@ export default function DashboardPage() {
           .from("returns")
           .select("id, status, refund_amount, amount, created_at")
           .eq("business_id", ctx.business.id)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("dashboard_tasks")
+          .select("*")
+          .eq("business_id", ctx.business.id)
+          .order("is_done", { ascending: true })
           .order("created_at", { ascending: false }),
       ]);
 
@@ -384,10 +417,16 @@ export default function DashboardPage() {
         return;
       }
 
+      if (tasksResult.error) {
+        setMessage(`Notlar alınamadı: ${tasksResult.error.message}`);
+        return;
+      }
+
       setOrders((ordersResult.data ?? []) as Order[]);
       setPayments((paymentsResult.data ?? []) as Payment[]);
       setProducts((productsResult.data ?? []) as Product[]);
       setReturns((returnsResult.data ?? []) as ReturnItem[]);
+      setTasks((tasksResult.data ?? []) as DashboardTask[]);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Dashboard verisi alınamadı.";
 
@@ -404,18 +443,70 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchData();
-
-    if (typeof window !== "undefined") {
-      setNote(localStorage.getItem("takipio-dashboard-note") || "");
-    }
   }, []);
 
-  function saveNote(value: string) {
-    setNote(value);
+  async function addTask() {
+    if (!context) return;
 
-    if (typeof window !== "undefined") {
-      localStorage.setItem("takipio-dashboard-note", value);
+    const cleanTitle = taskTitle.trim();
+
+    if (!cleanTitle) {
+      setMessage("Not eklemek için kısa bir açıklama yazmalısın.");
+      return;
     }
+
+    setTaskSaving(true);
+
+    const { error } = await supabase.from("dashboard_tasks").insert({
+      business_id: context.business.id,
+      created_by: context.userEmail,
+      title: cleanTitle,
+      priority: "normal",
+      is_done: false,
+    });
+
+    if (error) {
+      setMessage(`Not eklenemedi: ${error.message}`);
+      setTaskSaving(false);
+      return;
+    }
+
+    setTaskTitle("");
+    setTaskSaving(false);
+    await fetchData();
+  }
+
+  async function toggleTask(task: DashboardTask) {
+    const { error } = await supabase
+      .from("dashboard_tasks")
+      .update({
+        is_done: !task.is_done,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", task.id)
+      .eq("business_id", task.business_id);
+
+    if (error) {
+      setMessage(`Not güncellenemedi: ${error.message}`);
+      return;
+    }
+
+    await fetchData();
+  }
+
+  async function deleteTask(task: DashboardTask) {
+    const { error } = await supabase
+      .from("dashboard_tasks")
+      .delete()
+      .eq("id", task.id)
+      .eq("business_id", task.business_id);
+
+    if (error) {
+      setMessage(`Not silinemedi: ${error.message}`);
+      return;
+    }
+
+    await fetchData();
   }
 
   const stats = useMemo(() => {
@@ -461,6 +552,7 @@ export default function DashboardPage() {
 
     const activeReturns = returns.filter((item) => item.status !== "refunded" && item.status !== "rejected").length;
     const waitingShipments = orders.filter((order) => order.shipping_status !== "shipped" && order.shipping_status !== "delivered").length;
+    const activeTasks = tasks.filter((task) => !task.is_done).length;
 
     return {
       todayCash,
@@ -475,13 +567,15 @@ export default function DashboardPage() {
       stockValue,
       activeReturns,
       waitingShipments,
+      activeTasks,
     };
-  }, [orders, payments, products, returns]);
+  }, [orders, payments, products, returns, tasks]);
 
   const chartData = useMemo(() => {
-    const days = Array.from({ length: 7 }).map((_, index) => {
+    const dayCount = Number(chartRange);
+    const days = Array.from({ length: dayCount }).map((_, index) => {
       const day = new Date();
-      day.setDate(day.getDate() - (6 - index));
+      day.setDate(day.getDate() - (dayCount - 1 - index));
       return day;
     });
 
@@ -510,7 +604,9 @@ export default function DashboardPage() {
 
       return {
         day,
-        label: new Intl.DateTimeFormat("tr-TR", { weekday: "short" }).format(day),
+        label: chartRange === "90"
+          ? new Intl.DateTimeFormat("tr-TR", { day: "2-digit", month: "2-digit" }).format(day)
+          : new Intl.DateTimeFormat("tr-TR", { weekday: "short" }).format(day),
         cash,
         card,
         transfer,
@@ -518,7 +614,7 @@ export default function DashboardPage() {
         total: cash + card + transfer + marketplace,
       };
     });
-  }, [orders, payments]);
+  }, [orders, payments, chartRange]);
 
   const maxChartValue = Math.max(...chartData.map((item) => item.total), 1);
   const latestOrders = orders.slice(0, 5);
@@ -550,6 +646,8 @@ export default function DashboardPage() {
   const freeOrderLimit = Number(context?.subscription?.order_limit ?? 15);
   const isPro = context?.subscription?.plan === "pro" && context?.subscription?.status === "active";
   const usagePercent = isPro ? 100 : Math.min(Math.round((orders.length / freeOrderLimit) * 100), 100);
+  const activeTasks = tasks.filter((task) => !task.is_done).slice(0, 5);
+  const doneTasks = tasks.filter((task) => task.is_done).slice(0, 3);
 
   return (
     <section className="mx-auto w-full max-w-[1500px] space-y-3 pb-8 text-white">
@@ -603,17 +701,35 @@ export default function DashboardPage() {
               <p className="mt-1 text-xs text-slate-400">Nakit, kart, havale ve pazaryeri ödemeleri aynı grafikte.</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <TinyMoney label="Nakit" value={stats.todayCash} className="text-emerald-300" />
-              <TinyMoney label="Kart" value={stats.todayCard} className="text-blue-300" />
-              <TinyMoney label="Havale" value={stats.todayTransfer} className="text-cyan-300" />
-              <TinyMoney label="Pazaryeri" value={stats.todayMarketplace} className="text-orange-300" />
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap justify-end gap-1.5">
+                {(["7", "15", "30", "90"] as ChartRange[]).map((range) => (
+                  <button
+                    key={range}
+                    onClick={() => setChartRange(range)}
+                    className={`rounded-xl px-3 py-1.5 text-[11px] font-black transition ${
+                      chartRange === range
+                        ? "bg-blue-600 text-white"
+                        : "bg-white/8 text-slate-400 ring-1 ring-white/10 hover:text-white"
+                    }`}
+                  >
+                    {rangeLabel(range)}
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <TinyMoney label="Nakit" value={stats.todayCash} className="text-emerald-300" />
+                <TinyMoney label="Kart" value={stats.todayCard} className="text-blue-300" />
+                <TinyMoney label="Havale" value={stats.todayTransfer} className="text-cyan-300" />
+                <TinyMoney label="Pazaryeri" value={stats.todayMarketplace} className="text-orange-300" />
+              </div>
             </div>
           </div>
 
           <div className="rounded-[20px] bg-[#0b1220] p-4 ring-1 ring-white/10">
-            <div className="flex h-56 items-end gap-2">
-              {chartData.map((item) => {
+            <div className="flex h-56 items-end gap-1.5 overflow-x-auto pb-1">
+              {chartData.map((item, index) => {
                 const totalHeight = Math.max(Math.round((item.total / maxChartValue) * 100), item.total > 0 ? 8 : 3);
                 const cashHeight = item.total > 0 ? Math.max((item.cash / item.total) * totalHeight, item.cash > 0 ? 4 : 0) : 0;
                 const cardHeight = item.total > 0 ? Math.max((item.card / item.total) * totalHeight, item.card > 0 ? 4 : 0) : 0;
@@ -621,7 +737,7 @@ export default function DashboardPage() {
                 const marketplaceHeight = item.total > 0 ? Math.max((item.marketplace / item.total) * totalHeight, item.marketplace > 0 ? 4 : 0) : 0;
 
                 return (
-                  <div key={item.day.toISOString()} className="group flex min-w-0 flex-1 flex-col items-center gap-2">
+                  <div key={`${item.day.toISOString()}-${index}`} className="group flex min-w-[28px] flex-1 flex-col items-center gap-2">
                     <div className="relative flex h-40 w-full items-end rounded-2xl bg-white/[0.03] p-1 ring-1 ring-white/5">
                       <div
                         className="flex w-full flex-col-reverse overflow-hidden rounded-xl bg-white/5 shadow-lg shadow-blue-950/20 transition duration-300 group-hover:scale-[1.03]"
@@ -639,7 +755,7 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
-                    <p className="text-[10px] font-black text-slate-500">{item.label}</p>
+                    <p className="text-[10px] font-black text-slate-500">{chartRange === "90" && index % 5 !== 0 ? "·" : item.label}</p>
                     <p className="max-w-full truncate text-[10px] font-bold text-slate-400">{formatCompactCurrency(item.total)}</p>
                   </div>
                 );
@@ -657,28 +773,75 @@ export default function DashboardPage() {
 
         <div className="grid gap-3">
           <CompactCard title="Eksik İşlemler">
-            <ActionRow title="Bekleyen tahsilat" value={formatCompactCurrency(stats.totalRemaining)} tone="amber" />
-            <ActionRow title="Kargo bekleyen" value={String(stats.waitingShipments)} tone="blue" />
-            <ActionRow title="Aktif iade" value={String(stats.activeReturns)} tone="red" />
+            <ActionLink href="/app/orders" title="Bekleyen tahsilat" value={formatCompactCurrency(stats.totalRemaining)} tone="amber" />
+            <ActionLink href="/app/shipments" title="Kargo bekleyen" value={String(stats.waitingShipments)} tone="blue" />
+            <ActionLink href="/app/returns" title="Aktif iade" value={String(stats.activeReturns)} tone="red" />
           </CompactCard>
 
-          <CompactCard title="Abonelik">
-            <div className="flex items-center justify-between text-xs font-black">
-              <span>{isPro ? "Pro plan aktif" : `Free ${orders.length}/${freeOrderLimit}`}</span>
-              <span className={isPro ? "text-emerald-300" : "text-blue-300"}>{usagePercent}%</span>
+          <Link href="/app/billing" className="block rounded-[22px] border border-blue-400/20 bg-blue-500/10 p-4 transition hover:-translate-y-0.5 hover:bg-blue-500/15">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-lg font-black">Abonelik</h2>
+              <span className={isPro ? "rounded-full bg-emerald-400/15 px-3 py-1 text-[11px] font-black text-emerald-300" : "rounded-full bg-blue-400/15 px-3 py-1 text-[11px] font-black text-blue-300"}>
+                {isPro ? "PRO" : "FREE"}
+              </span>
             </div>
+
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold text-slate-400">
+                  {isPro ? "Limitsiz kullanım aktif" : `Sipariş kullanımı: ${orders.length}/${freeOrderLimit}`}
+                </p>
+                <p className="mt-1 text-[11px] font-bold text-slate-500">
+                  {isPro ? "Tüm premium modüller açık." : `Kalan hak: ${Math.max(freeOrderLimit - orders.length, 0)} sipariş`}
+                </p>
+              </div>
+              <p className="text-xl font-black text-white">
+                {isPro ? "₺99/ay" : "₺89 ilk ay"}
+              </p>
+            </div>
+
             <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/8">
               <div className={`${isPro ? "bg-emerald-400" : "bg-blue-500"} h-full rounded-full`} style={{ width: `${usagePercent}%` }} />
             </div>
-          </CompactCard>
 
-          <CompactCard title="Notlar">
-            <textarea
-              value={note}
-              onChange={(event) => saveNote(event.target.value)}
-              placeholder="Bugün yapılacakları yaz..."
-              className="min-h-20 w-full resize-none rounded-2xl border border-white/10 bg-[#0b1220] px-3 py-2 text-xs font-bold text-white outline-none placeholder:text-slate-600"
-            />
+            <p className="mt-3 text-[11px] font-black text-blue-200">
+              Abonelik sayfasına git →
+            </p>
+          </Link>
+
+          <CompactCard title={`Notlar / Görevler (${stats.activeTasks})`}>
+            <div className="flex gap-2">
+              <input
+                value={taskTitle}
+                onChange={(event) => setTaskTitle(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") addTask();
+                }}
+                placeholder="Kısa not ekle..."
+                className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-[#0b1220] px-3 py-2 text-xs font-bold text-white outline-none placeholder:text-slate-600"
+              />
+              <button
+                onClick={addTask}
+                disabled={taskSaving}
+                className="rounded-2xl bg-blue-600 px-3 py-2 text-xs font-black text-white transition hover:bg-blue-500 disabled:opacity-50"
+              >
+                Ekle
+              </button>
+            </div>
+
+            <div className="mt-3 grid max-h-[190px] gap-2 overflow-y-auto pr-1">
+              {activeTasks.length === 0 && doneTasks.length === 0 ? (
+                <EmptyMini text="Henüz not yok." />
+              ) : null}
+
+              {activeTasks.map((task) => (
+                <TaskRow key={task.id} task={task} onToggle={() => toggleTask(task)} onDelete={() => deleteTask(task)} />
+              ))}
+
+              {doneTasks.map((task) => (
+                <TaskRow key={task.id} task={task} onToggle={() => toggleTask(task)} onDelete={() => deleteTask(task)} />
+              ))}
+            </div>
           </CompactCard>
         </div>
       </div>
@@ -690,9 +853,9 @@ export default function DashboardPage() {
               <h2 className="text-xl font-black">Stok Uyarıları</h2>
               <p className="mt-1 text-xs text-slate-400">Kritik ürünleri küçük listede takip et.</p>
             </div>
-            <span className="rounded-full bg-amber-500/15 px-3 py-1 text-[11px] font-black text-amber-300 ring-1 ring-amber-400/20">
-              {stats.criticalProducts.length}
-            </span>
+            <Link href="/app/products" className="rounded-full bg-amber-500/15 px-3 py-1 text-[11px] font-black text-amber-300 ring-1 ring-amber-400/20">
+              {stats.criticalProducts.length} kritik
+            </Link>
           </div>
 
           {criticalPreview.length === 0 ? (
@@ -811,7 +974,7 @@ function CompactCard({ title, children }: { title: string; children: React.React
   );
 }
 
-function ActionRow({ title, value, tone }: { title: string; value: string; tone: "amber" | "blue" | "red" }) {
+function ActionLink({ href, title, value, tone }: { href: string; title: string; value: string; tone: "amber" | "blue" | "red" }) {
   const toneClass =
     tone === "amber"
       ? "text-amber-300 bg-amber-500/10 ring-amber-400/20"
@@ -820,9 +983,36 @@ function ActionRow({ title, value, tone }: { title: string; value: string; tone:
         : "text-red-300 bg-red-500/10 ring-red-400/20";
 
   return (
-    <div className="mb-2 flex items-center justify-between rounded-2xl bg-[#0b1220] px-3 py-2.5 ring-1 ring-white/10 last:mb-0">
+    <Link href={href} className="mb-2 flex items-center justify-between rounded-2xl bg-[#0b1220] px-3 py-2.5 ring-1 ring-white/10 transition hover:bg-white/8 last:mb-0">
       <p className="text-xs font-black text-slate-300">{title}</p>
       <span className={`rounded-xl px-2.5 py-1 text-xs font-black ring-1 ${toneClass}`}>{value}</span>
+    </Link>
+  );
+}
+
+function TaskRow({ task, onToggle, onDelete }: { task: DashboardTask; onToggle: () => void; onDelete: () => void }) {
+  return (
+    <div className={`flex items-center gap-2 rounded-2xl px-3 py-2 ring-1 ${task.is_done ? "bg-emerald-500/10 ring-emerald-400/20" : "bg-[#0b1220] ring-white/10"}`}>
+      <button
+        onClick={onToggle}
+        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-black ${
+          task.is_done ? "bg-emerald-400 text-[#020817]" : "bg-white/8 text-slate-500 ring-1 ring-white/10"
+        }`}
+        title="Tamamlandı işaretle"
+      >
+        {task.is_done ? "✓" : ""}
+      </button>
+
+      <button onClick={onToggle} className="min-w-0 flex-1 text-left">
+        <p className={`truncate text-xs font-black ${task.is_done ? "text-emerald-200 line-through" : "text-white"}`}>
+          {task.title}
+        </p>
+        <p className="mt-0.5 text-[10px] font-bold text-slate-600">{formatDate(task.created_at)}</p>
+      </button>
+
+      <button onClick={onDelete} className="rounded-xl bg-red-500/10 px-2 py-1 text-[10px] font-black text-red-300 ring-1 ring-red-400/20">
+        Sil
+      </button>
     </div>
   );
 }
