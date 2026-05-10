@@ -51,33 +51,26 @@ type Member = {
   updated_at: string | null;
 };
 
+type Invite = {
+  id: string;
+  business_id: string;
+  email: string;
+  display_name: string | null;
+  role_name: string | null;
+  token: string | null;
+  status: string | null;
+  invited_by: string | null;
+  sent_at: string | null;
+  accepted_at: string | null;
+  expires_at: string | null;
+  created_at: string | null;
+};
+
 type BusinessContext = {
   userEmail: string;
   business: Business;
   member: Member;
   isOwner: boolean;
-};
-
-type BusinessForm = {
-  name: string;
-  email: string;
-  logo_url: string;
-  brand_color: string;
-  phone: string;
-  website: string;
-  tax_id: string;
-  tax_office: string;
-  address: string;
-  city: string;
-  district: string;
-  default_currency: string;
-  default_tax_rate: string;
-};
-
-type MemberForm = {
-  display_name: string;
-  email: string;
-  role_name: string;
 };
 
 const permissionFields = [
@@ -91,17 +84,11 @@ const permissionFields = [
   { key: "can_manage_invoices", label: "Fatura", desc: "Belge/fatura merkezini yönetir" },
   { key: "can_manage_customers", label: "Müşteri", desc: "CRM müşteri kayıtlarını yönetir" },
   { key: "can_manage_integrations", label: "Entegrasyon", desc: "Pazaryeri/API bilgilerini yönetir" },
-  { key: "can_manage_billing", label: "Abonelik", desc: "Plan ve fatura sayfasına erişir" },
+  { key: "can_manage_billing", label: "Abonelik", desc: "Plan ve ödeme sayfasına erişir" },
   { key: "can_manage_settings", label: "Ayarlar", desc: "İşletme ve ekip ayarlarını yönetir" },
 ] as const;
 
 type PermissionKey = typeof permissionFields[number]["key"];
-
-const emptyMemberForm: MemberForm = {
-  display_name: "",
-  email: "",
-  role_name: "Satış",
-};
 
 function normalizeEmail(email: string | null | undefined) {
   return (email ?? "").trim().toLowerCase();
@@ -114,7 +101,6 @@ function clean(value: string | null | undefined) {
 async function getCurrentUserEmail() {
   const sessionResult = await supabase.auth.getSession();
   const sessionEmail = normalizeEmail(sessionResult.data.session?.user?.email);
-
   if (sessionEmail) return sessionEmail;
 
   const { data } = await supabase.auth.getUser();
@@ -175,6 +161,13 @@ function permissionsForRole(role: string) {
 }
 
 async function ensureOwnerMember(businessId: string, userEmail: string) {
+  const fullOwner = {
+    role_name: "Sahip",
+    member_status: "active",
+    ...permissionsForRole("Sahip"),
+    updated_at: new Date().toISOString(),
+  };
+
   const { data: existing } = await supabase
     .from("business_members")
     .select("*")
@@ -183,29 +176,15 @@ async function ensureOwnerMember(businessId: string, userEmail: string) {
     .maybeSingle();
 
   if (existing) {
-    const member = existing as Member;
+    const { data } = await supabase
+      .from("business_members")
+      .update(fullOwner)
+      .eq("business_id", businessId)
+      .eq("email", userEmail)
+      .select("*")
+      .single();
 
-    if (member.role_name !== "Sahip" || !member.can_manage_settings) {
-      await supabase
-        .from("business_members")
-        .update({
-          role_name: "Sahip",
-          member_status: "active",
-          ...permissionsForRole("Sahip"),
-          updated_at: new Date().toISOString(),
-        })
-        .eq("business_id", businessId)
-        .eq("email", userEmail);
-
-      return {
-        ...member,
-        role_name: "Sahip",
-        member_status: "active",
-        ...permissionsForRole("Sahip"),
-      } as Member;
-    }
-
-    return member;
+    return (data || { ...existing, ...fullOwner }) as Member;
   }
 
   const { data, error } = await supabase
@@ -214,9 +193,8 @@ async function ensureOwnerMember(businessId: string, userEmail: string) {
       business_id: businessId,
       email: userEmail,
       display_name: "Sahip",
-      role_name: "Sahip",
-      member_status: "active",
-      ...permissionsForRole("Sahip"),
+      invited_by: userEmail,
+      ...fullOwner,
     })
     .select("*")
     .single();
@@ -228,8 +206,19 @@ async function ensureOwnerMember(businessId: string, userEmail: string) {
 
 async function ensureBusinessForCurrentUser() {
   const userEmail = await getCurrentUserEmail();
-
   if (!userEmail) throw new Error("Oturum bulunamadı. Lütfen tekrar giriş yap.");
+
+  const ownedBusiness = await supabase
+    .from("businesses")
+    .select("*")
+    .eq("owner_email", userEmail)
+    .limit(1)
+    .maybeSingle();
+
+  if (ownedBusiness.data) {
+    const ownerMember = await ensureOwnerMember(ownedBusiness.data.id, userEmail);
+    return { userEmail, business: ownedBusiness.data as Business, member: ownerMember, isOwner: true } satisfies BusinessContext;
+  }
 
   const memberResult = await supabase
     .from("business_members")
@@ -248,32 +237,11 @@ async function ensureBusinessForCurrentUser() {
 
     if (error || !business) throw new Error("İşletme bilgisi alınamadı.");
 
-    const isOwner = normalizeEmail(business.owner_email) === userEmail;
-    const member = isOwner ? await ensureOwnerMember(business.id, userEmail) : memberResult.data;
-
     return {
       userEmail,
       business: business as Business,
-      member: member as Member,
-      isOwner,
-    } satisfies BusinessContext;
-  }
-
-  const existingBusiness = await supabase
-    .from("businesses")
-    .select("*")
-    .eq("owner_email", userEmail)
-    .limit(1)
-    .maybeSingle();
-
-  if (existingBusiness.data) {
-    const ownerMember = await ensureOwnerMember(existingBusiness.data.id, userEmail);
-
-    return {
-      userEmail,
-      business: existingBusiness.data as Business,
-      member: ownerMember,
-      isOwner: true,
+      member: memberResult.data as Member,
+      isOwner: normalizeEmail(business.owner_email) === userEmail,
     } satisfies BusinessContext;
   }
 
@@ -293,12 +261,7 @@ async function ensureBusinessForCurrentUser() {
 
   const ownerMember = await ensureOwnerMember(createdBusiness.id, userEmail);
 
-  return {
-    userEmail,
-    business: createdBusiness as Business,
-    member: ownerMember,
-    isOwner: true,
-  } satisfies BusinessContext;
+  return { userEmail, business: createdBusiness as Business, member: ownerMember, isOwner: true } satisfies BusinessContext;
 }
 
 function formatDate(date: string | null | undefined) {
@@ -312,14 +275,16 @@ function formatDate(date: string | null | undefined) {
 
 function statusLabel(status: string | null | undefined) {
   if (status === "active") return "Aktif";
-  if (status === "invited") return "Davetli";
+  if (status === "pending") return "Bekliyor";
+  if (status === "sent") return "Gönderildi";
+  if (status === "accepted") return "Kabul edildi";
   if (status === "disabled") return "Pasif";
   return "Aktif";
 }
 
 function statusClass(status: string | null | undefined) {
   if (status === "disabled") return "bg-red-500/15 text-red-300 ring-red-400/20";
-  if (status === "invited") return "bg-amber-500/15 text-amber-300 ring-amber-400/20";
+  if (status === "pending" || status === "sent") return "bg-amber-500/15 text-amber-300 ring-amber-400/20";
   return "bg-emerald-500/15 text-emerald-300 ring-emerald-400/20";
 }
 
@@ -334,7 +299,8 @@ function roleClass(role: string | null | undefined) {
 export default function SettingsPage() {
   const [context, setContext] = useState<BusinessContext | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
-  const [businessForm, setBusinessForm] = useState<BusinessForm>({
+  const [invites, setInvites] = useState<Invite[]>([]);
+  const [businessForm, setBusinessForm] = useState({
     name: "",
     email: "",
     logo_url: "",
@@ -349,7 +315,8 @@ export default function SettingsPage() {
     default_currency: "TRY",
     default_tax_rate: "20",
   });
-  const [memberForm, setMemberForm] = useState<MemberForm>(emptyMemberForm);
+  const [memberForm, setMemberForm] = useState({ display_name: "", email: "", role_name: "Satış" });
+  const [customPermissions, setCustomPermissions] = useState<Record<PermissionKey, boolean>>(permissionsForRole("Satış"));
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
@@ -381,19 +348,23 @@ export default function SettingsPage() {
         default_tax_rate: String(ctx.business.default_tax_rate ?? 20),
       });
 
-      const membersResult = await supabase
-        .from("business_members")
-        .select("*")
-        .eq("business_id", ctx.business.id)
-        .order("role_name", { ascending: true })
-        .order("created_at", { ascending: true });
+      const [membersResult, invitesResult] = await Promise.all([
+        supabase.from("business_members").select("*").eq("business_id", ctx.business.id).order("created_at", { ascending: true }),
+        supabase.from("team_invites").select("*").eq("business_id", ctx.business.id).order("created_at", { ascending: false }),
+      ]);
 
       if (membersResult.error) {
         setMessage(`Ekip üyeleri alınamadı: ${membersResult.error.message}`);
         return;
       }
 
+      if (invitesResult.error) {
+        setMessage(`Davetler alınamadı: ${invitesResult.error.message}`);
+        return;
+      }
+
       setMembers((membersResult.data ?? []) as Member[]);
+      setInvites((invitesResult.data ?? []) as Invite[]);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Ayarlar alınamadı.";
 
@@ -411,6 +382,27 @@ export default function SettingsPage() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    setCustomPermissions(permissionsForRole(memberForm.role_name));
+  }, [memberForm.role_name]);
+
+  async function handleLogoFile(file: File | null) {
+    if (!file) return;
+
+    if (file.size > 700_000) {
+      setMessage("Logo dosyası çok büyük. Şimdilik 700KB altı PNG/JPG/SVG kullan.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || "");
+      setBusinessForm((current) => ({ ...current, logo_url: result }));
+      setMessage("Logo yüklendi. Kalıcı olması için İşletme Profilini Kaydet butonuna bas.");
+    };
+    reader.readAsDataURL(file);
+  }
 
   async function saveBusinessProfile() {
     if (!context) return;
@@ -470,11 +462,15 @@ export default function SettingsPage() {
       return;
     }
 
-    const rolePermissions = permissionsForRole(memberForm.role_name);
+    if (members.some((member) => normalizeEmail(member.email) === email)) {
+      setMessage("Bu e-posta zaten ekipte görünüyor.");
+      return;
+    }
 
+    const permissions = memberForm.role_name === "Özel" ? customPermissions : permissionsForRole(memberForm.role_name);
     setSaving(true);
 
-    const { error } = await supabase
+    const memberResult = await supabase
       .from("business_members")
       .insert({
         business_id: context.business.id,
@@ -483,18 +479,91 @@ export default function SettingsPage() {
         invited_by: context.userEmail,
         role_name: memberForm.role_name,
         member_status: "active",
-        ...rolePermissions,
-      });
+        ...permissions,
+      })
+      .select("*")
+      .single();
 
-    if (error) {
-      setMessage(`Ekip üyesi eklenemedi: ${error.message}`);
+    if (memberResult.error) {
+      setMessage(`Ekip üyesi eklenemedi: ${memberResult.error.message}`);
       setSaving(false);
       return;
     }
 
+    const inviteResult = await supabase
+      .from("team_invites")
+      .insert({
+        business_id: context.business.id,
+        email,
+        display_name: clean(memberForm.display_name) || null,
+        role_name: memberForm.role_name,
+        invited_by: context.userEmail,
+        status: "pending",
+      })
+      .select("*")
+      .single();
+
+    if (!inviteResult.error && inviteResult.data) {
+      await supabase.from("notifications").insert({
+        business_id: context.business.id,
+        created_by: context.userEmail,
+        target_email: email,
+        title: "Takipio ekip daveti",
+        message: `${context.business.name} işletmesine ${memberForm.role_name} rolüyle eklendin.`,
+        type: "invite",
+        href: "/app",
+      });
+
+      const session = await supabase.auth.getSession();
+      await fetch("/api/team-invites/send", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.data.session?.access_token || ""}`,
+        },
+        body: JSON.stringify({
+          email,
+          displayName: clean(memberForm.display_name),
+          businessName: context.business.name,
+          roleName: memberForm.role_name,
+          token: inviteResult.data.token,
+        }),
+      }).catch(() => null);
+    }
+
     setSaving(false);
-    setMemberForm(emptyMemberForm);
-    setMessage("Ekip üyesi eklendi. Bu e-posta ile kayıt/giriş yaptığında aynı işletmeye bağlanır.");
+    setMemberForm({ display_name: "", email: "", role_name: "Satış" });
+    setMessage("Ekip üyesi eklendi. Mail servisi bağlıysa davet maili de gönderilir.");
+    await fetchData();
+  }
+
+  async function resendInvite(invite: Invite) {
+    if (!context) return;
+
+    const session = await supabase.auth.getSession();
+
+    await fetch("/api/team-invites/send", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.data.session?.access_token || ""}`,
+      },
+      body: JSON.stringify({
+        email: invite.email,
+        displayName: invite.display_name || "",
+        businessName: context.business.name,
+        roleName: invite.role_name || "Personel",
+        token: invite.token,
+      }),
+    });
+
+    await supabase
+      .from("team_invites")
+      .update({ status: "sent", sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq("id", invite.id)
+      .eq("business_id", context.business.id);
+
+    setMessage("Davet tekrar gönderildi / gönderim kuyruğuna alındı.");
     await fetchData();
   }
 
@@ -515,10 +584,7 @@ export default function SettingsPage() {
 
     const { error } = await supabase
       .from("business_members")
-      .update({
-        ...patch,
-        updated_at: new Date().toISOString(),
-      })
+      .update({ ...patch, updated_at: new Date().toISOString() })
       .eq("business_id", context.business.id)
       .eq("id", member.id);
 
@@ -533,16 +599,13 @@ export default function SettingsPage() {
     await fetchData();
 
     if (selectedMember?.id === member.id) {
-      setSelectedMember((current) => current ? ({ ...current, ...patch }) : current);
+      setSelectedMember((current) => (current ? { ...current, ...patch } : current));
     }
   }
 
   async function changeRole(member: Member, role: string) {
-    const rolePermissions = permissionsForRole(role);
-    await updateMember(member, {
-      role_name: role,
-      ...rolePermissions,
-    } as Partial<Member>);
+    const rolePermissions = role === "Özel" ? {} : permissionsForRole(role);
+    await updateMember(member, { role_name: role, ...rolePermissions } as Partial<Member>);
   }
 
   async function deleteMember(member: Member) {
@@ -581,9 +644,9 @@ export default function SettingsPage() {
       total: members.length,
       active: members.filter((member) => member.member_status === "active").length,
       disabled: members.filter((member) => member.member_status === "disabled").length,
-      owners: members.filter((member) => member.role_name === "Sahip").length,
+      invites: invites.filter((invite) => invite.status === "pending" || invite.status === "sent").length,
     };
-  }, [members]);
+  }, [members, invites]);
 
   return (
     <section className="mx-auto w-full max-w-[1500px] space-y-4 pb-10 text-white">
@@ -591,19 +654,22 @@ export default function SettingsPage() {
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="mb-3 inline-flex rounded-full bg-blue-500/15 px-3 py-2 text-xs font-black text-blue-300">
-              Settings Center v20
+              Settings Center v20.1
             </div>
             <h1 className="text-[34px] font-black tracking-[-0.05em] sm:text-5xl">Ayarlar</h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400">
-              İşletme profili, marka bilgileri, vergi ayarları ve ekip yetkilerini tek merkezden yönet.
+              İşletme profili, logo, ekip davetleri ve modül yetkilerini tek merkezden yönet.
             </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Link href="/app/invoices" className="rounded-2xl bg-emerald-500/15 px-5 py-3 text-sm font-black text-emerald-300 ring-1 ring-emerald-400/20 transition hover:bg-emerald-500/25">
-              Fatura Ayarlarına Git
+            <Link href="/app/reports" className="rounded-2xl bg-purple-500/15 px-5 py-3 text-sm font-black text-purple-300 ring-1 ring-purple-400/20">
+              Raporlar
             </Link>
-            <button onClick={fetchData} className="rounded-2xl bg-white/8 px-5 py-3 text-sm font-black text-slate-200 ring-1 ring-white/10 transition hover:bg-white/12">
+            <Link href="/app/notifications" className="rounded-2xl bg-amber-500/15 px-5 py-3 text-sm font-black text-amber-300 ring-1 ring-amber-400/20">
+              Bildirimler
+            </Link>
+            <button onClick={fetchData} className="rounded-2xl bg-white/8 px-5 py-3 text-sm font-black text-slate-200 ring-1 ring-white/10">
               Yenile
             </button>
           </div>
@@ -626,7 +692,7 @@ export default function SettingsPage() {
         <Metric label="Toplam Üye" value={loading ? "..." : String(stats.total)} />
         <Metric label="Aktif Üye" value={loading ? "..." : String(stats.active)} valueClass="text-emerald-300" />
         <Metric label="Pasif Üye" value={loading ? "..." : String(stats.disabled)} valueClass="text-red-300" />
-        <Metric label="Sahip" value={loading ? "..." : String(stats.owners)} valueClass="text-blue-300" />
+        <Metric label="Bekleyen Davet" value={loading ? "..." : String(stats.invites)} valueClass="text-amber-300" />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1fr_0.9fr]">
@@ -634,84 +700,45 @@ export default function SettingsPage() {
           <div className="mb-5 flex items-start justify-between gap-4">
             <div>
               <h2 className="text-2xl font-black">İşletme Profili</h2>
-              <p className="mt-1 text-sm text-slate-400">Bu bilgiler panelde, fatura hazırlığında ve ileride müşteri çıktılarında kullanılabilir.</p>
+              <p className="mt-1 text-sm text-slate-400">Bu bilgiler fatura, rapor ve müşteri çıktılarında kullanılabilir.</p>
             </div>
 
             {businessForm.logo_url ? (
-              <img src={businessForm.logo_url} alt="Logo" className="h-14 w-14 rounded-2xl bg-white object-contain p-2" />
+              <img src={businessForm.logo_url} alt="Logo" className="h-16 w-16 rounded-2xl bg-white object-contain p-2" />
             ) : (
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-500/15 text-lg font-black text-blue-300">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-500/15 text-xl font-black text-blue-300">
                 {businessForm.name?.slice(0, 1) || "T"}
               </div>
             )}
           </div>
 
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            <Field label="İşletme Adı">
-              <input value={businessForm.name} onChange={(event) => setBusinessForm((current) => ({ ...current, name: event.target.value }))} className="input" />
-            </Field>
-
-            <Field label="E-posta">
-              <input value={businessForm.email} onChange={(event) => setBusinessForm((current) => ({ ...current, email: event.target.value }))} className="input" />
-            </Field>
-
-            <Field label="Telefon">
-              <input value={businessForm.phone} onChange={(event) => setBusinessForm((current) => ({ ...current, phone: event.target.value }))} className="input" />
-            </Field>
-
-            <Field label="Web Sitesi">
-              <input value={businessForm.website} onChange={(event) => setBusinessForm((current) => ({ ...current, website: event.target.value }))} className="input" />
-            </Field>
-
-            <Field label="Logo URL">
-              <input value={businessForm.logo_url} onChange={(event) => setBusinessForm((current) => ({ ...current, logo_url: event.target.value }))} className="input" />
-            </Field>
-
-            <Field label="Marka Rengi">
-              <input value={businessForm.brand_color} onChange={(event) => setBusinessForm((current) => ({ ...current, brand_color: event.target.value }))} className="input" />
-            </Field>
-
-            <Field label="VKN / TCKN">
-              <input value={businessForm.tax_id} onChange={(event) => setBusinessForm((current) => ({ ...current, tax_id: event.target.value }))} className="input" />
-            </Field>
-
-            <Field label="Vergi Dairesi">
-              <input value={businessForm.tax_office} onChange={(event) => setBusinessForm((current) => ({ ...current, tax_office: event.target.value }))} className="input" />
-            </Field>
-
-            <Field label="Varsayılan Para Birimi">
-              <select value={businessForm.default_currency} onChange={(event) => setBusinessForm((current) => ({ ...current, default_currency: event.target.value }))} className="input">
-                <option value="TRY">TRY</option>
-                <option value="EUR">EUR</option>
-                <option value="USD">USD</option>
-                <option value="GBP">GBP</option>
+            <Field label="İşletme Adı"><input value={businessForm.name} onChange={(e) => setBusinessForm((c) => ({ ...c, name: e.target.value }))} className="input" /></Field>
+            <Field label="E-posta"><input value={businessForm.email} onChange={(e) => setBusinessForm((c) => ({ ...c, email: e.target.value }))} className="input" /></Field>
+            <Field label="Telefon"><input value={businessForm.phone} onChange={(e) => setBusinessForm((c) => ({ ...c, phone: e.target.value }))} className="input" /></Field>
+            <Field label="Web Sitesi"><input value={businessForm.website} onChange={(e) => setBusinessForm((c) => ({ ...c, website: e.target.value }))} className="input" /></Field>
+            <Field label="Logo URL"><input value={businessForm.logo_url} onChange={(e) => setBusinessForm((c) => ({ ...c, logo_url: e.target.value }))} className="input" /></Field>
+            <Field label="Bilgisayardan Logo Yükle"><input type="file" accept="image/*" onChange={(e) => handleLogoFile(e.target.files?.[0] || null)} className="input" /></Field>
+            <Field label="Marka Rengi"><input value={businessForm.brand_color} onChange={(e) => setBusinessForm((c) => ({ ...c, brand_color: e.target.value }))} className="input" /></Field>
+            <Field label="VKN / TCKN"><input value={businessForm.tax_id} onChange={(e) => setBusinessForm((c) => ({ ...c, tax_id: e.target.value }))} className="input" /></Field>
+            <Field label="Vergi Dairesi"><input value={businessForm.tax_office} onChange={(e) => setBusinessForm((c) => ({ ...c, tax_office: e.target.value }))} className="input" /></Field>
+            <Field label="Para Birimi">
+              <select value={businessForm.default_currency} onChange={(e) => setBusinessForm((c) => ({ ...c, default_currency: e.target.value }))} className="input">
+                <option value="TRY">TRY</option><option value="EUR">EUR</option><option value="USD">USD</option><option value="GBP">GBP</option>
               </select>
             </Field>
-
-            <Field label="Varsayılan KDV %">
-              <input type="number" value={businessForm.default_tax_rate} onChange={(event) => setBusinessForm((current) => ({ ...current, default_tax_rate: event.target.value }))} className="input" />
-            </Field>
-
-            <Field label="İl">
-              <input value={businessForm.city} onChange={(event) => setBusinessForm((current) => ({ ...current, city: event.target.value }))} className="input" />
-            </Field>
-
-            <Field label="İlçe">
-              <input value={businessForm.district} onChange={(event) => setBusinessForm((current) => ({ ...current, district: event.target.value }))} className="input" />
-            </Field>
-
-            <label className="md:col-span-2 xl:col-span-3">
-              <span className="label">Adres</span>
-              <input value={businessForm.address} onChange={(event) => setBusinessForm((current) => ({ ...current, address: event.target.value }))} className="input" />
-            </label>
+            <Field label="Varsayılan KDV %"><input type="number" value={businessForm.default_tax_rate} onChange={(e) => setBusinessForm((c) => ({ ...c, default_tax_rate: e.target.value }))} className="input" /></Field>
+            <Field label="İlçe"><input value={businessForm.district} onChange={(e) => setBusinessForm((c) => ({ ...c, district: e.target.value }))} className="input" /></Field>
+            <Field label="İl"><input value={businessForm.city} onChange={(e) => setBusinessForm((c) => ({ ...c, city: e.target.value }))} className="input" /></Field>
+            <label className="md:col-span-2 xl:col-span-2"><span className="label">Adres</span><input value={businessForm.address} onChange={(e) => setBusinessForm((c) => ({ ...c, address: e.target.value }))} className="input" /></label>
           </div>
 
           <div className="mt-5 flex flex-wrap gap-2">
-            <button onClick={saveBusinessProfile} disabled={saving || !canManageSettings} className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-500 disabled:opacity-50">
+            <button onClick={saveBusinessProfile} disabled={saving || !canManageSettings} className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white disabled:opacity-50">
               {saving ? "Kaydediliyor..." : "İşletme Profilini Kaydet"}
             </button>
             <Link href="/app/invoices" className="rounded-2xl bg-white/8 px-5 py-3 text-sm font-black text-slate-300 ring-1 ring-white/10">
-              Fatura Modülüne Aktar
+              Fatura Modülüne Git
             </Link>
           </div>
         </div>
@@ -719,113 +746,117 @@ export default function SettingsPage() {
         <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
           <div className="mb-5">
             <h2 className="text-2xl font-black">Yeni Ekip Üyesi</h2>
-            <p className="mt-1 text-sm text-slate-400">E-posta ile üye ekle. Bu kişi aynı e-posta ile kayıt/giriş yaptığında işletmeye bağlanır.</p>
+            <p className="mt-1 text-sm text-slate-400">Üye eklenir, davet kaydı oluşur, mail servisi bağlıysa davet maili gönderilir.</p>
           </div>
 
           <form onSubmit={addMember} className="grid gap-3">
-            <Field label="Ad Soyad / Görünen Ad">
-              <input value={memberForm.display_name} onChange={(event) => setMemberForm((current) => ({ ...current, display_name: event.target.value }))} className="input" />
-            </Field>
-
-            <Field label="E-posta">
-              <input value={memberForm.email} onChange={(event) => setMemberForm((current) => ({ ...current, email: event.target.value }))} className="input" />
-            </Field>
-
+            <Field label="Ad Soyad / Görünen Ad"><input value={memberForm.display_name} onChange={(e) => setMemberForm((c) => ({ ...c, display_name: e.target.value }))} className="input" /></Field>
+            <Field label="E-posta"><input value={memberForm.email} onChange={(e) => setMemberForm((c) => ({ ...c, email: e.target.value }))} className="input" /></Field>
             <Field label="Rol">
-              <select value={memberForm.role_name} onChange={(event) => setMemberForm((current) => ({ ...current, role_name: event.target.value }))} className="input">
-                <option value="Satış">Satış</option>
-                <option value="Muhasebe">Muhasebe</option>
-                <option value="Depo">Depo</option>
-                <option value="Özel">Özel</option>
+              <select value={memberForm.role_name} onChange={(e) => setMemberForm((c) => ({ ...c, role_name: e.target.value }))} className="input">
+                <option value="Satış">Satış</option><option value="Muhasebe">Muhasebe</option><option value="Depo">Depo</option><option value="Özel">Özel</option>
               </select>
             </Field>
 
-            <button disabled={saving || !canManageSettings} className="rounded-2xl bg-emerald-500/15 px-5 py-3 text-sm font-black text-emerald-300 ring-1 ring-emerald-400/20 transition hover:bg-emerald-500/25 disabled:opacity-50">
+            {memberForm.role_name === "Özel" ? (
+              <div className="rounded-[22px] border border-white/10 bg-[#0b1220] p-4">
+                <p className="mb-3 text-sm font-black text-white">Özel Rol Yetkileri</p>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {permissionFields.map((field) => (
+                    <button
+                      key={field.key}
+                      type="button"
+                      onClick={() => setCustomPermissions((current) => ({ ...current, [field.key]: !current[field.key] }))}
+                      className={`rounded-2xl px-3 py-2 text-left text-xs font-black ring-1 ${
+                        customPermissions[field.key] ? "bg-emerald-500/10 text-emerald-300 ring-emerald-400/20" : "bg-white/5 text-slate-400 ring-white/10"
+                      }`}
+                    >
+                      {field.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <button disabled={saving || !canManageSettings || !memberForm.email.trim()} className="rounded-2xl bg-emerald-500/15 px-5 py-3 text-sm font-black text-emerald-300 ring-1 ring-emerald-400/20 disabled:opacity-50">
               Ekip Üyesi Ekle
             </button>
           </form>
-
-          <div className="mt-5 rounded-2xl bg-blue-500/10 p-4 text-sm leading-6 text-blue-100 ring-1 ring-blue-400/20">
-            <b>Not:</b> Bu sistem ekip üyesini işletmeye bağlar. Gerçek e-posta davet maili göndermek istersek sonraki pakette mail route’u ekleriz.
-          </div>
         </div>
       </div>
 
       <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
-        <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h2 className="text-2xl font-black">Ekip ve Yetkiler</h2>
-            <p className="mt-1 text-sm text-slate-400">Kim hangi modüle erişecek buradan yönetilir.</p>
-          </div>
+        <h2 className="text-2xl font-black">Ekip ve Yetkiler</h2>
+        <p className="mt-1 text-sm text-slate-400">Kim hangi modüle erişecek buradan yönetilir.</p>
+
+        <div className="mt-5 grid gap-3">
+          {members.map((member) => (
+            <article key={member.id} className="rounded-[24px] border border-white/10 bg-[#0b1220] p-4">
+              <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr_1.1fr] xl:items-center">
+                <div>
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <h3 className="text-lg font-black">{member.display_name || member.email}</h3>
+                    <span className={`rounded-full px-3 py-1 text-xs font-black ring-1 ${roleClass(member.role_name)}`}>{member.role_name || "Personel"}</span>
+                    <span className={`rounded-full px-3 py-1 text-xs font-black ring-1 ${statusClass(member.member_status)}`}>{statusLabel(member.member_status)}</span>
+                  </div>
+                  <p className="text-sm font-bold text-slate-400">{member.email}</p>
+                  <p className="mt-1 text-xs text-slate-500">Eklenme: {formatDate(member.created_at)}</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <select value={member.role_name || "Özel"} onChange={(e) => changeRole(member, e.target.value)} disabled={!canManageSettings || member.role_name === "Sahip"} className="input">
+                    <option value="Sahip">Sahip</option><option value="Muhasebe">Muhasebe</option><option value="Depo">Depo</option><option value="Satış">Satış</option><option value="Özel">Özel</option>
+                  </select>
+
+                  <button onClick={() => updateMember(member, { member_status: member.member_status === "disabled" ? "active" : "disabled" })} disabled={!canManageSettings || member.role_name === "Sahip"} className="rounded-2xl bg-white/8 px-4 py-3 text-xs font-black text-slate-300 ring-1 ring-white/10 disabled:opacity-40">
+                    {member.member_status === "disabled" ? "Aktif Yap" : "Pasife Al"}
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap justify-start gap-2 xl:justify-end">
+                  <button onClick={() => setSelectedMember(member)} className="rounded-2xl bg-blue-500/15 px-4 py-2.5 text-xs font-black text-blue-300 ring-1 ring-blue-400/20">Yetkileri Aç</button>
+                  <button onClick={() => deleteMember(member)} disabled={!canManageSettings || member.email === context?.userEmail} className="rounded-2xl bg-red-500/15 px-4 py-2.5 text-xs font-black text-red-300 ring-1 ring-red-400/20 disabled:opacity-40">Sil</button>
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                {permissionFields.filter((field) => Boolean(member[field.key])).slice(0, 10).map((field) => (
+                  <span key={field.key} className="rounded-full bg-emerald-500/10 px-3 py-1 text-[11px] font-black text-emerald-300 ring-1 ring-emerald-400/20">{field.label}</span>
+                ))}
+              </div>
+            </article>
+          ))}
         </div>
+      </div>
 
-        {members.length === 0 ? (
-          <div className="rounded-[24px] border border-dashed border-white/10 p-10 text-center text-sm font-bold text-slate-500">
-            Henüz ekip üyesi yok.
-          </div>
-        ) : (
-          <div className="grid gap-3">
-            {members.map((member) => (
-              <article key={member.id} className="rounded-[24px] border border-white/10 bg-[#0b1220] p-4">
-                <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr_1.1fr] xl:items-center">
+      <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
+        <h2 className="text-2xl font-black">Davet Geçmişi</h2>
+        <p className="mt-1 text-sm text-slate-400">Gönderilen ekip davetleri ve durumları.</p>
+
+        <div className="mt-5 grid gap-3">
+          {invites.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center text-sm font-bold text-slate-500">Davet kaydı yok.</div>
+          ) : (
+            invites.map((invite) => (
+              <div key={invite.id} className="rounded-2xl bg-[#0b1220] p-4 ring-1 ring-white/10">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                   <div>
-                    <div className="mb-2 flex flex-wrap items-center gap-2">
-                      <h3 className="text-lg font-black">{member.display_name || member.email}</h3>
-                      <span className={`rounded-full px-3 py-1 text-xs font-black ring-1 ${roleClass(member.role_name)}`}>
-                        {member.role_name || "Personel"}
-                      </span>
-                      <span className={`rounded-full px-3 py-1 text-xs font-black ring-1 ${statusClass(member.member_status)}`}>
-                        {statusLabel(member.member_status)}
-                      </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-black">{invite.display_name || invite.email}</p>
+                      <span className={`rounded-full px-3 py-1 text-xs font-black ring-1 ${statusClass(invite.status)}`}>{statusLabel(invite.status)}</span>
+                      <span className={`rounded-full px-3 py-1 text-xs font-black ring-1 ${roleClass(invite.role_name)}`}>{invite.role_name || "Personel"}</span>
                     </div>
-                    <p className="text-sm font-bold text-slate-400">{member.email}</p>
-                    <p className="mt-1 text-xs text-slate-500">Eklenme: {formatDate(member.created_at)}</p>
+                    <p className="mt-1 text-sm text-slate-400">{invite.email}</p>
+                    <p className="mt-1 text-xs text-slate-500">Geçerlilik: {formatDate(invite.expires_at)}</p>
                   </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <select value={member.role_name || "Özel"} onChange={(event) => changeRole(member, event.target.value)} disabled={!canManageSettings || member.role_name === "Sahip"} className="input">
-                      <option value="Sahip">Sahip</option>
-                      <option value="Muhasebe">Muhasebe</option>
-                      <option value="Depo">Depo</option>
-                      <option value="Satış">Satış</option>
-                      <option value="Özel">Özel</option>
-                    </select>
-
-                    <button
-                      onClick={() => updateMember(member, { member_status: member.member_status === "disabled" ? "active" : "disabled" })}
-                      disabled={!canManageSettings || member.role_name === "Sahip"}
-                      className="rounded-2xl bg-white/8 px-4 py-3 text-xs font-black text-slate-300 ring-1 ring-white/10 disabled:opacity-40"
-                    >
-                      {member.member_status === "disabled" ? "Aktif Yap" : "Pasife Al"}
-                    </button>
-                  </div>
-
-                  <div className="flex flex-wrap justify-start gap-2 xl:justify-end">
-                    <button onClick={() => setSelectedMember(member)} className="rounded-2xl bg-blue-500/15 px-4 py-2.5 text-xs font-black text-blue-300 ring-1 ring-blue-400/20">
-                      Yetkileri Aç
-                    </button>
-                    <button onClick={() => deleteMember(member)} disabled={!canManageSettings || member.email === context?.userEmail} className="rounded-2xl bg-red-500/15 px-4 py-2.5 text-xs font-black text-red-300 ring-1 ring-red-400/20 disabled:opacity-40">
-                      Sil
-                    </button>
-                  </div>
+                  <button onClick={() => resendInvite(invite)} disabled={!canManageSettings} className="rounded-2xl bg-blue-500/15 px-4 py-2.5 text-xs font-black text-blue-300 ring-1 ring-blue-400/20 disabled:opacity-40">
+                    Daveti Tekrar Gönder
+                  </button>
                 </div>
-
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {permissionFields.filter((field) => Boolean(member[field.key])).slice(0, 8).map((field) => (
-                    <span key={field.key} className="rounded-full bg-emerald-500/10 px-3 py-1 text-[11px] font-black text-emerald-300 ring-1 ring-emerald-400/20">
-                      {field.label}
-                    </span>
-                  ))}
-                  {permissionFields.filter((field) => Boolean(member[field.key])).length > 8 ? (
-                    <span className="rounded-full bg-white/8 px-3 py-1 text-[11px] font-black text-slate-400 ring-1 ring-white/10">
-                      +{permissionFields.filter((field) => Boolean(member[field.key])).length - 8}
-                    </span>
-                  ) : null}
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
       {selectedMember ? (
@@ -834,20 +865,14 @@ export default function SettingsPage() {
             <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <span className={`rounded-full px-3 py-1 text-xs font-black ring-1 ${roleClass(selectedMember.role_name)}`}>
-                    {selectedMember.role_name || "Personel"}
-                  </span>
-                  <span className={`rounded-full px-3 py-1 text-xs font-black ring-1 ${statusClass(selectedMember.member_status)}`}>
-                    {statusLabel(selectedMember.member_status)}
-                  </span>
+                  <span className={`rounded-full px-3 py-1 text-xs font-black ring-1 ${roleClass(selectedMember.role_name)}`}>{selectedMember.role_name || "Personel"}</span>
+                  <span className={`rounded-full px-3 py-1 text-xs font-black ring-1 ${statusClass(selectedMember.member_status)}`}>{statusLabel(selectedMember.member_status)}</span>
                 </div>
                 <h2 className="text-3xl font-black tracking-[-0.04em]">{selectedMember.display_name || selectedMember.email}</h2>
                 <p className="mt-1 text-sm text-slate-400">{selectedMember.email}</p>
               </div>
 
-              <button onClick={() => setSelectedMember(null)} className="rounded-2xl bg-white/8 px-4 py-2.5 text-xs font-black text-slate-300 ring-1 ring-white/10">
-                Kapat
-              </button>
+              <button onClick={() => setSelectedMember(null)} className="rounded-2xl bg-white/8 px-4 py-2.5 text-xs font-black text-slate-300 ring-1 ring-white/10">Kapat</button>
             </div>
 
             <div className="grid gap-3 md:grid-cols-2">
@@ -856,14 +881,12 @@ export default function SettingsPage() {
                   key={field.key}
                   onClick={() => {
                     const nextValue = !selectedMember[field.key];
-                    updateMember(selectedMember, { [field.key]: nextValue } as Partial<Member>);
-                    setSelectedMember((current) => current ? ({ ...current, [field.key]: nextValue }) : current);
+                    updateMember(selectedMember, { [field.key]: nextValue, role_name: selectedMember.role_name === "Sahip" ? "Sahip" : "Özel" } as Partial<Member>);
+                    setSelectedMember((current) => (current ? { ...current, [field.key]: nextValue, role_name: current.role_name === "Sahip" ? "Sahip" : "Özel" } : current));
                   }}
                   disabled={!canManageSettings || selectedMember.role_name === "Sahip"}
                   className={`rounded-[22px] border p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                    selectedMember[field.key]
-                      ? "border-emerald-400/30 bg-emerald-500/10"
-                      : "border-white/10 bg-[#0b1220] hover:bg-white/5"
+                    selectedMember[field.key] ? "border-emerald-400/30 bg-emerald-500/10" : "border-white/10 bg-[#0b1220] hover:bg-white/5"
                   }`}
                 >
                   <div className="flex items-start justify-between gap-4">
@@ -871,11 +894,7 @@ export default function SettingsPage() {
                       <p className="font-black text-white">{field.label}</p>
                       <p className="mt-1 text-sm leading-6 text-slate-400">{field.desc}</p>
                     </div>
-                    <span className={`rounded-full px-3 py-1 text-xs font-black ${
-                      selectedMember[field.key]
-                        ? "bg-emerald-400 text-[#04111c]"
-                        : "bg-white/8 text-slate-400"
-                    }`}>
+                    <span className={`rounded-full px-3 py-1 text-xs font-black ${selectedMember[field.key] ? "bg-emerald-400 text-[#04111c]" : "bg-white/8 text-slate-400"}`}>
                       {selectedMember[field.key] ? "Açık" : "Kapalı"}
                     </span>
                   </div>
@@ -924,10 +943,5 @@ function Metric({ label, value, valueClass }: { label: string; value: string; va
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="label">{label}</span>
-      {children}
-    </label>
-  );
+  return <label className="block"><span className="label">{label}</span>{children}</label>;
 }
