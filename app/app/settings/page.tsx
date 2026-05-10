@@ -499,6 +499,7 @@ export default function SettingsPage() {
         role_name: memberForm.role_name,
         invited_by: context.userEmail,
         status: "pending",
+        ...permissions,
       })
       .select("*")
       .single();
