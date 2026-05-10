@@ -467,7 +467,7 @@ export default function SettingsPage() {
       return;
     }
 
-    const permissions = memberForm.role_name === "Özel" ? customPermissions : permissionsForRole(memberForm.role_name);
+    const permissions = customPermissions;
     setSaving(true);
 
     const memberResult = await supabase
@@ -758,25 +758,38 @@ export default function SettingsPage() {
               </select>
             </Field>
 
-            {memberForm.role_name === "Özel" ? (
-              <div className="rounded-[22px] border border-white/10 bg-[#0b1220] p-4">
-                <p className="mb-3 text-sm font-black text-white">Özel Rol Yetkileri</p>
-                <div className="grid gap-2 md:grid-cols-2">
-                  {permissionFields.map((field) => (
-                    <button
-                      key={field.key}
-                      type="button"
-                      onClick={() => setCustomPermissions((current) => ({ ...current, [field.key]: !current[field.key] }))}
-                      className={`rounded-2xl px-3 py-2 text-left text-xs font-black ring-1 ${
-                        customPermissions[field.key] ? "bg-emerald-500/10 text-emerald-300 ring-emerald-400/20" : "bg-white/5 text-slate-400 ring-white/10"
-                      }`}
-                    >
-                      {field.label}
-                    </button>
-                  ))}
+            <div className="rounded-[22px] border border-white/10 bg-[#0b1220] p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-black text-white">Rol Yetkileri</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    {memberForm.role_name} rolü için varsayılan yetkiler aşağıda. İstersen ekstra aç/kapat yapabilirsin.
+                  </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setCustomPermissions(permissionsForRole(memberForm.role_name))}
+                  className="rounded-xl bg-white/8 px-3 py-2 text-[11px] font-black text-slate-300 ring-1 ring-white/10"
+                >
+                  Varsayılana Dön
+                </button>
               </div>
-            ) : null}
+              <div className="grid gap-2 md:grid-cols-2">
+                {permissionFields.map((field) => (
+                  <button
+                    key={field.key}
+                    type="button"
+                    onClick={() => setCustomPermissions((current) => ({ ...current, [field.key]: !current[field.key] }))}
+                    className={`rounded-2xl px-3 py-2 text-left text-xs font-black ring-1 ${
+                      customPermissions[field.key] ? "bg-emerald-500/10 text-emerald-300 ring-emerald-400/20" : "bg-white/5 text-slate-400 ring-white/10"
+                    }`}
+                  >
+                    <span className="block">{field.label}</span>
+                    <span className="mt-1 block text-[10px] font-bold opacity-70">{field.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
 
             <button disabled={saving || !canManageSettings || !memberForm.email.trim()} className="rounded-2xl bg-emerald-500/15 px-5 py-3 text-sm font-black text-emerald-300 ring-1 ring-emerald-400/20 disabled:opacity-50">
               Ekip Üyesi Ekle
