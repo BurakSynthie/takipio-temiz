@@ -131,6 +131,41 @@ export default function NotificationsPage() {
     await fetchData();
   }
 
+  async function deleteNotification(item: Notification) {
+    if (!confirm("Bu bildirim silinsin mi?")) return;
+
+    const result = await supabase
+      .from("notifications")
+      .delete()
+      .eq("id", item.id)
+      .eq("business_id", item.business_id);
+
+    if (result.error) {
+      setMessage(`Bildirim silinemedi: ${result.error.message}`);
+      return;
+    }
+
+    await fetchData();
+  }
+
+  async function deleteAllRead() {
+    if (!context) return;
+    if (!confirm("Okunmuş tüm bildirimler silinsin mi?")) return;
+
+    const result = await supabase
+      .from("notifications")
+      .delete()
+      .eq("business_id", context.business.id)
+      .eq("is_read", true);
+
+    if (result.error) {
+      setMessage(`Bildirimler silinemedi: ${result.error.message}`);
+      return;
+    }
+
+    await fetchData();
+  }
+
   const filtered = useMemo(() => {
     if (filter === "unread") return items.filter((item) => !item.is_read);
     if (filter === "read") return items.filter((item) => item.is_read);
@@ -161,6 +196,7 @@ export default function NotificationsPage() {
 
           <div className="flex flex-wrap gap-2">
             <button onClick={markAllRead} className="rounded-2xl bg-emerald-500/15 px-5 py-3 text-sm font-black text-emerald-300 ring-1 ring-emerald-400/20">Tümünü Okundu Yap</button>
+            <button onClick={deleteAllRead} className="rounded-2xl bg-red-500/15 px-5 py-3 text-sm font-black text-red-300 ring-1 ring-red-400/20">Okunmuşları Sil</button>
             <button onClick={fetchData} className="rounded-2xl bg-white/8 px-5 py-3 text-sm font-black text-slate-200 ring-1 ring-white/10">Yenile</button>
           </div>
         </div>
@@ -197,6 +233,9 @@ export default function NotificationsPage() {
                   {item.href ? <Link href={item.href} className="rounded-2xl bg-blue-500/15 px-4 py-2.5 text-xs font-black text-blue-300 ring-1 ring-blue-400/20">Aç</Link> : null}
                   <button onClick={() => markRead(item, !item.is_read)} className="rounded-2xl bg-white/8 px-4 py-2.5 text-xs font-black text-slate-300 ring-1 ring-white/10">
                     {item.is_read ? "Okunmadı Yap" : "Okundu Yap"}
+                  </button>
+                  <button onClick={() => deleteNotification(item)} className="rounded-2xl bg-red-500/15 px-4 py-2.5 text-xs font-black text-red-300 ring-1 ring-red-400/20">
+                    Sil
                   </button>
                 </div>
               </div>
