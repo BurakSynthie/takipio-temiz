@@ -605,6 +605,11 @@ export default function SettingsPage() {
   }
 
   async function changeRole(member: Member, role: string) {
+    if (member.email === context?.userEmail && member.role_name === "Sahip" && role !== "Sahip") {
+      setMessage("Kendi Sahip rolünü değiştiremezsin. Güvenlik için en az bir sahip hesabı korunmalı.");
+      return;
+    }
+
     const rolePermissions = role === "Özel" ? {} : permissionsForRole(role);
     await updateMember(member, { role_name: role, ...rolePermissions } as Partial<Member>);
   }
@@ -818,11 +823,11 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
-                  <select value={member.role_name || "Özel"} onChange={(e) => changeRole(member, e.target.value)} disabled={!canManageSettings || member.role_name === "Sahip"} className="input">
+                  <select value={member.role_name || "Özel"} onChange={(e) => changeRole(member, e.target.value)} disabled={!canManageSettings || (member.role_name === "Sahip" && member.email === context?.userEmail)} className="input">
                     <option value="Sahip">Sahip</option><option value="Muhasebe">Muhasebe</option><option value="Depo">Depo</option><option value="Satış">Satış</option><option value="Özel">Özel</option>
                   </select>
 
-                  <button onClick={() => updateMember(member, { member_status: member.member_status === "disabled" ? "active" : "disabled" })} disabled={!canManageSettings || member.role_name === "Sahip"} className="rounded-2xl bg-white/8 px-4 py-3 text-xs font-black text-slate-300 ring-1 ring-white/10 disabled:opacity-40">
+                  <button onClick={() => updateMember(member, { member_status: member.member_status === "disabled" ? "active" : "disabled" })} disabled={!canManageSettings || member.email === context?.userEmail} className="rounded-2xl bg-white/8 px-4 py-3 text-xs font-black text-slate-300 ring-1 ring-white/10 disabled:opacity-40">
                     {member.member_status === "disabled" ? "Aktif Yap" : "Pasife Al"}
                   </button>
                 </div>
@@ -898,7 +903,7 @@ export default function SettingsPage() {
                     updateMember(selectedMember, { [field.key]: nextValue, role_name: selectedMember.role_name === "Sahip" ? "Sahip" : "Özel" } as Partial<Member>);
                     setSelectedMember((current) => (current ? { ...current, [field.key]: nextValue, role_name: current.role_name === "Sahip" ? "Sahip" : "Özel" } : current));
                   }}
-                  disabled={!canManageSettings || selectedMember.role_name === "Sahip"}
+                  disabled={!canManageSettings || (selectedMember.role_name === "Sahip" && selectedMember.email === context?.userEmail)}
                   className={`rounded-[22px] border p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${
                     selectedMember[field.key] ? "border-emerald-400/30 bg-emerald-500/10" : "border-white/10 bg-[#0b1220] hover:bg-white/5"
                   }`}
@@ -918,7 +923,7 @@ export default function SettingsPage() {
 
             {selectedMember.role_name === "Sahip" ? (
               <div className="mt-5 rounded-2xl bg-blue-500/10 p-4 text-sm font-bold text-blue-100 ring-1 ring-blue-400/20">
-                Sahip rolünde tüm yetkiler açık kabul edilir; güvenlik için tek tek kapatılamaz.
+                Kendi Sahip hesabında tüm yetkiler açık kabul edilir; güvenlik için kendi sahip yetkilerini kapatamazsın. Başka bir üyeyi yanlışlıkla Sahip yaptıysan rolünü yukarıdan değiştirebilirsin.
               </div>
             ) : null}
           </div>
