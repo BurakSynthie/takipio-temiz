@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
@@ -247,11 +248,20 @@ function formatCurrency(value: number | null | undefined) {
   }).format(Number(value ?? 0));
 }
 
+function formatCompactCurrency(value: number | null | undefined) {
+  const numberValue = Number(value ?? 0);
+
+  if (Math.abs(numberValue) >= 1000000) return `₺${(numberValue / 1000000).toFixed(1)}M`;
+  if (Math.abs(numberValue) >= 1000) return `₺${(numberValue / 1000).toFixed(1)}K`;
+
+  return formatCurrency(numberValue);
+}
+
 function formatDate(date: string | null | undefined) {
   if (!date) return "-";
 
   return new Intl.DateTimeFormat("tr-TR", {
-    dateStyle: "medium",
+    dateStyle: "short",
     timeStyle: "short",
   }).format(new Date(date));
 }
@@ -319,6 +329,7 @@ export default function DashboardPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [returns, setReturns] = useState<ReturnItem[]>([]);
+  const [note, setNote] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -393,7 +404,19 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchData();
+
+    if (typeof window !== "undefined") {
+      setNote(localStorage.getItem("takipio-dashboard-note") || "");
+    }
   }, []);
+
+  function saveNote(value: string) {
+    setNote(value);
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem("takipio-dashboard-note", value);
+    }
+  }
 
   const stats = useMemo(() => {
     const todayPayments = payments.filter((payment) => isToday(payment.payment_date || payment.created_at));
@@ -418,11 +441,9 @@ export default function DashboardPage() {
       .reduce((sum, payment) => sum + getPaymentAmount(payment), 0);
 
     const todayMarketplace = todayMarketplaceOrders.reduce((sum, order) => sum + getOrderPaidAmount(order), 0);
-
     const todayTotal = todayCash + todayCard + todayTransfer + todayMarketplace;
 
     const totalRevenue = orders.reduce((sum, order) => sum + Number(order.total_amount ?? 0), 0);
-    const totalPaidFromOrders = orders.reduce((sum, order) => sum + Number(order.paid_amount ?? 0), 0);
     const totalRemaining = orders.reduce((sum, order) => sum + Number(order.remaining_amount ?? 0), 0);
 
     const marketplaceRevenue = orders
@@ -439,6 +460,7 @@ export default function DashboardPage() {
     }, 0);
 
     const activeReturns = returns.filter((item) => item.status !== "refunded" && item.status !== "rejected").length;
+    const waitingShipments = orders.filter((order) => order.shipping_status !== "shipped" && order.shipping_status !== "delivered").length;
 
     return {
       todayCash,
@@ -447,12 +469,12 @@ export default function DashboardPage() {
       todayMarketplace,
       todayTotal,
       totalRevenue,
-      totalPaidFromOrders,
       totalRemaining,
       marketplaceRevenue,
       criticalProducts,
       stockValue,
       activeReturns,
+      waitingShipments,
     };
   }, [orders, payments, products, returns]);
 
@@ -464,11 +486,19 @@ export default function DashboardPage() {
     });
 
     return days.map((day) => {
-      const paymentTotal = payments
-        .filter((payment) => isSameDay(payment.payment_date || payment.created_at, day))
+      const cash = payments
+        .filter((payment) => payment.payment_method === "cash" && isSameDay(payment.payment_date || payment.created_at, day))
         .reduce((sum, payment) => sum + getPaymentAmount(payment), 0);
 
-      const marketplaceTotal = orders
+      const card = payments
+        .filter((payment) => payment.payment_method === "card" && isSameDay(payment.payment_date || payment.created_at, day))
+        .reduce((sum, payment) => sum + getPaymentAmount(payment), 0);
+
+      const transfer = payments
+        .filter((payment) => payment.payment_method === "transfer" && isSameDay(payment.payment_date || payment.created_at, day))
+        .reduce((sum, payment) => sum + getPaymentAmount(payment), 0);
+
+      const marketplace = orders
         .filter((order) => {
           return (
             isSameDay(order.created_at, day) &&
@@ -478,19 +508,22 @@ export default function DashboardPage() {
         })
         .reduce((sum, order) => sum + getOrderPaidAmount(order), 0);
 
-      const total = paymentTotal + marketplaceTotal;
-
       return {
         day,
         label: new Intl.DateTimeFormat("tr-TR", { weekday: "short" }).format(day),
-        total,
+        cash,
+        card,
+        transfer,
+        marketplace,
+        total: cash + card + transfer + marketplace,
       };
     });
   }, [orders, payments]);
 
   const maxChartValue = Math.max(...chartData.map((item) => item.total), 1);
+  const latestOrders = orders.slice(0, 5);
+  const criticalPreview = stats.criticalProducts.slice(0, 4);
 
-  const latestOrders = orders.slice(0, 6);
   const latestMoneyMoves = [
     ...payments.map((payment) => ({
       id: `payment-${payment.id}`,
@@ -512,31 +545,39 @@ export default function DashboardPage() {
       })),
   ]
     .sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime())
-    .slice(0, 6);
+    .slice(0, 4);
 
   const freeOrderLimit = Number(context?.subscription?.order_limit ?? 15);
   const isPro = context?.subscription?.plan === "pro" && context?.subscription?.status === "active";
   const usagePercent = isPro ? 100 : Math.min(Math.round((orders.length / freeOrderLimit) * 100), 100);
 
   return (
-    <section className="mx-auto w-full max-w-[1500px] space-y-4 pb-10 text-white">
-      <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+    <section className="mx-auto w-full max-w-[1500px] space-y-3 pb-8 text-white">
+      <div className="rounded-[22px] border border-white/10 bg-[#111a2e] p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <div className="mb-3 inline-flex rounded-full bg-blue-500/15 px-3 py-2 text-xs font-black text-blue-300">
+            <div className="mb-2 inline-flex rounded-full bg-blue-500/15 px-3 py-1.5 text-[11px] font-black text-blue-300">
               Live Dashboard
             </div>
-            <h1 className="text-[34px] font-black tracking-[-0.05em] sm:text-5xl">
+            <h1 className="text-[28px] font-black tracking-[-0.05em] sm:text-4xl">
               {context?.business.name || "Takipio"} Paneli
             </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
+            <p className="mt-2 max-w-2xl text-xs leading-5 text-slate-400">
               Sipariş, tahsilat, stok, kargo, iade ve pazaryeri verilerini tek ekranda takip et.
             </p>
           </div>
 
-          <button onClick={fetchData} className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-500">
-            Yenile
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/app/help" className="rounded-2xl bg-white/8 px-4 py-2.5 text-xs font-black text-slate-200 ring-1 ring-white/10 transition hover:bg-white/12">
+              Nasıl Kullanılır?
+            </Link>
+            <Link href="/app/contact" className="rounded-2xl bg-white/8 px-4 py-2.5 text-xs font-black text-slate-200 ring-1 ring-white/10 transition hover:bg-white/12">
+              İletişim / Destek
+            </Link>
+            <button onClick={fetchData} className="rounded-2xl bg-blue-600 px-4 py-2.5 text-xs font-black text-white transition hover:bg-blue-500">
+              Yenile
+            </button>
+          </div>
         </div>
       </div>
 
@@ -546,269 +587,187 @@ export default function DashboardPage() {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Metric label="Bugün Tahsilat" value={loading ? "..." : formatCurrency(stats.todayTotal)} valueClass="text-emerald-300" />
-        <Metric label="Toplam Ciro" value={loading ? "..." : formatCurrency(stats.totalRevenue)} valueClass="text-blue-300" />
-        <Metric label="Kalan Tahsilat" value={loading ? "..." : formatCurrency(stats.totalRemaining)} valueClass="text-amber-300" />
-        <Metric label="Stok Değeri" value={loading ? "..." : formatCurrency(stats.stockValue)} valueClass="text-cyan-300" />
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+        <Metric label="Bugün" value={loading ? "..." : formatCompactCurrency(stats.todayTotal)} valueClass="text-emerald-300" />
+        <Metric label="Toplam Ciro" value={loading ? "..." : formatCompactCurrency(stats.totalRevenue)} valueClass="text-blue-300" />
+        <Metric label="Kalan" value={loading ? "..." : formatCompactCurrency(stats.totalRemaining)} valueClass="text-amber-300" />
+        <Metric label="Stok Değeri" value={loading ? "..." : formatCompactCurrency(stats.stockValue)} valueClass="text-cyan-300" />
+        <Metric label="Pazaryeri" value={loading ? "..." : formatCompactCurrency(stats.marketplaceRevenue)} valueClass="text-orange-300" />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-        <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
-          <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <div className="grid gap-3 xl:grid-cols-[1.25fr_0.75fr]">
+        <div className="rounded-[22px] border border-white/10 bg-[#111a2e] p-4">
+          <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <h2 className="text-2xl font-black">Tahsilat Grafiği</h2>
-              <p className="mt-1 text-sm text-slate-400">
-                Payments tablosu + pazaryeri/demo paid siparişleri birlikte hesaplanır.
-              </p>
+              <h2 className="text-xl font-black">Tahsilat Akışı</h2>
+              <p className="mt-1 text-xs text-slate-400">Nakit, kart, havale ve pazaryeri ödemeleri aynı grafikte.</p>
             </div>
-            <span className="rounded-full bg-white/8 px-3 py-1 text-xs font-black text-slate-300 ring-1 ring-white/10">
-              Son 7 gün
-            </span>
+
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <TinyMoney label="Nakit" value={stats.todayCash} className="text-emerald-300" />
+              <TinyMoney label="Kart" value={stats.todayCard} className="text-blue-300" />
+              <TinyMoney label="Havale" value={stats.todayTransfer} className="text-cyan-300" />
+              <TinyMoney label="Pazaryeri" value={stats.todayMarketplace} className="text-orange-300" />
+            </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-4">
-            <MiniMoney label="Nakit" value={stats.todayCash} className="text-emerald-300" />
-            <MiniMoney label="Kart" value={stats.todayCard} className="text-blue-300" />
-            <MiniMoney label="Havale" value={stats.todayTransfer} className="text-cyan-300" />
-            <MiniMoney label="Pazaryeri" value={stats.todayMarketplace} className="text-orange-300" />
-          </div>
+          <div className="rounded-[20px] bg-[#0b1220] p-4 ring-1 ring-white/10">
+            <div className="flex h-56 items-end gap-2">
+              {chartData.map((item) => {
+                const totalHeight = Math.max(Math.round((item.total / maxChartValue) * 100), item.total > 0 ? 8 : 3);
+                const cashHeight = item.total > 0 ? Math.max((item.cash / item.total) * totalHeight, item.cash > 0 ? 4 : 0) : 0;
+                const cardHeight = item.total > 0 ? Math.max((item.card / item.total) * totalHeight, item.card > 0 ? 4 : 0) : 0;
+                const transferHeight = item.total > 0 ? Math.max((item.transfer / item.total) * totalHeight, item.transfer > 0 ? 4 : 0) : 0;
+                const marketplaceHeight = item.total > 0 ? Math.max((item.marketplace / item.total) * totalHeight, item.marketplace > 0 ? 4 : 0) : 0;
 
-          <div className="mt-6 flex h-64 items-end gap-3 rounded-[24px] bg-[#0b1220] p-4 ring-1 ring-white/10">
-            {chartData.map((item) => {
-              const height = Math.max(Math.round((item.total / maxChartValue) * 100), item.total > 0 ? 8 : 3);
+                return (
+                  <div key={item.day.toISOString()} className="group flex min-w-0 flex-1 flex-col items-center gap-2">
+                    <div className="relative flex h-40 w-full items-end rounded-2xl bg-white/[0.03] p-1 ring-1 ring-white/5">
+                      <div
+                        className="flex w-full flex-col-reverse overflow-hidden rounded-xl bg-white/5 shadow-lg shadow-blue-950/20 transition duration-300 group-hover:scale-[1.03]"
+                        title={`${item.label}: ${formatCurrency(item.total)}`}
+                        style={{ height: `${totalHeight}%` }}
+                      >
+                        {cashHeight > 0 ? <span className="block w-full bg-emerald-400" style={{ height: `${cashHeight}%` }} /> : null}
+                        {cardHeight > 0 ? <span className="block w-full bg-blue-400" style={{ height: `${cardHeight}%` }} /> : null}
+                        {transferHeight > 0 ? <span className="block w-full bg-cyan-400" style={{ height: `${transferHeight}%` }} /> : null}
+                        {marketplaceHeight > 0 ? <span className="block w-full bg-orange-400" style={{ height: `${marketplaceHeight}%` }} /> : null}
+                      </div>
 
-              return (
-                <div key={item.day.toISOString()} className="flex min-w-0 flex-1 flex-col items-center gap-2">
-                  <div className="flex h-48 w-full items-end">
-                    <div
-                      className="w-full rounded-t-2xl bg-gradient-to-t from-blue-700 to-cyan-300 shadow-lg shadow-blue-950/30 transition"
-                      style={{ height: `${height}%` }}
-                      title={formatCurrency(item.total)}
-                    />
+                      <div className="pointer-events-none absolute -top-12 left-1/2 z-10 hidden -translate-x-1/2 rounded-2xl bg-[#020817] px-3 py-2 text-[10px] font-black text-white shadow-2xl ring-1 ring-white/10 group-hover:block">
+                        {formatCurrency(item.total)}
+                      </div>
+                    </div>
+
+                    <p className="text-[10px] font-black text-slate-500">{item.label}</p>
+                    <p className="max-w-full truncate text-[10px] font-bold text-slate-400">{formatCompactCurrency(item.total)}</p>
                   </div>
-                  <p className="text-[11px] font-black text-slate-500">{item.label}</p>
-                  <p className="max-w-full truncate text-[10px] font-bold text-slate-400">{formatCurrency(item.total)}</p>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center gap-3 text-[11px] font-black text-slate-400">
+              <Legend colorClass="bg-emerald-400" label="Nakit" />
+              <Legend colorClass="bg-blue-400" label="Kart" />
+              <Legend colorClass="bg-cyan-400" label="Havale" />
+              <Legend colorClass="bg-orange-400" label="Pazaryeri" />
+            </div>
           </div>
         </div>
 
-        <div className="grid gap-4">
-          <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
-            <h2 className="text-2xl font-black">Bugünkü Dağılım</h2>
-            <div className="mt-5 grid gap-3">
-              <Distribution label="Nakit" value={stats.todayCash} total={stats.todayTotal} colorClass="bg-emerald-400" />
-              <Distribution label="Kart" value={stats.todayCard} total={stats.todayTotal} colorClass="bg-blue-400" />
-              <Distribution label="Havale" value={stats.todayTransfer} total={stats.todayTotal} colorClass="bg-cyan-400" />
-              <Distribution label="Pazaryeri" value={stats.todayMarketplace} total={stats.todayTotal} colorClass="bg-orange-400" />
-            </div>
-          </div>
+        <div className="grid gap-3">
+          <CompactCard title="Eksik İşlemler">
+            <ActionRow title="Bekleyen tahsilat" value={formatCompactCurrency(stats.totalRemaining)} tone="amber" />
+            <ActionRow title="Kargo bekleyen" value={String(stats.waitingShipments)} tone="blue" />
+            <ActionRow title="Aktif iade" value={String(stats.activeReturns)} tone="red" />
+          </CompactCard>
 
-          <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
-            <h2 className="text-2xl font-black">Abonelik Kullanımı</h2>
-            <p className="mt-2 text-sm text-slate-400">
-              {isPro ? "Pro plan aktif. Sipariş limiti yok." : `Free plan: ${orders.length}/${freeOrderLimit} sipariş`}
-            </p>
-            <div className="mt-4 h-3 overflow-hidden rounded-full bg-white/8">
+          <CompactCard title="Abonelik">
+            <div className="flex items-center justify-between text-xs font-black">
+              <span>{isPro ? "Pro plan aktif" : `Free ${orders.length}/${freeOrderLimit}`}</span>
+              <span className={isPro ? "text-emerald-300" : "text-blue-300"}>{usagePercent}%</span>
+            </div>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/8">
               <div className={`${isPro ? "bg-emerald-400" : "bg-blue-500"} h-full rounded-full`} style={{ width: `${usagePercent}%` }} />
             </div>
-          </div>
+          </CompactCard>
+
+          <CompactCard title="Notlar">
+            <textarea
+              value={note}
+              onChange={(event) => saveNote(event.target.value)}
+              placeholder="Bugün yapılacakları yaz..."
+              className="min-h-20 w-full resize-none rounded-2xl border border-white/10 bg-[#0b1220] px-3 py-2 text-xs font-bold text-white outline-none placeholder:text-slate-600"
+            />
+          </CompactCard>
         </div>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-2">
-        <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
-          <div className="mb-5 flex items-center justify-between">
+      <div className="grid gap-3 xl:grid-cols-[0.9fr_1.1fr]">
+        <div className="rounded-[22px] border border-white/10 bg-[#111a2e] p-4">
+          <div className="mb-3 flex items-center justify-between">
             <div>
-              <h2 className="text-2xl font-black">Son Siparişler</h2>
-              <p className="mt-1 text-sm text-slate-400">Manuel + demo + pazaryeri siparişleri.</p>
+              <h2 className="text-xl font-black">Stok Uyarıları</h2>
+              <p className="mt-1 text-xs text-slate-400">Kritik ürünleri küçük listede takip et.</p>
             </div>
-            <span className="rounded-full bg-white/8 px-3 py-1 text-xs font-black text-slate-300 ring-1 ring-white/10">
-              {orders.length} kayıt
+            <span className="rounded-full bg-amber-500/15 px-3 py-1 text-[11px] font-black text-amber-300 ring-1 ring-amber-400/20">
+              {stats.criticalProducts.length}
             </span>
           </div>
 
-          {latestOrders.length === 0 ? (
-            <EmptyState text="Henüz sipariş yok." />
+          {criticalPreview.length === 0 ? (
+            <EmptyMini text="Kritik stok yok." />
           ) : (
-            <div className="grid gap-3">
-              {latestOrders.map((order) => (
-                <div key={order.id} className="rounded-[20px] border border-white/10 bg-[#0b1220] p-4">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="font-black">{order.order_no || "-"}</h3>
-                        {getMarketplaceLabel(order.marketplace) ? (
-                          <span className="rounded-full bg-orange-500/15 px-2.5 py-1 text-[10px] font-black text-orange-300 ring-1 ring-orange-400/20">
-                            {getMarketplaceLabel(order.marketplace)}
-                          </span>
-                        ) : null}
+            <div className="grid gap-2">
+              {criticalPreview.map((product) => (
+                <div key={product.id} className="rounded-2xl bg-[#0b1220] px-3 py-2.5 ring-1 ring-white/10">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-black">{product.name}</p>
+                      <p className="mt-1 text-[11px] font-bold text-slate-500">Min: {product.min_stock ?? 0} · Mevcut: {product.stock ?? 0}</p>
+                    </div>
+                    <span className="rounded-full bg-amber-500/15 px-2.5 py-1 text-[10px] font-black text-amber-300">Kritik</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-[22px] border border-white/10 bg-[#111a2e] p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-black">Son Hareketler</h2>
+              <p className="mt-1 text-xs text-slate-400">Sipariş ve tahsilat akışı.</p>
+            </div>
+            <span className="rounded-full bg-white/8 px-3 py-1 text-[11px] font-black text-slate-300 ring-1 ring-white/10">
+              Canlı
+            </span>
+          </div>
+
+          <div className="grid gap-3 lg:grid-cols-2">
+            <div className="grid gap-2">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Son Siparişler</p>
+              {latestOrders.length === 0 ? (
+                <EmptyMini text="Sipariş yok." />
+              ) : (
+                latestOrders.map((order) => (
+                  <div key={order.id} className="rounded-2xl bg-[#0b1220] px-3 py-2.5 ring-1 ring-white/10">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="truncate text-sm font-black">{order.order_no || "-"}</p>
+                          {getMarketplaceLabel(order.marketplace) ? (
+                            <span className="rounded-full bg-orange-500/15 px-2 py-0.5 text-[9px] font-black text-orange-300">{getMarketplaceLabel(order.marketplace)}</span>
+                          ) : null}
+                        </div>
+                        <p className="mt-1 truncate text-[11px] font-bold text-slate-500">{order.customer_name || "Müşteri yok"}</p>
                       </div>
-                      <p className="mt-1 text-sm text-slate-400">{order.customer_name || "Müşteri yok"} · {order.product_name || "Ürün yok"}</p>
-                      <p className="mt-1 text-xs text-slate-500">{formatDate(order.created_at)}</p>
-                    </div>
-                    <div className="text-left lg:text-right">
-                      <p className="text-lg font-black text-emerald-300">{formatCurrency(order.total_amount)}</p>
-                      <p className="text-xs font-bold text-slate-500">{order.payment_status || "payment"}</p>
+                      <p className="text-sm font-black text-emerald-300">{formatCompactCurrency(order.total_amount)}</p>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
-          )}
-        </div>
 
-        <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
-          <div className="mb-5">
-            <h2 className="text-2xl font-black">Son Para Hareketleri</h2>
-            <p className="mt-1 text-sm text-slate-400">Payments + pazaryeri paid siparişleri birlikte gösterilir.</p>
-          </div>
-
-          {latestMoneyMoves.length === 0 ? (
-            <EmptyState text="Henüz tahsilat hareketi yok." />
-          ) : (
-            <div className="grid gap-3">
-              {latestMoneyMoves.map((move) => (
-                <div key={move.id} className="rounded-[20px] border border-white/10 bg-[#0b1220] p-4">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <p className="font-black">{move.title}</p>
-                      <p className={`mt-1 text-xs font-black ${methodClass(move.method)}`}>{move.subtitle}</p>
-                      <p className="mt-1 text-xs text-slate-500">{formatDate(move.date)}</p>
+            <div className="grid gap-2">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Para Hareketleri</p>
+              {latestMoneyMoves.length === 0 ? (
+                <EmptyMini text="Tahsilat yok." />
+              ) : (
+                latestMoneyMoves.map((move) => (
+                  <div key={move.id} className="rounded-2xl bg-[#0b1220] px-3 py-2.5 ring-1 ring-white/10">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-black">{move.title}</p>
+                        <p className={`mt-1 text-[11px] font-black ${methodClass(move.method)}`}>{move.subtitle}</p>
+                      </div>
+                      <p className={`text-sm font-black ${methodClass(move.method)}`}>{formatCompactCurrency(move.amount)}</p>
                     </div>
-                    <p className={`text-lg font-black ${methodClass(move.method)}`}>{formatCurrency(move.amount)}</p>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
-          )}
-        </div>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        <StatusCard title="Kritik Stok" value={String(stats.criticalProducts.length)} text="Minimum stoğa yaklaşan ürünler" colorClass="text-amber-300" />
-        <StatusCard title="Aktif İade" value={String(stats.activeReturns)} text="Para iadesi/reddedilme bekleyenler" colorClass="text-red-300" />
-        <StatusCard title="Pazaryeri Cirosu" value={formatCurrency(stats.marketplaceRevenue)} text="Demo + gerçek pazaryeri siparişleri" colorClass="text-orange-300" />
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
-        <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
-          <div className="mb-5 flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-black">Stok Uyarıları</h2>
-              <p className="mt-1 text-sm text-slate-400">Minimum stok seviyesine yaklaşan ürünler burada görünür.</p>
-            </div>
-            <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs font-black text-amber-300 ring-1 ring-amber-400/20">
-              {stats.criticalProducts.length} kritik
-            </span>
-          </div>
-
-          {stats.criticalProducts.length === 0 ? (
-            <div className="rounded-[22px] border border-dashed border-white/10 bg-[#0b1220] p-8 text-center">
-              <p className="text-sm font-bold text-slate-500">Şu an kritik stok uyarısı yok. Stok tarafı temiz görünüyor.</p>
-            </div>
-          ) : (
-            <div className="grid gap-3">
-              {stats.criticalProducts.slice(0, 6).map((product) => (
-                <div key={product.id} className="rounded-[20px] border border-amber-400/15 bg-amber-500/10 p-4">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <p className="font-black text-white">{product.name}</p>
-                      <p className="mt-1 text-xs font-bold text-amber-200/80">
-                        Minimum: {product.min_stock ?? 0} · Mevcut: {product.stock ?? 0}
-                      </p>
-                    </div>
-                    <span className="rounded-full bg-amber-400/15 px-3 py-1 text-xs font-black text-amber-300">
-                      Kritik
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
-          <div className="mb-5">
-            <h2 className="text-2xl font-black">Nasıl Kullanılır?</h2>
-            <p className="mt-1 text-sm text-slate-400">Takipio panelini hızlı kullanmak için kısa yol akışı.</p>
-          </div>
-
-          <div className="grid gap-3">
-            <HowToStep
-              number="01"
-              title="Ürünlerini ekle"
-              text="Ürün adı, stok, minimum stok ve satış fiyatını gir. İstersen ürün görseli de yükle."
-            />
-            <HowToStep
-              number="02"
-              title="Sipariş oluştur veya demo import kullan"
-              text="Manuel sipariş ekleyebilir ya da Entegrasyonlar sayfasından demo pazaryeri siparişleri oluşturabilirsin."
-            />
-            <HowToStep
-              number="03"
-              title="Tahsilatı takip et"
-              text="Nakit, kart, havale ve pazaryeri ödemeleri dashboard üzerinde ayrı ayrı görünür."
-            />
-            <HowToStep
-              number="04"
-              title="Kargo ve iade sürecini yönet"
-              text="Kargo takip numarası gir, teslim durumunu güncelle, gerekirse iade talebi oluştur."
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-2">
-        <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
-          <div className="mb-5">
-            <h2 className="text-2xl font-black">Eksik İşlemler</h2>
-            <p className="mt-1 text-sm text-slate-400">Bekleyen ödeme, kargo ve iade aksiyonlarını hızlı gör.</p>
-          </div>
-
-          <div className="grid gap-3">
-            <ActionRow
-              title="Bekleyen Tahsilat"
-              value={formatCurrency(stats.totalRemaining)}
-              text="Kısmi veya ödenmemiş siparişlerden kalan tutar."
-              tone="amber"
-            />
-            <ActionRow
-              title="Kargo Bekleyen"
-              value={String(orders.filter((order) => order.shipping_status !== "shipped" && order.shipping_status !== "delivered").length)}
-              text="Henüz kargoya verilmemiş veya hazırlıkta görünen siparişler."
-              tone="blue"
-            />
-            <ActionRow
-              title="Aktif İade"
-              value={String(stats.activeReturns)}
-              text="Para iadesi ya da red kararı bekleyen iade kayıtları."
-              tone="red"
-            />
-          </div>
-        </div>
-
-        <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
-          <div className="mb-5">
-            <h2 className="text-2xl font-black">Gorki Hızlı Sorular</h2>
-            <p className="mt-1 text-sm text-slate-400">Sağ alttaki Gorki’ye bu soruları yazabilirsin.</p>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            {[
-              "Bugünkü özeti göster",
-              "Kritik stok var mı?",
-              "Bekleyen ödemeler",
-              "Kargo bekleyenler",
-              "İadeleri özetle",
-              "Son siparişleri göster",
-            ].map((question) => (
-              <div key={question} className="rounded-2xl bg-[#0b1220] px-4 py-3 text-sm font-black text-blue-100 ring-1 ring-white/10">
-                {question}
-              </div>
-            ))}
           </div>
         </div>
       </div>
@@ -818,73 +777,41 @@ export default function DashboardPage() {
 
 function Metric({ label, value, valueClass }: { label: string; value: string; valueClass?: string }) {
   return (
-    <div className="rounded-[22px] border border-white/10 bg-[#111a2e] p-5">
-      <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">{label}</p>
-      <p className={["mt-3 text-2xl font-black sm:text-3xl", valueClass || "text-white"].join(" ")}>{value}</p>
+    <div className="rounded-[18px] border border-white/10 bg-[#111a2e] p-4">
+      <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{label}</p>
+      <p className={["mt-2 text-xl font-black sm:text-2xl", valueClass || "text-white"].join(" ")}>{value}</p>
     </div>
   );
 }
 
-function MiniMoney({ label, value, className }: { label: string; value: number; className: string }) {
+function TinyMoney({ label, value, className }: { label: string; value: number; className: string }) {
   return (
-    <div className="rounded-[18px] border border-white/10 bg-[#0b1220] p-4">
-      <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">{label}</p>
-      <p className={`mt-2 text-xl font-black ${className}`}>{formatCurrency(value)}</p>
+    <div className="min-w-[92px] rounded-2xl border border-white/10 bg-[#0b1220] px-3 py-2">
+      <p className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">{label}</p>
+      <p className={`mt-1 text-sm font-black ${className}`}>{formatCompactCurrency(value)}</p>
     </div>
   );
 }
 
-function Distribution({ label, value, total, colorClass }: { label: string; value: number; total: number; colorClass: string }) {
-  const percent = total > 0 ? Math.round((value / total) * 100) : 0;
-
+function Legend({ colorClass, label }: { colorClass: string; label: string }) {
   return (
-    <div>
-      <div className="mb-2 flex items-center justify-between text-sm font-black">
-        <span>{label}</span>
-        <span className="text-slate-400">{formatCurrency(value)}</span>
-      </div>
-      <div className="h-2 overflow-hidden rounded-full bg-white/8">
-        <div className={`${colorClass} h-full rounded-full`} style={{ width: `${percent}%` }} />
-      </div>
-    </div>
+    <span className="inline-flex items-center gap-2">
+      <span className={`h-2.5 w-2.5 rounded-full ${colorClass}`} />
+      {label}
+    </span>
   );
 }
 
-function EmptyState({ text }: { text: string }) {
+function CompactCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-[22px] border border-dashed border-white/10 bg-[#0b1220] p-8 text-center">
-      <p className="text-sm font-bold text-slate-500">{text}</p>
+    <div className="rounded-[22px] border border-white/10 bg-[#111a2e] p-4">
+      <h2 className="mb-3 text-lg font-black">{title}</h2>
+      {children}
     </div>
   );
 }
 
-function HowToStep({ number, title, text }: { number: string; title: string; text: string }) {
-  return (
-    <div className="rounded-[20px] border border-white/10 bg-[#0b1220] p-4">
-      <div className="flex gap-4">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-500/15 text-xs font-black text-blue-300 ring-1 ring-blue-400/20">
-          {number}
-        </div>
-        <div>
-          <p className="font-black text-white">{title}</p>
-          <p className="mt-1 text-sm leading-6 text-slate-400">{text}</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ActionRow({
-  title,
-  value,
-  text,
-  tone,
-}: {
-  title: string;
-  value: string;
-  text: string;
-  tone: "amber" | "blue" | "red";
-}) {
+function ActionRow({ title, value, tone }: { title: string; value: string; tone: "amber" | "blue" | "red" }) {
   const toneClass =
     tone === "amber"
       ? "text-amber-300 bg-amber-500/10 ring-amber-400/20"
@@ -893,26 +820,17 @@ function ActionRow({
         : "text-red-300 bg-red-500/10 ring-red-400/20";
 
   return (
-    <div className="rounded-[20px] border border-white/10 bg-[#0b1220] p-4">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <p className="font-black text-white">{title}</p>
-          <p className="mt-1 text-sm leading-6 text-slate-400">{text}</p>
-        </div>
-        <span className={`shrink-0 rounded-2xl px-3 py-2 text-sm font-black ring-1 ${toneClass}`}>
-          {value}
-        </span>
-      </div>
+    <div className="mb-2 flex items-center justify-between rounded-2xl bg-[#0b1220] px-3 py-2.5 ring-1 ring-white/10 last:mb-0">
+      <p className="text-xs font-black text-slate-300">{title}</p>
+      <span className={`rounded-xl px-2.5 py-1 text-xs font-black ring-1 ${toneClass}`}>{value}</span>
     </div>
   );
 }
 
-function StatusCard({ title, value, text, colorClass }: { title: string; value: string; text: string; colorClass: string }) {
+function EmptyMini({ text }: { text: string }) {
   return (
-    <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
-      <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{title}</p>
-      <p className={`mt-3 text-3xl font-black ${colorClass}`}>{value}</p>
-      <p className="mt-2 text-sm text-slate-400">{text}</p>
+    <div className="rounded-2xl border border-dashed border-white/10 bg-[#0b1220] p-4 text-center">
+      <p className="text-xs font-bold text-slate-500">{text}</p>
     </div>
   );
 }
