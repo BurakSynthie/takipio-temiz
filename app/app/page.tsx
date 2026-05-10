@@ -308,6 +308,49 @@ function isSameDay(date: string | null | undefined, target: Date) {
   );
 }
 
+function isBetweenDates(date: string | null | undefined, start: Date, end: Date) {
+  if (!date) return false;
+
+  const current = new Date(date);
+  const normalized = new Date(current.getFullYear(), current.getMonth(), current.getDate()).getTime();
+  const normalizedStart = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime();
+  const normalizedEnd = new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime();
+
+  return normalized >= normalizedStart && normalized <= normalizedEnd;
+}
+
+function getChartConfig(range: ChartRange) {
+  if (range === "7") {
+    return {
+      totalDays: 7,
+      bucketSize: 1,
+      description: "Günlük görünüm",
+    };
+  }
+
+  if (range === "15") {
+    return {
+      totalDays: 15,
+      bucketSize: 1,
+      description: "Günlük görünüm",
+    };
+  }
+
+  if (range === "30") {
+    return {
+      totalDays: 30,
+      bucketSize: 3,
+      description: "3 günlük gruplar",
+    };
+  }
+
+  return {
+    totalDays: 90,
+    bucketSize: 7,
+    description: "Haftalık gruplar",
+  };
+}
+
 function getOrderPaidAmount(order: Order) {
   return Number(order.paid_amount ?? 0);
 }
@@ -571,42 +614,58 @@ export default function DashboardPage() {
     };
   }, [orders, payments, products, returns, tasks]);
 
-  const chartData = useMemo(() => {
-    const dayCount = Number(chartRange);
-    const days = Array.from({ length: dayCount }).map((_, index) => {
-      const day = new Date();
-      day.setDate(day.getDate() - (dayCount - 1 - index));
-      return day;
-    });
+  const chartConfig = useMemo(() => getChartConfig(chartRange), [chartRange]);
 
-    return days.map((day) => {
+  const chartData = useMemo(() => {
+    const { totalDays, bucketSize } = chartConfig;
+    const bucketCount = Math.ceil(totalDays / bucketSize);
+
+    const today = new Date();
+    const rangeStart = new Date(today);
+    rangeStart.setDate(today.getDate() - (totalDays - 1));
+
+    return Array.from({ length: bucketCount }).map((_, index) => {
+      const bucketStart = new Date(rangeStart);
+      bucketStart.setDate(rangeStart.getDate() + index * bucketSize);
+
+      const bucketEnd = new Date(bucketStart);
+      bucketEnd.setDate(bucketStart.getDate() + bucketSize - 1);
+
+      if (bucketEnd > today) {
+        bucketEnd.setTime(today.getTime());
+      }
+
       const cash = payments
-        .filter((payment) => payment.payment_method === "cash" && isSameDay(payment.payment_date || payment.created_at, day))
+        .filter((payment) => payment.payment_method === "cash" && isBetweenDates(payment.payment_date || payment.created_at, bucketStart, bucketEnd))
         .reduce((sum, payment) => sum + getPaymentAmount(payment), 0);
 
       const card = payments
-        .filter((payment) => payment.payment_method === "card" && isSameDay(payment.payment_date || payment.created_at, day))
+        .filter((payment) => payment.payment_method === "card" && isBetweenDates(payment.payment_date || payment.created_at, bucketStart, bucketEnd))
         .reduce((sum, payment) => sum + getPaymentAmount(payment), 0);
 
       const transfer = payments
-        .filter((payment) => payment.payment_method === "transfer" && isSameDay(payment.payment_date || payment.created_at, day))
+        .filter((payment) => payment.payment_method === "transfer" && isBetweenDates(payment.payment_date || payment.created_at, bucketStart, bucketEnd))
         .reduce((sum, payment) => sum + getPaymentAmount(payment), 0);
 
       const marketplace = orders
         .filter((order) => {
           return (
-            isSameDay(order.created_at, day) &&
+            isBetweenDates(order.created_at, bucketStart, bucketEnd) &&
             order.payment_status === "paid" &&
             order.payment_method === "marketplace"
           );
         })
         .reduce((sum, order) => sum + getOrderPaidAmount(order), 0);
 
+      const label =
+        bucketSize === 1
+          ? new Intl.DateTimeFormat("tr-TR", { day: "2-digit", month: "2-digit" }).format(bucketStart)
+          : `${new Intl.DateTimeFormat("tr-TR", { day: "2-digit", month: "2-digit" }).format(bucketStart)}-${new Intl.DateTimeFormat("tr-TR", { day: "2-digit", month: "2-digit" }).format(bucketEnd)}`;
+
       return {
-        day,
-        label: chartRange === "90"
-          ? new Intl.DateTimeFormat("tr-TR", { day: "2-digit", month: "2-digit" }).format(day)
-          : new Intl.DateTimeFormat("tr-TR", { weekday: "short" }).format(day),
+        day: bucketStart,
+        endDay: bucketEnd,
+        label,
         cash,
         card,
         transfer,
@@ -614,7 +673,7 @@ export default function DashboardPage() {
         total: cash + card + transfer + marketplace,
       };
     });
-  }, [orders, payments, chartRange]);
+  }, [orders, payments, chartConfig]);
 
   const maxChartValue = Math.max(...chartData.map((item) => item.total), 1);
   const latestOrders = orders.slice(0, 5);
@@ -698,7 +757,9 @@ export default function DashboardPage() {
           <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <h2 className="text-xl font-black">Tahsilat Akışı</h2>
-              <p className="mt-1 text-xs text-slate-400">Nakit, kart, havale ve pazaryeri ödemeleri aynı grafikte.</p>
+              <p className="mt-1 text-xs text-slate-400">
+                Nakit, kart, havale ve pazaryeri ödemeleri aynı grafikte. {chartConfig.description}.
+              </p>
             </div>
 
             <div className="flex flex-col gap-2">
@@ -737,7 +798,7 @@ export default function DashboardPage() {
                 const marketplaceHeight = item.total > 0 ? Math.max((item.marketplace / item.total) * totalHeight, item.marketplace > 0 ? 4 : 0) : 0;
 
                 return (
-                  <div key={`${item.day.toISOString()}-${index}`} className="group flex min-w-[28px] flex-1 flex-col items-center gap-2">
+                  <div key={`${item.day.toISOString()}-${index}`} className="group flex min-w-[42px] flex-1 flex-col items-center gap-2">
                     <div className="relative flex h-40 w-full items-end rounded-2xl bg-white/[0.03] p-1 ring-1 ring-white/5">
                       <div
                         className="flex w-full flex-col-reverse overflow-hidden rounded-xl bg-white/5 shadow-lg shadow-blue-950/20 transition duration-300 group-hover:scale-[1.03]"
@@ -755,7 +816,7 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
-                    <p className="text-[10px] font-black text-slate-500">{chartRange === "90" && index % 5 !== 0 ? "·" : item.label}</p>
+                    <p className="max-w-[70px] truncate text-center text-[10px] font-black text-slate-500">{item.label}</p>
                     <p className="max-w-full truncate text-[10px] font-bold text-slate-400">{formatCompactCurrency(item.total)}</p>
                   </div>
                 );
