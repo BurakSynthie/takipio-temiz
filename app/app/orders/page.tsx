@@ -77,6 +77,8 @@ type Order = {
   marketplace_tracking_link: string | null;
   carrier_name: string | null;
   tracking_no: string | null;
+  shipped_at: string | null;
+  delivered_at: string | null;
   return_status: string | null;
   note: string | null;
   created_at: string;
