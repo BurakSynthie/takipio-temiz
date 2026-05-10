@@ -10,9 +10,8 @@ function getBearerToken(request: Request) {
 }
 
 function getBaseUrl() {
-  if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, "");
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  return "https://takipio.com";
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || "https://takipio.com";
+  return siteUrl.replace(/\/$/, "");
 }
 
 export async function POST(request: Request) {
@@ -48,6 +47,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "E-posta zorunlu." }, { status: 400 });
     }
 
+    if (!inviteToken) {
+      return NextResponse.json({ error: "Davet tokenı bulunamadı." }, { status: 400 });
+    }
+
     const inviteLink = `${getBaseUrl()}/app/register?invite=${encodeURIComponent(inviteToken)}&email=${encodeURIComponent(email)}`;
 
     const resendApiKey = process.env.RESEND_API_KEY;
@@ -64,11 +67,21 @@ export async function POST(request: Request) {
     const html = `
       <div style="font-family:Arial,sans-serif;background:#07111f;padding:32px;color:#fff">
         <div style="max-width:560px;margin:auto;background:#0f1b2f;border:1px solid rgba(255,255,255,.12);border-radius:24px;padding:28px">
-          <h1 style="margin:0 0 12px;font-size:28px">Takipio ekip daveti</h1>
-          <p style="color:#b8c2d6;line-height:1.6">Merhaba ${displayName || ""},</p>
-          <p style="color:#b8c2d6;line-height:1.6"><b>${businessName}</b> işletmesine <b>${roleName}</b> rolüyle davet edildin.</p>
-          <a href="${inviteLink}" style="display:inline-block;margin-top:18px;background:#2563eb;color:white;text-decoration:none;padding:14px 20px;border-radius:14px;font-weight:700">Takipio’ya katıl</a>
-          <p style="margin-top:22px;color:#7d8aa3;font-size:12px">Bu davet bağlantısı güvenlik amacıyla sınırlı süre kullanılabilir.</p>
+          <div style="display:inline-block;background:rgba(37,99,235,.18);color:#93c5fd;border-radius:999px;padding:8px 12px;font-size:12px;font-weight:800;margin-bottom:18px">
+            Takipio Ekip Daveti
+          </div>
+          <h1 style="margin:0 0 12px;font-size:28px;line-height:1.15">Takipio ekibine davetlisin</h1>
+          <p style="color:#b8c2d6;line-height:1.6;margin:0 0 10px">Merhaba ${displayName || ""},</p>
+          <p style="color:#b8c2d6;line-height:1.6;margin:0 0 18px">
+            <b>${businessName}</b> işletmesine <b>${roleName}</b> rolüyle davet edildin.
+          </p>
+          <a href="${inviteLink}" style="display:inline-block;background:#2563eb;color:white;text-decoration:none;padding:14px 20px;border-radius:14px;font-weight:800">
+            Takipio’ya katıl
+          </a>
+          <p style="margin-top:22px;color:#7d8aa3;font-size:12px;line-height:1.5">
+            Buton çalışmazsa bu bağlantıyı tarayıcıya yapıştır:<br />
+            <span style="word-break:break-all;color:#93c5fd">${inviteLink}</span>
+          </p>
         </div>
       </div>
     `;
@@ -90,11 +103,14 @@ export async function POST(request: Request) {
     if (!response.ok) {
       const errorText = await response.text();
 
-      return NextResponse.json({
-        ok: false,
-        error: `Mail gönderilemedi: ${errorText}`,
-        inviteLink,
-      }, { status: 500 });
+      return NextResponse.json(
+        {
+          ok: false,
+          error: `Mail gönderilemedi: ${errorText}`,
+          inviteLink,
+        },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({
