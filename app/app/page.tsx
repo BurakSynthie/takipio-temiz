@@ -798,7 +798,7 @@ export default function DashboardPage() {
                 const marketplaceHeight = item.total > 0 ? Math.max((item.marketplace / item.total) * totalHeight, item.marketplace > 0 ? 4 : 0) : 0;
 
                 return (
-                  <div key={`${item.day.toISOString()}-${index}`} className="group flex min-w-[42px] flex-1 flex-col items-center gap-2">
+                  <div key={`${item.day.toISOString()}-${index}`} className="group flex min-w-[28px] flex-1 flex-col items-center gap-1 sm:min-w-[42px] sm:gap-2">
                     <div className="relative flex h-40 w-full items-end rounded-2xl bg-white/[0.03] p-1 ring-1 ring-white/5">
                       <div
                         className="flex w-full flex-col-reverse overflow-hidden rounded-xl bg-white/5 shadow-lg shadow-blue-950/20 transition duration-300 group-hover:scale-[1.03]"
@@ -816,7 +816,7 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
-                    <p className="max-w-[70px] truncate text-center text-[10px] font-black text-slate-500">{item.label}</p>
+                    <p className="max-w-[44px] truncate text-center text-[9px] font-black text-slate-500 sm:max-w-[70px] sm:text-[10px]">{chartRange === "90" && index % 2 !== 0 ? "·" : item.label}</p>
                     <p className="max-w-full truncate text-[10px] font-bold text-slate-400">{formatCompactCurrency(item.total)}</p>
                   </div>
                 );
