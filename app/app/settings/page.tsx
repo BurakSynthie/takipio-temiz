@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
@@ -11,20 +12,27 @@ type Business = {
   id: string;
   owner_email: string | null;
   name: string;
-  phone: string | null;
   email: string | null;
-  website: string | null;
-  tax_office: string | null;
-  tax_number: string | null;
-  address: string | null;
   logo_url: string | null;
+  brand_color: string | null;
+  phone: string | null;
+  website: string | null;
+  tax_id: string | null;
+  tax_office: string | null;
+  address: string | null;
+  city: string | null;
+  district: string | null;
+  default_currency: string | null;
+  default_tax_rate: number | null;
+  updated_at: string | null;
 };
 
-type BusinessMember = {
+type Member = {
   id: string;
   business_id: string;
   email: string;
-  full_name: string | null;
+  display_name: string | null;
+  invited_by: string | null;
   role_name: string | null;
   member_status: string | null;
   can_view_dashboard: boolean | null;
@@ -39,34 +47,131 @@ type BusinessMember = {
   can_manage_integrations: boolean | null;
   can_manage_billing: boolean | null;
   can_manage_settings: boolean | null;
-};
-
-type Subscription = {
-  id: string;
-  business_id: string | null;
-  plan: string | null;
-  status: string | null;
-  order_limit: number | null;
-  first_month_price: number | null;
-  monthly_price: number | null;
+  created_at: string | null;
+  updated_at: string | null;
 };
 
 type BusinessContext = {
   userEmail: string;
   business: Business;
-  member: BusinessMember;
-  subscription: Subscription | null;
+  member: Member;
   isOwner: boolean;
-  isPro: boolean;
+};
+
+type BusinessForm = {
+  name: string;
+  email: string;
+  logo_url: string;
+  brand_color: string;
+  phone: string;
+  website: string;
+  tax_id: string;
+  tax_office: string;
+  address: string;
+  city: string;
+  district: string;
+  default_currency: string;
+  default_tax_rate: string;
+};
+
+type MemberForm = {
+  display_name: string;
+  email: string;
+  role_name: string;
+};
+
+const permissionFields = [
+  { key: "can_view_dashboard", label: "Dashboard", desc: "Genel paneli görebilir" },
+  { key: "can_manage_products", label: "Ürünler", desc: "Ürün kartlarını yönetir" },
+  { key: "can_manage_stock", label: "Stok", desc: "Stok giriş/çıkış yapar" },
+  { key: "can_manage_sales", label: "Satış", desc: "Satış/tahsilat kayıtlarını yönetir" },
+  { key: "can_manage_orders", label: "Sipariş", desc: "Sipariş oluşturur ve düzenler" },
+  { key: "can_manage_shipments", label: "Kargo", desc: "Kargo durumlarını yönetir" },
+  { key: "can_manage_returns", label: "İade", desc: "İade süreçlerini yönetir" },
+  { key: "can_manage_invoices", label: "Fatura", desc: "Belge/fatura merkezini yönetir" },
+  { key: "can_manage_customers", label: "Müşteri", desc: "CRM müşteri kayıtlarını yönetir" },
+  { key: "can_manage_integrations", label: "Entegrasyon", desc: "Pazaryeri/API bilgilerini yönetir" },
+  { key: "can_manage_billing", label: "Abonelik", desc: "Plan ve fatura sayfasına erişir" },
+  { key: "can_manage_settings", label: "Ayarlar", desc: "İşletme ve ekip ayarlarını yönetir" },
+] as const;
+
+type PermissionKey = typeof permissionFields[number]["key"];
+
+const emptyMemberForm: MemberForm = {
+  display_name: "",
+  email: "",
+  role_name: "Satış",
 };
 
 function normalizeEmail(email: string | null | undefined) {
   return (email ?? "").trim().toLowerCase();
 }
 
+function clean(value: string | null | undefined) {
+  return (value ?? "").trim();
+}
+
 async function getCurrentUserEmail() {
+  const sessionResult = await supabase.auth.getSession();
+  const sessionEmail = normalizeEmail(sessionResult.data.session?.user?.email);
+
+  if (sessionEmail) return sessionEmail;
+
   const { data } = await supabase.auth.getUser();
   return normalizeEmail(data.user?.email);
+}
+
+function permissionsForRole(role: string) {
+  const base: Record<PermissionKey, boolean> = {
+    can_view_dashboard: true,
+    can_manage_products: false,
+    can_manage_stock: false,
+    can_manage_sales: false,
+    can_manage_orders: false,
+    can_manage_shipments: false,
+    can_manage_returns: false,
+    can_manage_invoices: false,
+    can_manage_customers: false,
+    can_manage_integrations: false,
+    can_manage_billing: false,
+    can_manage_settings: false,
+  };
+
+  if (role === "Sahip") {
+    return Object.fromEntries(permissionFields.map((field) => [field.key, true])) as Record<PermissionKey, boolean>;
+  }
+
+  if (role === "Muhasebe") {
+    return {
+      ...base,
+      can_manage_sales: true,
+      can_manage_orders: true,
+      can_manage_invoices: true,
+      can_manage_customers: true,
+      can_manage_billing: true,
+    };
+  }
+
+  if (role === "Depo") {
+    return {
+      ...base,
+      can_manage_products: true,
+      can_manage_stock: true,
+      can_manage_shipments: true,
+      can_manage_returns: true,
+    };
+  }
+
+  if (role === "Satış") {
+    return {
+      ...base,
+      can_manage_sales: true,
+      can_manage_orders: true,
+      can_manage_customers: true,
+    };
+  }
+
+  return base;
 }
 
 async function ensureOwnerMember(businessId: string, userEmail: string) {
@@ -77,78 +182,56 @@ async function ensureOwnerMember(businessId: string, userEmail: string) {
     .eq("email", userEmail)
     .maybeSingle();
 
-  if (existing) return existing as BusinessMember;
+  if (existing) {
+    const member = existing as Member;
+
+    if (member.role_name !== "Sahip" || !member.can_manage_settings) {
+      await supabase
+        .from("business_members")
+        .update({
+          role_name: "Sahip",
+          member_status: "active",
+          ...permissionsForRole("Sahip"),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("business_id", businessId)
+        .eq("email", userEmail);
+
+      return {
+        ...member,
+        role_name: "Sahip",
+        member_status: "active",
+        ...permissionsForRole("Sahip"),
+      } as Member;
+    }
+
+    return member;
+  }
 
   const { data, error } = await supabase
     .from("business_members")
     .insert({
       business_id: businessId,
       email: userEmail,
+      display_name: "Sahip",
       role_name: "Sahip",
       member_status: "active",
-      can_view_dashboard: true,
-      can_manage_products: true,
-      can_manage_stock: true,
-      can_manage_sales: true,
-      can_manage_orders: true,
-      can_manage_shipments: true,
-      can_manage_returns: true,
-      can_manage_invoices: true,
-      can_manage_customers: true,
-      can_manage_integrations: true,
-      can_manage_billing: true,
-      can_manage_settings: true,
+      ...permissionsForRole("Sahip"),
     })
     .select("*")
     .single();
 
-  if (error || !data) {
-    throw new Error(`Owner yetkisi oluşturulamadı: ${error?.message ?? "Bilinmeyen hata"}`);
-  }
+  if (error || !data) throw new Error(`Sahip yetkisi oluşturulamadı: ${error?.message ?? "Bilinmeyen hata"}`);
 
-  return data as BusinessMember;
-}
-
-async function ensureSubscription(businessId: string, userEmail: string) {
-  const { data: existing } = await supabase
-    .from("subscriptions")
-    .select("*")
-    .eq("business_id", businessId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (existing) return existing as Subscription;
-
-  const { data, error } = await supabase
-    .from("subscriptions")
-    .insert({
-      business_id: businessId,
-      user_email: userEmail,
-      plan: "free",
-      status: "trial",
-      order_limit: 15,
-      first_month_price: 89,
-      monthly_price: 99,
-    })
-    .select("*")
-    .single();
-
-  if (error || !data) {
-    throw new Error(`Abonelik oluşturulamadı: ${error?.message ?? "Bilinmeyen hata"}`);
-  }
-
-  return data as Subscription;
+  return data as Member;
 }
 
 async function ensureBusinessForCurrentUser() {
   const userEmail = await getCurrentUserEmail();
 
-  if (!userEmail) {
-    throw new Error("Oturum bulunamadı. Lütfen tekrar giriş yap.");
-  }
+  if (!userEmail) throw new Error("Oturum bulunamadı. Lütfen tekrar giriş yap.");
 
-  const existingMember = await supabase
+  const memberResult = await supabase
     .from("business_members")
     .select("*")
     .eq("email", userEmail)
@@ -156,26 +239,23 @@ async function ensureBusinessForCurrentUser() {
     .limit(1)
     .maybeSingle();
 
-  if (existingMember.data?.business_id) {
-    const { data: business, error: businessError } = await supabase
+  if (memberResult.data?.business_id) {
+    const { data: business, error } = await supabase
       .from("businesses")
       .select("*")
-      .eq("id", existingMember.data.business_id)
+      .eq("id", memberResult.data.business_id)
       .single();
 
-    if (businessError || !business) {
-      throw new Error("İşletme bilgisi alınamadı.");
-    }
+    if (error || !business) throw new Error("İşletme bilgisi alınamadı.");
 
-    const subscription = await ensureSubscription(business.id, userEmail);
+    const isOwner = normalizeEmail(business.owner_email) === userEmail;
+    const member = isOwner ? await ensureOwnerMember(business.id, userEmail) : memberResult.data;
 
     return {
       userEmail,
-      business,
-      member: existingMember.data,
-      subscription,
-      isOwner: normalizeEmail(business.owner_email) === userEmail,
-      isPro: subscription?.plan === "pro" && subscription?.status === "active",
+      business: business as Business,
+      member: member as Member,
+      isOwner,
     } satisfies BusinessContext;
   }
 
@@ -188,135 +268,94 @@ async function ensureBusinessForCurrentUser() {
 
   if (existingBusiness.data) {
     const ownerMember = await ensureOwnerMember(existingBusiness.data.id, userEmail);
-    const subscription = await ensureSubscription(existingBusiness.data.id, userEmail);
 
     return {
       userEmail,
-      business: existingBusiness.data,
+      business: existingBusiness.data as Business,
       member: ownerMember,
-      subscription,
       isOwner: true,
-      isPro: subscription?.plan === "pro" && subscription?.status === "active",
     } satisfies BusinessContext;
   }
 
-  const { data: createdBusiness, error: businessError } = await supabase
+  const { data: createdBusiness, error } = await supabase
     .from("businesses")
     .insert({
       owner_email: userEmail,
       name: "İşletmem",
       email: userEmail,
+      default_currency: "TRY",
+      default_tax_rate: 20,
     })
     .select("*")
     .single();
 
-  if (businessError || !createdBusiness) {
-    throw new Error(`İşletme oluşturulamadı: ${businessError?.message ?? "Bilinmeyen hata"}`);
-  }
+  if (error || !createdBusiness) throw new Error(`İşletme oluşturulamadı: ${error?.message ?? "Bilinmeyen hata"}`);
 
   const ownerMember = await ensureOwnerMember(createdBusiness.id, userEmail);
-  const subscription = await ensureSubscription(createdBusiness.id, userEmail);
 
   return {
     userEmail,
-    business: createdBusiness,
+    business: createdBusiness as Business,
     member: ownerMember,
-    subscription,
     isOwner: true,
-    isPro: false,
   } satisfies BusinessContext;
 }
 
-function hasPermission(context: BusinessContext | null, key: keyof BusinessMember) {
-  if (!context) return false;
-  if (context.isOwner) return true;
-  return Boolean(context.member[key]);
+function formatDate(date: string | null | undefined) {
+  if (!date) return "-";
+
+  return new Intl.DateTimeFormat("tr-TR", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(date));
 }
 
-type MemberForm = {
-  email: string;
-  full_name: string;
-  role_name: string;
-  can_view_dashboard: boolean;
-  can_manage_products: boolean;
-  can_manage_stock: boolean;
-  can_manage_sales: boolean;
-  can_manage_orders: boolean;
-  can_manage_shipments: boolean;
-  can_manage_returns: boolean;
-  can_manage_invoices: boolean;
-  can_manage_customers: boolean;
-  can_manage_integrations: boolean;
-  can_manage_billing: boolean;
-  can_manage_settings: boolean;
-};
+function statusLabel(status: string | null | undefined) {
+  if (status === "active") return "Aktif";
+  if (status === "invited") return "Davetli";
+  if (status === "disabled") return "Pasif";
+  return "Aktif";
+}
 
-const emptyMemberForm: MemberForm = {
-  email: "",
-  full_name: "",
-  role_name: "Çalışan",
-  can_view_dashboard: true,
-  can_manage_products: false,
-  can_manage_stock: false,
-  can_manage_sales: false,
-  can_manage_orders: false,
-  can_manage_shipments: false,
-  can_manage_returns: false,
-  can_manage_invoices: false,
-  can_manage_customers: false,
-  can_manage_integrations: false,
-  can_manage_billing: false,
-  can_manage_settings: false,
-};
+function statusClass(status: string | null | undefined) {
+  if (status === "disabled") return "bg-red-500/15 text-red-300 ring-red-400/20";
+  if (status === "invited") return "bg-amber-500/15 text-amber-300 ring-amber-400/20";
+  return "bg-emerald-500/15 text-emerald-300 ring-emerald-400/20";
+}
 
-const permissionItems: Array<{ key: keyof MemberForm; label: string; desc: string }> = [
-  { key: "can_view_dashboard", label: "Dashboard", desc: "Ana ekranı ve özetleri görüntüleyebilir." },
-  { key: "can_manage_products", label: "Ürünler", desc: "Ürün ekleme, düzenleme, silme yapabilir." },
-  { key: "can_manage_stock", label: "Stok", desc: "Stok hareketlerini ve stok güncellemelerini yönetebilir." },
-  { key: "can_manage_sales", label: "Satışlar", desc: "Satış kayıtlarını oluşturabilir ve güncelleyebilir." },
-  { key: "can_manage_orders", label: "Siparişler", desc: "Sipariş oluşturma ve sipariş durumlarını yönetebilir." },
-  { key: "can_manage_shipments", label: "Kargo", desc: "Kargo çıkışı ve teslimat durumlarını güncelleyebilir." },
-  { key: "can_manage_returns", label: "İadeler", desc: "İade taleplerini oluşturabilir ve güncelleyebilir." },
-  { key: "can_manage_invoices", label: "Faturalar", desc: "Fatura oluşturma, düzenleme ve ödeme durumu yönetebilir." },
-  { key: "can_manage_customers", label: "Müşteriler", desc: "Müşteri kayıtlarını yönetebilir." },
-  { key: "can_manage_integrations", label: "Entegrasyonlar", desc: "Pazaryeri karşılaştırmaları ve bağlantıları yönetebilir." },
-  { key: "can_manage_billing", label: "Abonelik", desc: "Paket ve ödeme/abonelik ayarlarını yönetebilir." },
-  { key: "can_manage_settings", label: "Ayarlar", desc: "İşletme ayarları ve ekip yetkilerini yönetebilir." },
-];
-
-function memberToForm(member: BusinessMember): MemberForm {
-  return {
-    email: member.email,
-    full_name: member.full_name ?? "",
-    role_name: member.role_name ?? "Çalışan",
-    can_view_dashboard: Boolean(member.can_view_dashboard),
-    can_manage_products: Boolean(member.can_manage_products),
-    can_manage_stock: Boolean(member.can_manage_stock),
-    can_manage_sales: Boolean(member.can_manage_sales),
-    can_manage_orders: Boolean(member.can_manage_orders),
-    can_manage_shipments: Boolean(member.can_manage_shipments),
-    can_manage_returns: Boolean(member.can_manage_returns),
-    can_manage_invoices: Boolean(member.can_manage_invoices),
-    can_manage_customers: Boolean(member.can_manage_customers),
-    can_manage_integrations: Boolean(member.can_manage_integrations),
-    can_manage_billing: Boolean(member.can_manage_billing),
-    can_manage_settings: Boolean(member.can_manage_settings),
-  };
+function roleClass(role: string | null | undefined) {
+  if (role === "Sahip") return "bg-blue-500/15 text-blue-300 ring-blue-400/20";
+  if (role === "Muhasebe") return "bg-emerald-500/15 text-emerald-300 ring-emerald-400/20";
+  if (role === "Depo") return "bg-cyan-500/15 text-cyan-300 ring-cyan-400/20";
+  if (role === "Satış") return "bg-purple-500/15 text-purple-300 ring-purple-400/20";
+  return "bg-slate-500/15 text-slate-300 ring-white/10";
 }
 
 export default function SettingsPage() {
   const [context, setContext] = useState<BusinessContext | null>(null);
-  const [members, setMembers] = useState<BusinessMember[]>([]);
-  const [form, setForm] = useState<MemberForm>(emptyMemberForm);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [formOpen, setFormOpen] = useState(false);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [businessForm, setBusinessForm] = useState<BusinessForm>({
+    name: "",
+    email: "",
+    logo_url: "",
+    brand_color: "#2563eb",
+    phone: "",
+    website: "",
+    tax_id: "",
+    tax_office: "",
+    address: "",
+    city: "",
+    district: "",
+    default_currency: "TRY",
+    default_tax_rate: "20",
+  });
+  const [memberForm, setMemberForm] = useState<MemberForm>(emptyMemberForm);
+  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const canManageSettings = hasPermission(context, "can_manage_settings");
-
-  const activeMembers = useMemo(() => members.filter((member) => member.member_status !== "disabled"), [members]);
-  const disabledMembers = useMemo(() => members.filter((member) => member.member_status === "disabled"), [members]);
+  const canManageSettings = Boolean(context?.isOwner || context?.member.can_manage_settings || context?.member.role_name === "Sahip");
 
   async function fetchData() {
     setLoading(true);
@@ -326,20 +365,44 @@ export default function SettingsPage() {
       const ctx = await ensureBusinessForCurrentUser();
       setContext(ctx);
 
-      const { data, error } = await supabase
+      setBusinessForm({
+        name: ctx.business.name || "",
+        email: ctx.business.email || "",
+        logo_url: ctx.business.logo_url || "",
+        brand_color: ctx.business.brand_color || "#2563eb",
+        phone: ctx.business.phone || "",
+        website: ctx.business.website || "",
+        tax_id: ctx.business.tax_id || "",
+        tax_office: ctx.business.tax_office || "",
+        address: ctx.business.address || "",
+        city: ctx.business.city || "",
+        district: ctx.business.district || "",
+        default_currency: ctx.business.default_currency || "TRY",
+        default_tax_rate: String(ctx.business.default_tax_rate ?? 20),
+      });
+
+      const membersResult = await supabase
         .from("business_members")
         .select("*")
         .eq("business_id", ctx.business.id)
+        .order("role_name", { ascending: true })
         .order("created_at", { ascending: true });
 
-      if (error) {
-        setMessage(`Ekip üyeleri alınamadı: ${error.message}`);
+      if (membersResult.error) {
+        setMessage(`Ekip üyeleri alınamadı: ${membersResult.error.message}`);
         return;
       }
 
-      setMembers(data ?? []);
+      setMembers((membersResult.data ?? []) as Member[]);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "İşletme bağlantısı kurulamadı.");
+      const errorMessage = error instanceof Error ? error.message : "Ayarlar alınamadı.";
+
+      if (errorMessage.includes("Oturum bulunamadı")) {
+        window.location.replace("/login");
+        return;
+      }
+
+      setMessage(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -349,113 +412,48 @@ export default function SettingsPage() {
     fetchData();
   }, []);
 
-  function resetForm() {
-    setForm(emptyMemberForm);
-    setEditingId(null);
-  }
+  async function saveBusinessProfile() {
+    if (!context) return;
 
-  function togglePermission(key: keyof MemberForm) {
-    setForm((current) => ({
-      ...current,
-      [key]: !current[key],
-    }));
-  }
-
-  function preset(role: "Muhasebeci" | "Çalışan" | "Operasyon" | "Tam Yetki") {
-    if (role === "Muhasebeci") {
-      setForm((current) => ({
-        ...current,
-        role_name: "Muhasebeci",
-        can_view_dashboard: true,
-        can_manage_products: false,
-        can_manage_stock: false,
-        can_manage_sales: true,
-        can_manage_orders: false,
-        can_manage_shipments: false,
-        can_manage_returns: true,
-        can_manage_invoices: true,
-        can_manage_customers: true,
-        can_manage_integrations: false,
-        can_manage_billing: false,
-        can_manage_settings: false,
-      }));
-    }
-
-    if (role === "Çalışan") {
-      setForm((current) => ({
-        ...current,
-        role_name: "Çalışan",
-        can_view_dashboard: true,
-        can_manage_products: true,
-        can_manage_stock: true,
-        can_manage_sales: false,
-        can_manage_orders: true,
-        can_manage_shipments: true,
-        can_manage_returns: false,
-        can_manage_invoices: false,
-        can_manage_customers: true,
-        can_manage_integrations: false,
-        can_manage_billing: false,
-        can_manage_settings: false,
-      }));
-    }
-
-    if (role === "Operasyon") {
-      setForm((current) => ({
-        ...current,
-        role_name: "Operasyon",
-        can_view_dashboard: true,
-        can_manage_products: true,
-        can_manage_stock: true,
-        can_manage_sales: true,
-        can_manage_orders: true,
-        can_manage_shipments: true,
-        can_manage_returns: true,
-        can_manage_invoices: false,
-        can_manage_customers: true,
-        can_manage_integrations: false,
-        can_manage_billing: false,
-        can_manage_settings: false,
-      }));
-    }
-
-    if (role === "Tam Yetki") {
-      setForm((current) => ({
-        ...current,
-        role_name: "Yönetici",
-        can_view_dashboard: true,
-        can_manage_products: true,
-        can_manage_stock: true,
-        can_manage_sales: true,
-        can_manage_orders: true,
-        can_manage_shipments: true,
-        can_manage_returns: true,
-        can_manage_invoices: true,
-        can_manage_customers: true,
-        can_manage_integrations: true,
-        can_manage_billing: true,
-        can_manage_settings: true,
-      }));
-    }
-  }
-
-  function startEdit(member: BusinessMember) {
     if (!canManageSettings) {
-      setMessage("Bu işletmede ekip yetkilerini düzenleme yetkin yok.");
+      setMessage("Bu işletmede ayar yönetimi yetkin yok.");
       return;
     }
 
-    if (normalizeEmail(member.email) === normalizeEmail(context?.business.owner_email)) {
-      setMessage("Owner kullanıcısının yetkileri bu ekrandan kısıtlanamaz.");
+    setSaving(true);
+
+    const { error } = await supabase
+      .from("businesses")
+      .update({
+        name: clean(businessForm.name) || "İşletmem",
+        email: normalizeEmail(businessForm.email) || null,
+        logo_url: clean(businessForm.logo_url) || null,
+        brand_color: clean(businessForm.brand_color) || "#2563eb",
+        phone: clean(businessForm.phone) || null,
+        website: clean(businessForm.website) || null,
+        tax_id: clean(businessForm.tax_id) || null,
+        tax_office: clean(businessForm.tax_office) || null,
+        address: clean(businessForm.address) || null,
+        city: clean(businessForm.city) || null,
+        district: clean(businessForm.district) || null,
+        default_currency: clean(businessForm.default_currency) || "TRY",
+        default_tax_rate: Number(businessForm.default_tax_rate || 20),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", context.business.id);
+
+    if (error) {
+      setMessage(`İşletme ayarları kaydedilemedi: ${error.message}`);
+      setSaving(false);
       return;
     }
 
-    setEditingId(member.id);
-    setForm(memberToForm(member));
-    setFormOpen(true);
+    setSaving(false);
+    setMessage("İşletme profili kaydedildi.");
+    await fetchData();
   }
 
-  async function saveMember(event: React.FormEvent<HTMLFormElement>) {
+  async function addMember(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!context) return;
@@ -465,55 +463,42 @@ export default function SettingsPage() {
       return;
     }
 
-    const email = normalizeEmail(form.email);
+    const email = normalizeEmail(memberForm.email);
 
     if (!email) {
-      setMessage("Ekip üyesi e-postası gerekli.");
+      setMessage("Ekip üyesi için e-posta zorunlu.");
       return;
     }
 
-    if (email === normalizeEmail(context.business.owner_email) && editingId) {
-      setMessage("Owner kullanıcısının yetkileri değiştirilemez.");
+    const rolePermissions = permissionsForRole(memberForm.role_name);
+
+    setSaving(true);
+
+    const { error } = await supabase
+      .from("business_members")
+      .insert({
+        business_id: context.business.id,
+        email,
+        display_name: clean(memberForm.display_name) || null,
+        invited_by: context.userEmail,
+        role_name: memberForm.role_name,
+        member_status: "active",
+        ...rolePermissions,
+      });
+
+    if (error) {
+      setMessage(`Ekip üyesi eklenemedi: ${error.message}`);
+      setSaving(false);
       return;
     }
 
-    const payload = {
-      business_id: context.business.id,
-      email,
-      full_name: form.full_name.trim() || null,
-      role_name: form.role_name.trim() || "Çalışan",
-      member_status: "active",
-      can_view_dashboard: form.can_view_dashboard,
-      can_manage_products: form.can_manage_products,
-      can_manage_stock: form.can_manage_stock,
-      can_manage_sales: form.can_manage_sales,
-      can_manage_orders: form.can_manage_orders,
-      can_manage_shipments: form.can_manage_shipments,
-      can_manage_returns: form.can_manage_returns,
-      can_manage_invoices: form.can_manage_invoices,
-      can_manage_customers: form.can_manage_customers,
-      can_manage_integrations: form.can_manage_integrations,
-      can_manage_billing: form.can_manage_billing,
-      can_manage_settings: form.can_manage_settings,
-      updated_at: new Date().toISOString(),
-    };
-
-    const result = editingId
-      ? await supabase.from("business_members").update(payload).eq("business_id", context.business.id).eq("id", editingId)
-      : await supabase.from("business_members").upsert(payload, { onConflict: "business_id,email" });
-
-    if (result.error) {
-      setMessage(`Ekip üyesi kaydedilemedi: ${result.error.message}`);
-      return;
-    }
-
-    setMessage(editingId ? "Ekip üyesi güncellendi." : "Ekip üyesi eklendi. Bu kişi /login sayfasından kayıt olup aynı e-posta ile giriş yapmalı.");
-    resetForm();
-    setFormOpen(false);
+    setSaving(false);
+    setMemberForm(emptyMemberForm);
+    setMessage("Ekip üyesi eklendi. Bu e-posta ile kayıt/giriş yaptığında aynı işletmeye bağlanır.");
     await fetchData();
   }
 
-  async function disableMember(member: BusinessMember) {
+  async function updateMember(member: Member, patch: Partial<Member>) {
     if (!context) return;
 
     if (!canManageSettings) {
@@ -521,37 +506,46 @@ export default function SettingsPage() {
       return;
     }
 
-    if (normalizeEmail(member.email) === normalizeEmail(context.business.owner_email)) {
-      setMessage("Owner kullanıcısı devre dışı bırakılamaz.");
+    if (member.role_name === "Sahip" && member.email === context.userEmail && patch.member_status === "disabled") {
+      setMessage("Kendi sahip hesabını pasife alamazsın.");
       return;
     }
 
-    if (!confirm(`${member.email} devre dışı bırakılsın mı?`)) return;
+    setSaving(true);
 
-    await supabase
+    const { error } = await supabase
       .from("business_members")
-      .update({ member_status: "disabled", updated_at: new Date().toISOString() })
+      .update({
+        ...patch,
+        updated_at: new Date().toISOString(),
+      })
       .eq("business_id", context.business.id)
       .eq("id", member.id);
 
-    setMessage("Ekip üyesi devre dışı bırakıldı.");
+    if (error) {
+      setMessage(`Ekip üyesi güncellenemedi: ${error.message}`);
+      setSaving(false);
+      return;
+    }
+
+    setSaving(false);
+    setMessage("Ekip üyesi güncellendi.");
     await fetchData();
+
+    if (selectedMember?.id === member.id) {
+      setSelectedMember((current) => current ? ({ ...current, ...patch }) : current);
+    }
   }
 
-  async function activateMember(member: BusinessMember) {
-    if (!context) return;
-
-    await supabase
-      .from("business_members")
-      .update({ member_status: "active", updated_at: new Date().toISOString() })
-      .eq("business_id", context.business.id)
-      .eq("id", member.id);
-
-    setMessage("Ekip üyesi tekrar aktif edildi.");
-    await fetchData();
+  async function changeRole(member: Member, role: string) {
+    const rolePermissions = permissionsForRole(role);
+    await updateMember(member, {
+      role_name: role,
+      ...rolePermissions,
+    } as Partial<Member>);
   }
 
-  async function deleteMember(member: BusinessMember) {
+  async function deleteMember(member: Member) {
     if (!context) return;
 
     if (!canManageSettings) {
@@ -559,22 +553,37 @@ export default function SettingsPage() {
       return;
     }
 
-    if (normalizeEmail(member.email) === normalizeEmail(context.business.owner_email)) {
-      setMessage("Owner kullanıcısı silinemez.");
+    if (member.email === context.userEmail) {
+      setMessage("Kendi hesabını silemezsin.");
       return;
     }
 
-    if (!confirm(`${member.email} tamamen silinsin mi?`)) return;
+    if (!confirm(`${member.email} ekipten tamamen silinsin mi?`)) return;
 
-    await supabase
+    const { error } = await supabase
       .from("business_members")
       .delete()
       .eq("business_id", context.business.id)
       .eq("id", member.id);
 
+    if (error) {
+      setMessage(`Ekip üyesi silinemedi: ${error.message}`);
+      return;
+    }
+
     setMessage("Ekip üyesi silindi.");
+    setSelectedMember(null);
     await fetchData();
   }
+
+  const stats = useMemo(() => {
+    return {
+      total: members.length,
+      active: members.filter((member) => member.member_status === "active").length,
+      disabled: members.filter((member) => member.member_status === "disabled").length,
+      owners: members.filter((member) => member.role_name === "Sahip").length,
+    };
+  }, [members]);
 
   return (
     <section className="mx-auto w-full max-w-[1500px] space-y-4 pb-10 text-white">
@@ -582,46 +591,24 @@ export default function SettingsPage() {
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="mb-3 inline-flex rounded-full bg-blue-500/15 px-3 py-2 text-xs font-black text-blue-300">
-              Team / Permissions v1
+              Settings Center v20
             </div>
-            <h1 className="text-[34px] font-black tracking-[-0.05em] sm:text-5xl">Ayarlar & Ekip</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
-              İşletme sahibi ekip üyesi ekleyebilir ve sayfa bazlı yetkilerini belirleyebilir.
+            <h1 className="text-[34px] font-black tracking-[-0.05em] sm:text-5xl">Ayarlar</h1>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400">
+              İşletme profili, marka bilgileri, vergi ayarları ve ekip yetkilerini tek merkezden yönet.
             </p>
           </div>
 
-          <button
-            onClick={() => {
-              if (!canManageSettings) {
-                setMessage("Bu işletmede ekip ekleme yetkin yok.");
-                return;
-              }
-              resetForm();
-              setFormOpen((value) => !value);
-            }}
-            className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-500"
-          >
-            {formOpen ? "Formu Kapat" : "Ekip Üyesi Ekle"}
-          </button>
-        </div>
-      </div>
-
-      {context ? (
-        <div className="rounded-[22px] border border-white/10 bg-[#111a2e] p-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Aktif İşletme</p>
-              <p className="mt-1 text-lg font-black">{context.business.name}</p>
-              <p className="mt-1 text-xs text-slate-500">Giriş yapan: {context.userEmail} · Rol: {context.member.role_name || "-"}</p>
-            </div>
-            <div className={`rounded-2xl px-4 py-3 text-sm font-black ring-1 ${
-              canManageSettings ? "bg-emerald-400/10 text-emerald-300 ring-emerald-400/20" : "bg-red-400/10 text-red-300 ring-red-400/20"
-            }`}>
-              {canManageSettings ? "Ekip yönetimi açık" : "Ekip yönetimi kapalı"}
-            </div>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/app/invoices" className="rounded-2xl bg-emerald-500/15 px-5 py-3 text-sm font-black text-emerald-300 ring-1 ring-emerald-400/20 transition hover:bg-emerald-500/25">
+              Fatura Ayarlarına Git
+            </Link>
+            <button onClick={fetchData} className="rounded-2xl bg-white/8 px-5 py-3 text-sm font-black text-slate-200 ring-1 ring-white/10 transition hover:bg-white/12">
+              Yenile
+            </button>
           </div>
         </div>
-      ) : null}
+      </div>
 
       {message ? (
         <div className="rounded-2xl bg-blue-500/10 px-4 py-3 text-sm font-bold text-blue-200 ring-1 ring-blue-400/20">
@@ -629,153 +616,307 @@ export default function SettingsPage() {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Metric label="Aktif Üye" value={String(activeMembers.length)} valueClass="text-white" />
-        <Metric label="Pasif Üye" value={String(disabledMembers.length)} valueClass="text-amber-300" />
-        <Metric label="Owner" value={context?.business.owner_email || "-"} valueClass="text-blue-300 text-base" />
-        <Metric label="Plan" value={context?.isPro ? "Pro" : "Free"} valueClass={context?.isPro ? "text-emerald-300" : "text-blue-300"} />
-      </div>
-
-      {formOpen ? (
-        <form onSubmit={saveMember} className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
-          <div className="mb-5">
-            <h2 className="text-2xl font-black">{editingId ? "Ekip Üyesini Düzenle" : "Ekip Üyesi Ekle"}</h2>
-            <p className="mt-1 text-sm text-slate-400">
-              Şifreyi owner belirlemez. Eklenen kişi aynı e-posta ile /login sayfasından kayıt olur veya şifre sıfırlama kullanır.
-            </p>
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-3">
-            <Field label="E-posta">
-              <input value={form.email} disabled={Boolean(editingId)} onChange={(e) => setForm((c) => ({ ...c, email: e.target.value }))} className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none disabled:opacity-50" />
-            </Field>
-            <Field label="Ad Soyad">
-              <input value={form.full_name} onChange={(e) => setForm((c) => ({ ...c, full_name: e.target.value }))} className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none" />
-            </Field>
-            <Field label="Rol Adı">
-              <input value={form.role_name} onChange={(e) => setForm((c) => ({ ...c, role_name: e.target.value }))} className="w-full rounded-2xl border border-white/10 bg-[#0b1220] px-4 py-3 text-sm outline-none" />
-            </Field>
-          </div>
-
-          <div className="mt-5 flex flex-wrap gap-2">
-            <button type="button" onClick={() => preset("Muhasebeci")} className="rounded-xl bg-white/10 px-3 py-2 text-xs font-black text-slate-200">Muhasebeci</button>
-            <button type="button" onClick={() => preset("Çalışan")} className="rounded-xl bg-white/10 px-3 py-2 text-xs font-black text-slate-200">Çalışan</button>
-            <button type="button" onClick={() => preset("Operasyon")} className="rounded-xl bg-white/10 px-3 py-2 text-xs font-black text-slate-200">Operasyon</button>
-            <button type="button" onClick={() => preset("Tam Yetki")} className="rounded-xl bg-blue-500/15 px-3 py-2 text-xs font-black text-blue-300">Tam Yetki</button>
-          </div>
-
-          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {permissionItems.map((item) => (
-              <button
-                key={String(item.key)}
-                type="button"
-                onClick={() => togglePermission(item.key)}
-                className={`rounded-[18px] border p-4 text-left transition hover:-translate-y-0.5 ${
-                  form[item.key] ? "border-blue-500 bg-blue-500/10" : "border-white/10 bg-[#0b1220]"
-                }`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-black">{item.label}</p>
-                    <p className="mt-1 text-xs leading-5 text-slate-400">{item.desc}</p>
-                  </div>
-                  <span className={`rounded-full px-2 py-1 text-[10px] font-black ${
-                    form[item.key] ? "bg-blue-500 text-white" : "bg-white/10 text-slate-400"
-                  }`}>
-                    {form[item.key] ? "Açık" : "Kapalı"}
-                  </span>
-                </div>
-              </button>
-            ))}
-          </div>
-
-          <div className="mt-5 flex flex-wrap gap-2">
-            <button className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white">
-              {editingId ? "Yetkileri Güncelle" : "Ekip Üyesini Kaydet"}
-            </button>
-            <button type="button" onClick={() => { resetForm(); setFormOpen(false); }} className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-black text-slate-200">
-              Vazgeç
-            </button>
-          </div>
-        </form>
+      {!canManageSettings ? (
+        <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm font-bold text-amber-100">
+          Bu sayfayı görüntüleyebilirsin ama değişiklik yapmak için Ayarlar yetkin yok.
+        </div>
       ) : null}
 
-      <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
-        <h2 className="text-2xl font-black">Ekip Üyeleri</h2>
-        <p className="mt-1 text-sm text-slate-400">
-          Buraya eklenen kişi aynı e-posta ile kayıt olduğunda bu işletmeye bağlı çalışır.
-        </p>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Metric label="Toplam Üye" value={loading ? "..." : String(stats.total)} />
+        <Metric label="Aktif Üye" value={loading ? "..." : String(stats.active)} valueClass="text-emerald-300" />
+        <Metric label="Pasif Üye" value={loading ? "..." : String(stats.disabled)} valueClass="text-red-300" />
+        <Metric label="Sahip" value={loading ? "..." : String(stats.owners)} valueClass="text-blue-300" />
+      </div>
 
-        {loading ? (
-          <div className="mt-5 grid gap-3">{[1, 2, 3].map((item) => <div key={item} className="h-24 animate-pulse rounded-[24px] bg-white/5" />)}</div>
-        ) : members.length === 0 ? (
-          <div className="mt-5 rounded-[24px] border border-dashed border-white/10 bg-[#0b1220] p-10 text-center">
-            <h3 className="text-xl font-black">Ekip üyesi yok</h3>
-            <p className="mt-2 text-sm text-slate-500">İlk ekip üyesini eklediğinde burada gözükecek.</p>
+      <div className="grid gap-4 xl:grid-cols-[1fr_0.9fr]">
+        <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
+          <div className="mb-5 flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-black">İşletme Profili</h2>
+              <p className="mt-1 text-sm text-slate-400">Bu bilgiler panelde, fatura hazırlığında ve ileride müşteri çıktılarında kullanılabilir.</p>
+            </div>
+
+            {businessForm.logo_url ? (
+              <img src={businessForm.logo_url} alt="Logo" className="h-14 w-14 rounded-2xl bg-white object-contain p-2" />
+            ) : (
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-500/15 text-lg font-black text-blue-300">
+                {businessForm.name?.slice(0, 1) || "T"}
+              </div>
+            )}
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <Field label="İşletme Adı">
+              <input value={businessForm.name} onChange={(event) => setBusinessForm((current) => ({ ...current, name: event.target.value }))} className="input" />
+            </Field>
+
+            <Field label="E-posta">
+              <input value={businessForm.email} onChange={(event) => setBusinessForm((current) => ({ ...current, email: event.target.value }))} className="input" />
+            </Field>
+
+            <Field label="Telefon">
+              <input value={businessForm.phone} onChange={(event) => setBusinessForm((current) => ({ ...current, phone: event.target.value }))} className="input" />
+            </Field>
+
+            <Field label="Web Sitesi">
+              <input value={businessForm.website} onChange={(event) => setBusinessForm((current) => ({ ...current, website: event.target.value }))} className="input" />
+            </Field>
+
+            <Field label="Logo URL">
+              <input value={businessForm.logo_url} onChange={(event) => setBusinessForm((current) => ({ ...current, logo_url: event.target.value }))} className="input" />
+            </Field>
+
+            <Field label="Marka Rengi">
+              <input value={businessForm.brand_color} onChange={(event) => setBusinessForm((current) => ({ ...current, brand_color: event.target.value }))} className="input" />
+            </Field>
+
+            <Field label="VKN / TCKN">
+              <input value={businessForm.tax_id} onChange={(event) => setBusinessForm((current) => ({ ...current, tax_id: event.target.value }))} className="input" />
+            </Field>
+
+            <Field label="Vergi Dairesi">
+              <input value={businessForm.tax_office} onChange={(event) => setBusinessForm((current) => ({ ...current, tax_office: event.target.value }))} className="input" />
+            </Field>
+
+            <Field label="Varsayılan Para Birimi">
+              <select value={businessForm.default_currency} onChange={(event) => setBusinessForm((current) => ({ ...current, default_currency: event.target.value }))} className="input">
+                <option value="TRY">TRY</option>
+                <option value="EUR">EUR</option>
+                <option value="USD">USD</option>
+                <option value="GBP">GBP</option>
+              </select>
+            </Field>
+
+            <Field label="Varsayılan KDV %">
+              <input type="number" value={businessForm.default_tax_rate} onChange={(event) => setBusinessForm((current) => ({ ...current, default_tax_rate: event.target.value }))} className="input" />
+            </Field>
+
+            <Field label="İl">
+              <input value={businessForm.city} onChange={(event) => setBusinessForm((current) => ({ ...current, city: event.target.value }))} className="input" />
+            </Field>
+
+            <Field label="İlçe">
+              <input value={businessForm.district} onChange={(event) => setBusinessForm((current) => ({ ...current, district: event.target.value }))} className="input" />
+            </Field>
+
+            <label className="md:col-span-2 xl:col-span-3">
+              <span className="label">Adres</span>
+              <input value={businessForm.address} onChange={(event) => setBusinessForm((current) => ({ ...current, address: event.target.value }))} className="input" />
+            </label>
+          </div>
+
+          <div className="mt-5 flex flex-wrap gap-2">
+            <button onClick={saveBusinessProfile} disabled={saving || !canManageSettings} className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-500 disabled:opacity-50">
+              {saving ? "Kaydediliyor..." : "İşletme Profilini Kaydet"}
+            </button>
+            <Link href="/app/invoices" className="rounded-2xl bg-white/8 px-5 py-3 text-sm font-black text-slate-300 ring-1 ring-white/10">
+              Fatura Modülüne Aktar
+            </Link>
+          </div>
+        </div>
+
+        <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
+          <div className="mb-5">
+            <h2 className="text-2xl font-black">Yeni Ekip Üyesi</h2>
+            <p className="mt-1 text-sm text-slate-400">E-posta ile üye ekle. Bu kişi aynı e-posta ile kayıt/giriş yaptığında işletmeye bağlanır.</p>
+          </div>
+
+          <form onSubmit={addMember} className="grid gap-3">
+            <Field label="Ad Soyad / Görünen Ad">
+              <input value={memberForm.display_name} onChange={(event) => setMemberForm((current) => ({ ...current, display_name: event.target.value }))} className="input" />
+            </Field>
+
+            <Field label="E-posta">
+              <input value={memberForm.email} onChange={(event) => setMemberForm((current) => ({ ...current, email: event.target.value }))} className="input" />
+            </Field>
+
+            <Field label="Rol">
+              <select value={memberForm.role_name} onChange={(event) => setMemberForm((current) => ({ ...current, role_name: event.target.value }))} className="input">
+                <option value="Satış">Satış</option>
+                <option value="Muhasebe">Muhasebe</option>
+                <option value="Depo">Depo</option>
+                <option value="Özel">Özel</option>
+              </select>
+            </Field>
+
+            <button disabled={saving || !canManageSettings} className="rounded-2xl bg-emerald-500/15 px-5 py-3 text-sm font-black text-emerald-300 ring-1 ring-emerald-400/20 transition hover:bg-emerald-500/25 disabled:opacity-50">
+              Ekip Üyesi Ekle
+            </button>
+          </form>
+
+          <div className="mt-5 rounded-2xl bg-blue-500/10 p-4 text-sm leading-6 text-blue-100 ring-1 ring-blue-400/20">
+            <b>Not:</b> Bu sistem ekip üyesini işletmeye bağlar. Gerçek e-posta davet maili göndermek istersek sonraki pakette mail route’u ekleriz.
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
+        <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-2xl font-black">Ekip ve Yetkiler</h2>
+            <p className="mt-1 text-sm text-slate-400">Kim hangi modüle erişecek buradan yönetilir.</p>
+          </div>
+        </div>
+
+        {members.length === 0 ? (
+          <div className="rounded-[24px] border border-dashed border-white/10 p-10 text-center text-sm font-bold text-slate-500">
+            Henüz ekip üyesi yok.
           </div>
         ) : (
-          <div className="mt-5 grid gap-3">
-            {members.map((member) => {
-              const isOwner = normalizeEmail(member.email) === normalizeEmail(context?.business.owner_email);
-              const enabledCount = permissionItems.filter((item) => Boolean(member[item.key as keyof BusinessMember])).length;
-
-              return (
-                <div key={member.id} className={`rounded-[22px] border p-4 transition hover:bg-[#101a31] ${
-                  member.member_status === "disabled" ? "border-red-500/20 bg-red-500/5" : "border-white/10 bg-[#0b1220]"
-                }`}>
-                  <div className="grid gap-4 xl:grid-cols-[1fr_0.7fr_0.8fr_auto] xl:items-center">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-lg font-black">{member.full_name || member.email}</h3>
-                        {isOwner ? <span className="rounded-full bg-blue-500 px-3 py-1 text-xs font-black text-white">Owner</span> : null}
-                        <span className={`rounded-full px-3 py-1 text-xs font-black ${
-                          member.member_status === "disabled" ? "bg-red-400/15 text-red-300" : "bg-emerald-400/15 text-emerald-300"
-                        }`}>
-                          {member.member_status === "disabled" ? "Pasif" : "Aktif"}
-                        </span>
-                      </div>
-                      <p className="mt-2 text-sm text-slate-400">{member.email}</p>
+          <div className="grid gap-3">
+            {members.map((member) => (
+              <article key={member.id} className="rounded-[24px] border border-white/10 bg-[#0b1220] p-4">
+                <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr_1.1fr] xl:items-center">
+                  <div>
+                    <div className="mb-2 flex flex-wrap items-center gap-2">
+                      <h3 className="text-lg font-black">{member.display_name || member.email}</h3>
+                      <span className={`rounded-full px-3 py-1 text-xs font-black ring-1 ${roleClass(member.role_name)}`}>
+                        {member.role_name || "Personel"}
+                      </span>
+                      <span className={`rounded-full px-3 py-1 text-xs font-black ring-1 ${statusClass(member.member_status)}`}>
+                        {statusLabel(member.member_status)}
+                      </span>
                     </div>
+                    <p className="text-sm font-bold text-slate-400">{member.email}</p>
+                    <p className="mt-1 text-xs text-slate-500">Eklenme: {formatDate(member.created_at)}</p>
+                  </div>
 
-                    <div>
-                      <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Rol</p>
-                      <p className="mt-1 text-sm font-black">{member.role_name || "Çalışan"}</p>
-                    </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <select value={member.role_name || "Özel"} onChange={(event) => changeRole(member, event.target.value)} disabled={!canManageSettings || member.role_name === "Sahip"} className="input">
+                      <option value="Sahip">Sahip</option>
+                      <option value="Muhasebe">Muhasebe</option>
+                      <option value="Depo">Depo</option>
+                      <option value="Satış">Satış</option>
+                      <option value="Özel">Özel</option>
+                    </select>
 
-                    <div>
-                      <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Yetki</p>
-                      <p className="mt-1 text-sm font-black text-blue-300">{isOwner ? "Tüm yetkiler" : `${enabledCount} alan açık`}</p>
-                    </div>
+                    <button
+                      onClick={() => updateMember(member, { member_status: member.member_status === "disabled" ? "active" : "disabled" })}
+                      disabled={!canManageSettings || member.role_name === "Sahip"}
+                      className="rounded-2xl bg-white/8 px-4 py-3 text-xs font-black text-slate-300 ring-1 ring-white/10 disabled:opacity-40"
+                    >
+                      {member.member_status === "disabled" ? "Aktif Yap" : "Pasife Al"}
+                    </button>
+                  </div>
 
-                    <div className="flex flex-wrap gap-2 xl:justify-end">
-                      {!isOwner ? (
-                        <>
-                          <button onClick={() => startEdit(member)} className="rounded-xl bg-blue-500/15 px-3 py-2 text-xs font-black text-blue-300">Düzenle</button>
-                          {member.member_status === "disabled" ? (
-                            <button onClick={() => activateMember(member)} className="rounded-xl bg-emerald-500/15 px-3 py-2 text-xs font-black text-emerald-300">Aktif Et</button>
-                          ) : (
-                            <button onClick={() => disableMember(member)} className="rounded-xl bg-amber-500/15 px-3 py-2 text-xs font-black text-amber-300">Pasif Yap</button>
-                          )}
-                          <button onClick={() => deleteMember(member)} className="rounded-xl bg-red-500/15 px-3 py-2 text-xs font-black text-red-300">Sil</button>
-                        </>
-                      ) : (
-                        <span className="rounded-xl bg-white/10 px-3 py-2 text-xs font-black text-slate-300">Korunuyor</span>
-                      )}
-                    </div>
+                  <div className="flex flex-wrap justify-start gap-2 xl:justify-end">
+                    <button onClick={() => setSelectedMember(member)} className="rounded-2xl bg-blue-500/15 px-4 py-2.5 text-xs font-black text-blue-300 ring-1 ring-blue-400/20">
+                      Yetkileri Aç
+                    </button>
+                    <button onClick={() => deleteMember(member)} disabled={!canManageSettings || member.email === context?.userEmail} className="rounded-2xl bg-red-500/15 px-4 py-2.5 text-xs font-black text-red-300 ring-1 ring-red-400/20 disabled:opacity-40">
+                      Sil
+                    </button>
                   </div>
                 </div>
-              );
-            })}
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {permissionFields.filter((field) => Boolean(member[field.key])).slice(0, 8).map((field) => (
+                    <span key={field.key} className="rounded-full bg-emerald-500/10 px-3 py-1 text-[11px] font-black text-emerald-300 ring-1 ring-emerald-400/20">
+                      {field.label}
+                    </span>
+                  ))}
+                  {permissionFields.filter((field) => Boolean(member[field.key])).length > 8 ? (
+                    <span className="rounded-full bg-white/8 px-3 py-1 text-[11px] font-black text-slate-400 ring-1 ring-white/10">
+                      +{permissionFields.filter((field) => Boolean(member[field.key])).length - 8}
+                    </span>
+                  ) : null}
+                </div>
+              </article>
+            ))}
           </div>
         )}
       </div>
+
+      {selectedMember ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-[30px] border border-white/10 bg-[#111a2e] p-5 shadow-2xl">
+            <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <span className={`rounded-full px-3 py-1 text-xs font-black ring-1 ${roleClass(selectedMember.role_name)}`}>
+                    {selectedMember.role_name || "Personel"}
+                  </span>
+                  <span className={`rounded-full px-3 py-1 text-xs font-black ring-1 ${statusClass(selectedMember.member_status)}`}>
+                    {statusLabel(selectedMember.member_status)}
+                  </span>
+                </div>
+                <h2 className="text-3xl font-black tracking-[-0.04em]">{selectedMember.display_name || selectedMember.email}</h2>
+                <p className="mt-1 text-sm text-slate-400">{selectedMember.email}</p>
+              </div>
+
+              <button onClick={() => setSelectedMember(null)} className="rounded-2xl bg-white/8 px-4 py-2.5 text-xs font-black text-slate-300 ring-1 ring-white/10">
+                Kapat
+              </button>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              {permissionFields.map((field) => (
+                <button
+                  key={field.key}
+                  onClick={() => {
+                    const nextValue = !selectedMember[field.key];
+                    updateMember(selectedMember, { [field.key]: nextValue } as Partial<Member>);
+                    setSelectedMember((current) => current ? ({ ...current, [field.key]: nextValue }) : current);
+                  }}
+                  disabled={!canManageSettings || selectedMember.role_name === "Sahip"}
+                  className={`rounded-[22px] border p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                    selectedMember[field.key]
+                      ? "border-emerald-400/30 bg-emerald-500/10"
+                      : "border-white/10 bg-[#0b1220] hover:bg-white/5"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="font-black text-white">{field.label}</p>
+                      <p className="mt-1 text-sm leading-6 text-slate-400">{field.desc}</p>
+                    </div>
+                    <span className={`rounded-full px-3 py-1 text-xs font-black ${
+                      selectedMember[field.key]
+                        ? "bg-emerald-400 text-[#04111c]"
+                        : "bg-white/8 text-slate-400"
+                    }`}>
+                      {selectedMember[field.key] ? "Açık" : "Kapalı"}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {selectedMember.role_name === "Sahip" ? (
+              <div className="mt-5 rounded-2xl bg-blue-500/10 p-4 text-sm font-bold text-blue-100 ring-1 ring-blue-400/20">
+                Sahip rolünde tüm yetkiler açık kabul edilir; güvenlik için tek tek kapatılamaz.
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      <style jsx>{`
+        .input {
+          width: 100%;
+          border-radius: 1rem;
+          border: 1px solid rgba(255,255,255,0.1);
+          background: #0b1220;
+          padding: 0.75rem 1rem;
+          font-size: 0.875rem;
+          outline: none;
+        }
+        .label {
+          display: block;
+          margin-bottom: 0.375rem;
+          font-size: 0.75rem;
+          font-weight: 900;
+          color: rgb(148 163 184);
+        }
+      `}</style>
     </section>
   );
 }
 
 function Metric({ label, value, valueClass }: { label: string; value: string; valueClass?: string }) {
   return (
-    <div className="rounded-[22px] border border-white/10 bg-[#111a2e] p-5">
+    <div className="rounded-[22px] border border-white/10 bg-[#111a2e] p-4">
       <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">{label}</p>
       <p className={["mt-3 text-3xl font-black", valueClass || "text-white"].join(" ")}>{value}</p>
     </div>
@@ -784,8 +925,8 @@ function Metric({ label, value, valueClass }: { label: string; value: string; va
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label>
-      <span className="mb-1.5 block text-xs font-black text-slate-400">{label}</span>
+    <label className="block">
+      <span className="label">{label}</span>
       {children}
     </label>
   );
