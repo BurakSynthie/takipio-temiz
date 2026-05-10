@@ -48,7 +48,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "E-posta zorunlu." }, { status: 400 });
     }
 
-    const inviteLink = `${getBaseUrl()}/register?invite=${encodeURIComponent(inviteToken)}&email=${encodeURIComponent(email)}`;
+    const inviteLink = `${getBaseUrl()}/app/register?invite=${encodeURIComponent(inviteToken)}&email=${encodeURIComponent(email)}`;
 
     const resendApiKey = process.env.RESEND_API_KEY;
 
