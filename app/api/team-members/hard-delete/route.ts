@@ -66,7 +66,7 @@ async function findAuthUserIdByEmail(serviceClient: any, email: string) {
   return null;
 }
 
-async function safeDelete(callback: () => Promise<{ error: unknown }>) {
+async function safeDelete(callback: () => any) {
   try {
     const result = await callback();
 
