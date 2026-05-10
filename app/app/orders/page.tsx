@@ -75,6 +75,10 @@ type Order = {
   carrier_name: string | null;
   tracking_no: string | null;
   return_status: string | null;
+  marketplace_order_no: string | null;
+  marketplace_package_id: string | null;
+  marketplace_status: string | null;
+  marketplace_tracking_link: string | null;
   created_at: string;
 };
 
@@ -931,10 +935,27 @@ export default function OrdersPage() {
                           <span className={`rounded-full px-3 py-1 text-xs font-black ${order.payment_status === "paid" ? "bg-emerald-500/15 text-emerald-300" : order.payment_status === "partial" ? "bg-amber-500/15 text-amber-300" : "bg-red-500/15 text-red-300"}`}>
                             {order.payment_status === "paid" ? "Ödendi" : order.payment_status === "partial" ? "Kısmi" : "Bekliyor"}
                           </span>
+                          {order.marketplace === "trendyol" ? (
+                            <span className="rounded-full bg-orange-500/15 px-3 py-1 text-xs font-black text-orange-300 ring-1 ring-orange-400/20">
+                              Trendyol
+                            </span>
+                          ) : null}
                         </div>
                         <p className="mt-2 text-sm text-slate-400">{order.product_name || "Ürün yok"} · {order.quantity ?? 0} adet</p>
                         <p className="mt-1 text-xs text-slate-500">{order.customer_name || "Müşteri yok"} · {formatDate(order.created_at)}</p>
                         <p className="mt-1 text-xs text-blue-300">Kargo: {shippingLabels[order.shipping_status || "waiting"] || order.shipping_status} {order.tracking_no ? `· ${order.tracking_no}` : ""}</p>
+                        {order.marketplace === "trendyol" ? (
+                          <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-bold">
+                            {order.marketplace_order_no ? <span className="rounded-full bg-orange-500/10 px-2.5 py-1 text-orange-300">TY Sipariş: {order.marketplace_order_no}</span> : null}
+                            {order.marketplace_package_id ? <span className="rounded-full bg-orange-500/10 px-2.5 py-1 text-orange-300">Paket: {order.marketplace_package_id}</span> : null}
+                            {order.marketplace_status ? <span className="rounded-full bg-white/8 px-2.5 py-1 text-slate-300">Durum: {order.marketplace_status}</span> : null}
+                            {order.marketplace_tracking_link ? (
+                              <a href={order.marketplace_tracking_link} target="_blank" rel="noreferrer" className="rounded-full bg-blue-500/15 px-2.5 py-1 text-blue-300 underline decoration-blue-300/40">
+                                Kargo Linki
+                              </a>
+                            ) : null}
+                          </div>
+                        ) : null}
                         {order.return_status && order.return_status !== "none" ? <p className="mt-1 text-xs text-amber-300">İade: {order.return_status}</p> : null}
                       </div>
 
