@@ -327,24 +327,38 @@ export default function IntegrationsPage() {
       setMessage("Önce bağlantı bilgilerini kaydetmelisin.");
       return;
     }
+
     if (!canManage) {
       setMessage("Bu işletmede entegrasyon test etme yetkin yok.");
       return;
     }
 
-    const hasCredential = Boolean(current.api_key || current.api_secret || current.seller_id || current.merchant_id);
-    const { error } = await supabase.from("marketplace_integrations").update({
-      connection_status: hasCredential ? "test_success" : "error",
-      last_test_at: new Date().toISOString(),
-      last_error: hasCredential ? null : "API bilgisi eksik. Gerçek bağlantı için gerekli alanları doldur.",
-      updated_at: new Date().toISOString(),
-    }).eq("business_id", context.business.id).eq("id", current.id);
+    setMessage("Bağlantı backend route üzerinden test ediliyor...");
 
-    if (error) {
-      setMessage(`Bağlantı testi kaydedilemedi: ${error.message}`);
+    const sessionResult = await supabase.auth.getSession();
+    const accessToken = sessionResult.data.session?.access_token;
+
+    if (!accessToken) {
+      setMessage("Oturum bulunamadı. Lütfen tekrar giriş yap.");
       return;
     }
-    setMessage(hasCredential ? `${meta.name} test bağlantısı başarılı görünüyor.` : `${meta.name} için API bilgisi eksik.`);
+
+    const response = await fetch(`/api/integrations/${selected}/test`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      setMessage(result?.error || "Bağlantı testi başarısız.");
+      await fetchData(context);
+      return;
+    }
+
+    setMessage(result?.message || `${meta.name} bağlantı testi başarılı.`);
     await fetchData(context);
   }
 
@@ -353,28 +367,38 @@ export default function IntegrationsPage() {
       setMessage("Önce bağlantı bilgilerini kaydetmelisin.");
       return;
     }
+
     if (!canManage) {
       setMessage("Bu işletmede senkron yönetimi yetkin yok.");
       return;
     }
-    if (!current.is_active) {
-      setMessage("Manuel senkron için entegrasyon aktif olmalı.");
+
+    setMessage("Backend senkron route çalıştırılıyor...");
+
+    const sessionResult = await supabase.auth.getSession();
+    const accessToken = sessionResult.data.session?.access_token;
+
+    if (!accessToken) {
+      setMessage("Oturum bulunamadı. Lütfen tekrar giriş yap.");
       return;
     }
 
-    const { error } = await supabase.from("marketplace_integrations").update({
-      connection_status: "sync_ready",
-      last_sync_at: new Date().toISOString(),
-      last_sync_status: "success",
-      last_error: null,
-      updated_at: new Date().toISOString(),
-    }).eq("business_id", context.business.id).eq("id", current.id);
+    const response = await fetch(`/api/integrations/${selected}/sync`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
 
-    if (error) {
-      setMessage(`Senkron durumu kaydedilemedi: ${error.message}`);
+    const result = await response.json();
+
+    if (!response.ok) {
+      setMessage(result?.error || "Senkron işlemi başarısız.");
+      await fetchData(context);
       return;
     }
-    setMessage(`${meta.name} için manuel senkron simülasyonu tamamlandı. Gerçek API sonraki pakette bağlanacak.`);
+
+    setMessage(result?.message || `${meta.name} senkron route’u çalıştı.`);
     await fetchData(context);
   }
 
