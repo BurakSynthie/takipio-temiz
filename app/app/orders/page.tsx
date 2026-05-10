@@ -45,7 +45,6 @@ type BusinessContext = {
 type Product = {
   id: string;
   name: string;
-  code: string | null;
   price: number | null;
   stock: number | null;
 };
@@ -435,7 +434,7 @@ export default function OrdersPage() {
           .order("created_at", { ascending: false }),
         supabase
           .from("products")
-          .select("id, name, code, price, stock")
+          .select("id, name, price, stock")
           .eq("business_id", ctx.business.id)
           .order("created_at", { ascending: false }),
       ]);
@@ -535,7 +534,7 @@ export default function OrdersPage() {
       created_by: context.userEmail,
       order_no: makeOrderNo(),
       product_id: selectedProduct?.id || null,
-      product_code: selectedProduct?.code || null,
+      product_code: null,
       product_name: selectedProduct?.name || form.product_name.trim(),
       customer_name: form.customer_name.trim(),
       customer_phone: form.customer_phone.trim() || null,
