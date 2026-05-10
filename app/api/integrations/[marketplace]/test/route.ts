@@ -6,6 +6,25 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 const allowedMarketplaces = ["trendyol", "hepsiburada", "amazon", "ciceksepeti"];
 
+type BusinessMemberRow = {
+  business_id: string | null;
+  email: string | null;
+  member_status: string | null;
+  can_manage_integrations: boolean | null;
+  role_name: string | null;
+};
+
+type MarketplaceIntegrationRow = {
+  id: string;
+  business_id: string | null;
+  marketplace: string | null;
+  is_active: boolean | null;
+  api_key: string | null;
+  api_secret: string | null;
+  seller_id: string | null;
+  merchant_id: string | null;
+};
+
 function normalizeEmail(email: string | null | undefined) {
   return (email ?? "").trim().toLowerCase();
 }
@@ -43,11 +62,13 @@ async function getBusinessContext(supabase: ReturnType<typeof createClient>, tok
     throw new Error(memberResult.error.message);
   }
 
-  if (!memberResult.data?.business_id) {
+  const member = memberResult.data as BusinessMemberRow | null;
+
+  if (!member || !member.business_id) {
     throw new Error("Aktif işletme bulunamadı.");
   }
 
-  const canManage = Boolean(memberResult.data.can_manage_integrations || memberResult.data.role_name === "Sahip");
+  const canManage = Boolean(member.can_manage_integrations || member.role_name === "Sahip");
 
   if (!canManage) {
     throw new Error("Entegrasyon yönetimi yetkin yok.");
@@ -55,14 +76,14 @@ async function getBusinessContext(supabase: ReturnType<typeof createClient>, tok
 
   return {
     userEmail,
-    businessId: memberResult.data.business_id as string,
+    businessId: member.business_id,
   };
 }
 
 async function getIntegration(supabase: ReturnType<typeof createClient>, businessId: string, marketplace: string) {
   const result = await supabase
     .from("marketplace_integrations")
-    .select("*")
+    .select("id, business_id, marketplace, is_active, api_key, api_secret, seller_id, merchant_id")
     .eq("business_id", businessId)
     .eq("marketplace", marketplace)
     .maybeSingle();
@@ -71,14 +92,16 @@ async function getIntegration(supabase: ReturnType<typeof createClient>, busines
     throw new Error(result.error.message);
   }
 
-  if (!result.data) {
+  const integration = result.data as MarketplaceIntegrationRow | null;
+
+  if (!integration) {
     throw new Error("Önce bu pazaryeri için bağlantı bilgilerini kaydetmelisin.");
   }
 
-  return result.data;
+  return integration;
 }
 
-function validateCredentials(marketplace: string, integration: any) {
+function validateCredentials(marketplace: string, integration: MarketplaceIntegrationRow) {
   const missing: string[] = [];
 
   if (marketplace === "trendyol") {
@@ -105,6 +128,10 @@ function validateCredentials(marketplace: string, integration: any) {
   }
 
   return missing;
+}
+
+function hasMinimumCredential(marketplace: string, integration: MarketplaceIntegrationRow) {
+  return validateCredentials(marketplace, integration).length === 0;
 }
 
 export async function POST(
@@ -135,17 +162,37 @@ export async function POST(
 
     const business = await getBusinessContext(supabase, token);
     const integration = await getIntegration(supabase, business.businessId, marketplace);
-    const missingFields = validateCredentials(marketplace, integration);
     const now = new Date().toISOString();
 
-    if (missingFields.length > 0) {
-      const errorMessage = `${marketplaceName(marketplace)} için eksik alanlar: ${missingFields.join(", ")}`;
+
+
+    if (!integration.is_active) {
+      const errorMessage = `${marketplaceName(marketplace)} bağlantısı aktif değil. Önce Aktif Bağlantı seçeneğini açıp kaydet.`;
 
       await supabase
         .from("marketplace_integrations")
         .update({
           connection_status: "error",
-          last_test_at: now,
+          last_sync_at: now,
+          last_sync_status: "failed",
+          last_error: errorMessage,
+          updated_at: now,
+        })
+        .eq("business_id", business.businessId)
+        .eq("id", integration.id);
+
+      return NextResponse.json({ error: errorMessage }, { status: 400 });
+    }
+
+    if (!hasMinimumCredential(marketplace, integration)) {
+      const errorMessage = `${marketplaceName(marketplace)} için minimum API bilgileri eksik.`;
+
+      await supabase
+        .from("marketplace_integrations")
+        .update({
+          connection_status: "error",
+          last_sync_at: now,
+          last_sync_status: "failed",
           last_error: errorMessage,
           updated_at: now,
         })
@@ -158,8 +205,9 @@ export async function POST(
     await supabase
       .from("marketplace_integrations")
       .update({
-        connection_status: "test_success",
-        last_test_at: now,
+        connection_status: "sync_ready",
+        last_sync_at: now,
+        last_sync_status: "success",
         last_error: null,
         updated_at: now,
       })
@@ -168,12 +216,13 @@ export async function POST(
 
     return NextResponse.json({
       ok: true,
-      message: `${marketplaceName(marketplace)} bağlantı bilgileri backend route üzerinden doğrulandı.`,
+      message: `${marketplaceName(marketplace)} backend senkron route’u hazır. Gerçek API adaptörü sonraki pakette bağlanacak.`,
       marketplace,
-      checkedAt: now,
+      syncedAt: now,
+      simulated: true,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Bağlantı testi yapılamadı.";
+    const message = error instanceof Error ? error.message : "Senkron işlemi yapılamadı.";
 
     return NextResponse.json({ error: message }, { status: 500 });
   }
