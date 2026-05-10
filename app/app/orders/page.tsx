@@ -1001,9 +1001,9 @@ export default function OrdersPage() {
 
                       <div className="flex flex-wrap gap-2 xl:justify-end">
                         <button onClick={() => setSelectedOrderId(selectedOrderId === order.id ? null : order.id)} className="rounded-xl bg-blue-500/15 px-3 py-2 text-xs font-black text-blue-300">Detay</button>
-                        <button onClick={() => updateOrderStatus(order, "preparing")} className="rounded-xl bg-white/10 px-3 py-2 text-xs font-black text-slate-200">Hazırla</button>
-                        <button onClick={() => updateOrderStatus(order, "packed")} className="rounded-xl bg-violet-500/15 px-3 py-2 text-xs font-black text-violet-300">Paketle</button>
-                        <button onClick={() => updateOrderStatus(order, "completed")} className="rounded-xl bg-emerald-500/15 px-3 py-2 text-xs font-black text-emerald-300">Tamamla</button>
+                        <button onClick={() => updateOrderStatus(order, "preparing")} className="rounded-xl bg-white/10 px-3 py-2 text-xs font-black text-slate-200">Hazırlığa Al</button>
+                        <button onClick={() => updateOrderStatus(order, "packed")} className="rounded-xl bg-violet-500/15 px-3 py-2 text-xs font-black text-violet-300">Paketlendi</button>
+                        <button onClick={() => updateOrderStatus(order, "completed")} className="rounded-xl bg-emerald-500/15 px-3 py-2 text-xs font-black text-emerald-300">Teslim Edildi</button>
                         <button onClick={() => deleteOrder(order)} className="rounded-xl bg-red-500/15 px-3 py-2 text-xs font-black text-red-300">Sil</button>
                       </div>
                     </div>
