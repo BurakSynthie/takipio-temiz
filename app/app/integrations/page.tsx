@@ -51,6 +51,18 @@ type FormState = {
   note: string;
 };
 
+type SyncLog = {
+  id: string;
+  marketplace: string | null;
+  status: string | null;
+  message: string | null;
+  received_count: number | null;
+  inserted_count: number | null;
+  updated_count: number | null;
+  error_message: string | null;
+  created_at: string;
+};
+
 const marketplaces: Array<{ key: MarketplaceKey; name: string; short: string; gradient: string; desc: string; required: string[] }> = [
   { key: "trendyol", name: "Trendyol", short: "TY", gradient: "from-orange-500 to-amber-400", desc: "Trendyol sipariş, stok ve iade akışları için API hazırlığı.", required: ["API Key", "API Secret", "Supplier ID"] },
   { key: "hepsiburada", name: "Hepsiburada", short: "HB", gradient: "from-orange-600 to-red-500", desc: "Hepsiburada mağaza ve sipariş senkron hazırlığı.", required: ["Merchant ID", "API Key", "API Secret"] },
@@ -212,6 +224,7 @@ function mask(value: string | null | undefined) {
 export default function IntegrationsPage() {
   const [context, setContext] = useState<BusinessContext | null>(null);
   const [integrations, setIntegrations] = useState<Integration[]>([]);
+  const [syncLogs, setSyncLogs] = useState<SyncLog[]>([]);
   const [selected, setSelected] = useState<MarketplaceKey>("trendyol");
   const [form, setForm] = useState<FormState>(emptyForm);
   const [message, setMessage] = useState("");
@@ -233,12 +246,23 @@ export default function IntegrationsPage() {
       const ctx = existingContext ?? await ensureBusinessForCurrentUser();
       setContext(ctx);
 
-      const { data, error } = await supabase.from("marketplace_integrations").select("*").eq("business_id", ctx.business.id).order("created_at", { ascending: true });
-      if (error) {
-        setMessage(`Entegrasyonlar alınamadı: ${error.message}`);
+      const [integrationsResult, logsResult] = await Promise.all([
+        supabase.from("marketplace_integrations").select("*").eq("business_id", ctx.business.id).order("created_at", { ascending: true }),
+        supabase.from("marketplace_sync_logs").select("*").eq("business_id", ctx.business.id).order("created_at", { ascending: false }).limit(12),
+      ]);
+
+      if (integrationsResult.error) {
+        setMessage(`Entegrasyonlar alınamadı: ${integrationsResult.error.message}`);
         return;
       }
-      setIntegrations((data ?? []) as Integration[]);
+
+      if (logsResult.error) {
+        setMessage(`Senkron geçmişi alınamadı: ${logsResult.error.message}`);
+        return;
+      }
+
+      setIntegrations((integrationsResult.data ?? []) as Integration[]);
+      setSyncLogs((logsResult.data ?? []) as SyncLog[]);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Entegrasyon verisi alınamadı.";
       if (errorMessage.includes("Oturum bulunamadı")) {
@@ -553,6 +577,64 @@ export default function IntegrationsPage() {
           </div>
 
           {current?.last_error ? <div className="mt-4 rounded-2xl bg-red-500/10 px-4 py-3 text-sm font-bold text-red-200 ring-1 ring-red-400/20">{current.last_error}</div> : null}
+
+          <div className="mt-6 rounded-[22px] border border-white/10 bg-[#0b1220] p-4">
+            <div className="mb-4 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Senkron Geçmişi</p>
+                <h3 className="mt-1 text-xl font-black">Son API hareketleri</h3>
+              </div>
+              <span className="rounded-full bg-white/8 px-3 py-1 text-xs font-black text-slate-300 ring-1 ring-white/10">
+                Son {syncLogs.length} kayıt
+              </span>
+            </div>
+
+            <div className="grid gap-2">
+              {syncLogs.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-white/10 p-5 text-center text-sm font-bold text-slate-500">
+                  Henüz senkron kaydı yok.
+                </div>
+              ) : (
+                syncLogs.map((log) => (
+                  <div key={log.id} className="rounded-2xl bg-[#111a2e] p-3 ring-1 ring-white/10">
+                    <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ring-1 ${
+                            log.status === "success"
+                              ? "bg-emerald-400/15 text-emerald-300 ring-emerald-400/20"
+                              : "bg-red-400/15 text-red-300 ring-red-400/20"
+                          }`}>
+                            {log.status === "success" ? "Başarılı" : "Hata"}
+                          </span>
+                          <span className="text-sm font-black uppercase text-white">{log.marketplace || "-"}</span>
+                          <span className="text-xs font-bold text-slate-500">{formatDate(log.created_at)}</span>
+                        </div>
+                        <p className="mt-2 text-xs leading-5 text-slate-400">
+                          {log.message || log.error_message || "Senkron hareketi"}
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2 text-center text-xs font-black">
+                        <div className="rounded-xl bg-white/5 px-3 py-2">
+                          <p className="text-slate-500">Gelen</p>
+                          <p>{log.received_count ?? 0}</p>
+                        </div>
+                        <div className="rounded-xl bg-white/5 px-3 py-2">
+                          <p className="text-slate-500">Yeni</p>
+                          <p className="text-emerald-300">{log.inserted_count ?? 0}</p>
+                        </div>
+                        <div className="rounded-xl bg-white/5 px-3 py-2">
+                          <p className="text-slate-500">Güncel</p>
+                          <p className="text-blue-300">{log.updated_count ?? 0}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </section>
