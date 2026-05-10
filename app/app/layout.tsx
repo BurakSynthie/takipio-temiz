@@ -333,6 +333,7 @@ function GorkiImage() {
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const isInviteRegisterPage = pathname.startsWith("/app/register");
 
   const [business, setBusiness] = useState<Business | null>(null);
   const [member, setMember] = useState<Member | null>(null);
@@ -358,6 +359,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   async function loadContext() {
     setLoading(true);
+
+    if (isInviteRegisterPage) {
+      setLoading(false);
+      return;
+    }
 
     const sessionResult = await supabase.auth.getSession();
     const sessionEmail = normalizeEmail(sessionResult.data.session?.user?.email);
@@ -431,7 +437,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const savedTheme = window.localStorage.getItem("takipio-theme") || "dark";
     setTheme(savedTheme);
     document.documentElement.classList.toggle("dark", savedTheme === "dark");
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
   function canSee(item: NavItem) {
     if (!item.permission) return true;
@@ -575,6 +582,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     visibleBusinessItems.find((item) => item.href === "/app/orders"),
     visibleBusinessItems.find((item) => item.href === "/app/shipments"),
   ].filter(Boolean) as NavItem[];
+
+  if (isInviteRegisterPage) {
+    return <>{children}</>;
+  }
 
   return (
     <div className="min-h-screen bg-[#07111f] text-white">
