@@ -5,6 +5,21 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
+const permissionKeys = [
+  "can_view_dashboard",
+  "can_manage_products",
+  "can_manage_stock",
+  "can_manage_sales",
+  "can_manage_orders",
+  "can_manage_shipments",
+  "can_manage_returns",
+  "can_manage_invoices",
+  "can_manage_customers",
+  "can_manage_integrations",
+  "can_manage_billing",
+  "can_manage_settings",
+];
+
 function getBearerToken(request: Request) {
   const authHeader = request.headers.get("authorization") || "";
   return authHeader.replace("Bearer ", "").trim();
@@ -14,25 +29,36 @@ function normalizeEmail(email: string | null | undefined) {
   return (email || "").trim().toLowerCase();
 }
 
-async function findAuthUserIdByEmail(serviceClient: ReturnType<typeof createClient>, email: string) {
+function collectPermissions(member: Record<string, unknown>) {
+  const permissions: Record<string, boolean> = {};
+
+  permissionKeys.forEach((key) => {
+    permissions[key] = Boolean(member[key]);
+  });
+
+  return permissions;
+}
+
+type SupabaseAdminUser = {
+  id: string;
+  email?: string | null;
+};
+
+async function findAuthUserIdByEmail(serviceClient: any, email: string) {
   let page = 1;
   const perPage = 100;
 
-  for (let i = 0; i < 20; i += 1) {
-    const result = await serviceClient.auth.admin.listUsers({
-      page,
-      perPage,
-    });
+  for (let i = 0; i < 30; i += 1) {
+    const result = await serviceClient.auth.admin.listUsers({ page, perPage });
 
-    if (result.error) {
-      throw result.error;
-    }
+    if (result.error) throw result.error;
 
-    const user = result.data.users.find((item) => normalizeEmail(item.email) === email);
+    const users = ((result.data?.users || []) as SupabaseAdminUser[]);
+    const user = users.find((item) => normalizeEmail(item.email) === email);
 
     if (user) return user.id;
 
-    if (result.data.users.length < perPage) return null;
+    if (users.length < perPage) return null;
 
     page += 1;
   }
@@ -40,11 +66,7 @@ async function findAuthUserIdByEmail(serviceClient: ReturnType<typeof createClie
   return null;
 }
 
-async function deleteFromTableIfExists(
-  serviceClient: ReturnType<typeof createClient>,
-  tableName: string,
-  callback: () => Promise<{ error: unknown }>
-) {
+async function safeDelete(callback: () => Promise<{ error: unknown }>) {
   try {
     const result = await callback();
 
@@ -54,7 +76,8 @@ async function deleteFromTableIfExists(
       if (
         message.includes("does not exist") ||
         message.includes("relation") ||
-        message.includes("schema cache")
+        message.includes("schema cache") ||
+        message.includes("column")
       ) {
         return null;
       }
@@ -69,7 +92,8 @@ async function deleteFromTableIfExists(
     if (
       message.includes("does not exist") ||
       message.includes("relation") ||
-      message.includes("schema cache")
+      message.includes("schema cache") ||
+      message.includes("column")
     ) {
       return null;
     }
@@ -91,18 +115,11 @@ export async function POST(request: Request) {
     }
 
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      },
+      global: { headers: { Authorization: `Bearer ${token}` } },
     });
 
     const serviceClient = createClient(supabaseUrl, serviceRoleKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
+      auth: { autoRefreshToken: false, persistSession: false },
     });
 
     const userResult = await userClient.auth.getUser(token);
@@ -125,14 +142,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Kendi hesabını bu ekrandan silemezsin." }, { status: 403 });
     }
 
-    const actorMember = await serviceClient
-      .from("business_members")
-      .select("*")
-      .eq("business_id", businessId)
-      .eq("email", actorEmail)
-      .eq("member_status", "active")
-      .maybeSingle();
-
     const businessResult = await serviceClient
       .from("businesses")
       .select("*")
@@ -143,7 +152,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "İşletme bulunamadı." }, { status: 404 });
     }
 
-    const isOwner = normalizeEmail(businessResult.data.owner_email) === actorEmail;
+    const business = businessResult.data;
+    const actorMember = await serviceClient
+      .from("business_members")
+      .select("*")
+      .eq("business_id", businessId)
+      .eq("email", actorEmail)
+      .eq("member_status", "active")
+      .maybeSingle();
+
+    const isOwner = normalizeEmail(business.owner_email) === actorEmail;
     const canManageSettings =
       isOwner ||
       actorMember.data?.role_name === "Sahip" ||
@@ -153,19 +171,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Bu işlem için Ayarlar yetkisi gerekiyor." }, { status: 403 });
     }
 
-    if (normalizeEmail(businessResult.data.owner_email) === targetEmail) {
+    if (normalizeEmail(business.owner_email) === targetEmail) {
       return NextResponse.json({ error: "İşletme sahibinin hesabı buradan silinemez." }, { status: 403 });
     }
 
-    const targetMemberQuery = serviceClient
+    const targetQuery = serviceClient
       .from("business_members")
       .select("*")
       .eq("business_id", businessId)
       .eq("email", targetEmail);
 
     const targetMemberResult = memberId
-      ? await targetMemberQuery.eq("id", memberId).maybeSingle()
-      : await targetMemberQuery.maybeSingle();
+      ? await targetQuery.eq("id", memberId).maybeSingle()
+      : await targetQuery.maybeSingle();
 
     if (targetMemberResult.error) {
       return NextResponse.json({ error: targetMemberResult.error.message }, { status: 500 });
@@ -174,6 +192,9 @@ export async function POST(request: Request) {
     if (!targetMemberResult.data) {
       return NextResponse.json({ error: "Silinecek ekip üyesi bulunamadı." }, { status: 404 });
     }
+
+    const previousMember = targetMemberResult.data as Record<string, unknown>;
+    const previousPermissions = collectPermissions(previousMember);
 
     await serviceClient
       .from("business_members")
@@ -193,19 +214,12 @@ export async function POST(request: Request) {
       .eq("business_id", businessId)
       .eq("target_email", targetEmail);
 
-    await deleteFromTableIfExists(serviceClient, "profiles", () =>
-      serviceClient.from("profiles").delete().eq("email", targetEmail)
-    );
-
-    await deleteFromTableIfExists(serviceClient, "app_user_profiles", () =>
-      serviceClient.from("app_user_profiles").delete().eq("email", targetEmail)
-    );
-
-    await deleteFromTableIfExists(serviceClient, "app_notifications", () =>
+    await safeDelete(() => serviceClient.from("profiles").delete().eq("email", targetEmail));
+    await safeDelete(() => serviceClient.from("app_user_profiles").delete().eq("email", targetEmail));
+    await safeDelete(() =>
       serviceClient.from("app_notifications").delete().eq("business_id", businessId).eq("target_email", targetEmail)
     );
-
-    await deleteFromTableIfExists(serviceClient, "app_messages", () =>
+    await safeDelete(() =>
       serviceClient.from("app_messages").delete().eq("business_id", businessId).eq("target_email", targetEmail)
     );
 
@@ -217,7 +231,7 @@ export async function POST(request: Request) {
 
     const ownedBusiness = await serviceClient
       .from("businesses")
-      .select("id")
+      .select("id, plan_code, plan_status")
       .eq("owner_email", targetEmail)
       .limit(1);
 
@@ -241,16 +255,40 @@ export async function POST(request: Request) {
       } else {
         authSkippedReason = "Auth kullanıcısı bulunamadı.";
       }
+
+      // Kritik güvenlik: Auth silinmezse veya zaten bulunamazsa kullanıcıya kişisel Pro taşınmasın.
+      await serviceClient.from("user_plan_overrides").upsert(
+        {
+          email: targetEmail,
+          forced_plan: "free",
+          reason: `Removed from business ${businessId}. Old business plan must not transfer to personal account.`,
+          source_business_id: businessId,
+          created_by: actorEmail,
+          revoked_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "email" }
+      );
     } else {
-      authSkippedReason = "Kullanıcının başka işletme sahipliği/aktif üyeliği olduğu için Auth hesabı silinmedi.";
+      authSkippedReason = "Kullanıcının başka işletme sahipliği/aktif üyeliği olduğu için Auth hesabı ve plan override uygulanmadı.";
     }
+
+    await serviceClient.from("team_member_removals").insert({
+      business_id: businessId,
+      email: targetEmail,
+      removed_by: actorEmail,
+      previous_role: String(previousMember.role_name || ""),
+      previous_permissions: previousPermissions,
+      auth_deleted: authDeleted,
+      auth_delete_reason: authSkippedReason || null,
+    });
 
     await serviceClient.from("notifications").insert({
       business_id: businessId,
       created_by: actorEmail,
       target_email: null,
       title: "Ekip üyesi silindi",
-      message: `${targetEmail} işletmeden kaldırıldı.${authDeleted ? " Auth hesabı da silindi." : ` Auth silinmedi: ${authSkippedReason}`}`,
+      message: `${targetEmail} işletmeden kaldırıldı. Pro erişimi işletme üzerinden kesildi.${authDeleted ? " Auth hesabı da silindi." : ` Auth silinmedi: ${authSkippedReason}`}`,
       type: authDeleted ? "success" : "warning",
       href: "/app/settings",
     });
@@ -260,9 +298,10 @@ export async function POST(request: Request) {
       email: targetEmail,
       authDeleted,
       authSkippedReason,
+      planRevoked: !hasOtherActiveMembership && !ownsAnotherBusiness,
       message: authDeleted
-        ? "Ekip üyesi ve Auth hesabı tamamen silindi."
-        : `Ekip üyesi işletmeden silindi. Auth hesabı silinmedi: ${authSkippedReason}`,
+        ? "Ekip üyesi, profili, davetleri ve Auth hesabı silindi. Pro erişimi kesildi."
+        : `Ekip üyesi işletmeden silindi. Pro erişimi eski işletmeden kesildi. Auth durumu: ${authSkippedReason}`,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Ekip üyesi silinemedi.";
