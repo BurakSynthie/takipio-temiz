@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
@@ -8,16 +7,79 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-type Business = { id: string; owner_email: string | null; name: string; email: string | null };
-type BusinessMember = { id: string; business_id: string; email: string; role_name: string | null; member_status: string | null };
-type Subscription = { id: string; business_id: string | null; plan: string | null; status: string | null; order_limit: number | null };
-type BusinessContext = { userEmail: string; business: Business; member: BusinessMember; subscription: Subscription | null; isOwner: boolean; isPro: boolean };
+type Business = {
+  id: string;
+  owner_email: string | null;
+  name: string;
+  email: string | null;
+};
 
-type Product = { id: string; name: string; product_code: string; category: string | null; price: number | null; stock: number | null; min_stock: number | null; created_at: string };
-type Order = { id: string; order_no: string | null; order_status: string | null; shipping_status: string | null; total_amount: number | null; paid_amount: number | null; remaining_amount: number | null; created_at: string };
-type Payment = { id: string; payment_method: string | null; amount: number | null; payment_date: string | null; created_at: string };
-type ReturnItem = { id: string; status: string | null; amount: number | null; created_at: string };
-type Note = { id: string; title: string; note: string | null; is_done: boolean | null; created_at: string };
+type BusinessMember = {
+  id: string;
+  business_id: string;
+  email: string;
+  role_name: string | null;
+  member_status: string | null;
+};
+
+type Subscription = {
+  id: string;
+  business_id: string | null;
+  plan: string | null;
+  status: string | null;
+  order_limit?: number | null;
+};
+
+type BusinessContext = {
+  userEmail: string;
+  business: Business;
+  member: BusinessMember;
+  subscription: Subscription | null;
+  isOwner: boolean;
+  isPro: boolean;
+};
+
+type Order = {
+  id: string;
+  order_no: string | null;
+  customer_name: string | null;
+  product_name: string | null;
+  total_amount: number | null;
+  paid_amount: number | null;
+  remaining_amount: number | null;
+  payment_status: string | null;
+  payment_method: string | null;
+  order_status: string | null;
+  shipping_status: string | null;
+  marketplace: string | null;
+  created_at: string;
+};
+
+type Payment = {
+  id: string;
+  order_id: string | null;
+  customer_name: string | null;
+  payment_method: string | null;
+  amount: number | null;
+  payment_date: string | null;
+  created_at: string;
+};
+
+type Product = {
+  id: string;
+  name: string;
+  stock: number | null;
+  min_stock: number | null;
+  price: number | null;
+};
+
+type ReturnItem = {
+  id: string;
+  status: string | null;
+  refund_amount: number | null;
+  amount: number | null;
+  created_at: string;
+};
 
 function normalizeEmail(email: string | null | undefined) {
   return (email ?? "").trim().toLowerCase();
@@ -26,65 +88,103 @@ function normalizeEmail(email: string | null | undefined) {
 async function getCurrentUserEmail() {
   const sessionResult = await supabase.auth.getSession();
   const sessionEmail = normalizeEmail(sessionResult.data.session?.user?.email);
+
   if (sessionEmail) return sessionEmail;
+
   const { data } = await supabase.auth.getUser();
   return normalizeEmail(data.user?.email);
 }
 
 async function ensureOwnerMember(businessId: string, userEmail: string) {
-  const { data: existing } = await supabase.from("business_members").select("*").eq("business_id", businessId).eq("email", userEmail).maybeSingle();
+  const { data: existing } = await supabase
+    .from("business_members")
+    .select("*")
+    .eq("business_id", businessId)
+    .eq("email", userEmail)
+    .maybeSingle();
+
   if (existing) return existing as BusinessMember;
 
-  const { data, error } = await supabase.from("business_members").insert({
-    business_id: businessId,
-    email: userEmail,
-    role_name: "Sahip",
-    member_status: "active",
-    can_view_dashboard: true,
-    can_manage_products: true,
-    can_manage_stock: true,
-    can_manage_sales: true,
-    can_manage_orders: true,
-    can_manage_shipments: true,
-    can_manage_returns: true,
-    can_manage_invoices: true,
-    can_manage_customers: true,
-    can_manage_integrations: true,
-    can_manage_billing: true,
-    can_manage_settings: true,
-  }).select("*").single();
+  const { data, error } = await supabase
+    .from("business_members")
+    .insert({
+      business_id: businessId,
+      email: userEmail,
+      role_name: "Sahip",
+      member_status: "active",
+      can_view_dashboard: true,
+      can_manage_products: true,
+      can_manage_stock: true,
+      can_manage_sales: true,
+      can_manage_orders: true,
+      can_manage_shipments: true,
+      can_manage_returns: true,
+      can_manage_invoices: true,
+      can_manage_customers: true,
+      can_manage_integrations: true,
+      can_manage_billing: true,
+      can_manage_settings: true,
+    })
+    .select("*")
+    .single();
 
-  if (error || !data) throw new Error("Owner yetkisi oluşturulamadı.");
+  if (error || !data) throw new Error(`Owner yetkisi oluşturulamadı: ${error?.message ?? "Bilinmeyen hata"}`);
+
   return data as BusinessMember;
 }
 
 async function ensureSubscription(businessId: string, userEmail: string) {
-  const { data: existing } = await supabase.from("subscriptions").select("*").eq("business_id", businessId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const { data: existing } = await supabase
+    .from("subscriptions")
+    .select("*")
+    .eq("business_id", businessId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
   if (existing) return existing as Subscription;
 
-  const { data, error } = await supabase.from("subscriptions").insert({
-    business_id: businessId,
-    user_email: userEmail,
-    plan: "free",
-    status: "trial",
-    order_limit: 15,
-    first_month_price: 89,
-    monthly_price: 99,
-  }).select("*").single();
+  const { data, error } = await supabase
+    .from("subscriptions")
+    .insert({
+      business_id: businessId,
+      user_email: userEmail,
+      plan: "free",
+      status: "trial",
+      order_limit: 15,
+      first_month_price: 89,
+      monthly_price: 99,
+    })
+    .select("*")
+    .single();
 
-  if (error || !data) throw new Error("Abonelik oluşturulamadı.");
+  if (error || !data) throw new Error(`Abonelik oluşturulamadı: ${error?.message ?? "Bilinmeyen hata"}`);
+
   return data as Subscription;
 }
 
 async function ensureBusinessForCurrentUser() {
   const userEmail = await getCurrentUserEmail();
+
   if (!userEmail) throw new Error("Oturum bulunamadı. Lütfen tekrar giriş yap.");
 
-  const existingMember = await supabase.from("business_members").select("*").eq("email", userEmail).eq("member_status", "active").limit(1).maybeSingle();
+  const existingMember = await supabase
+    .from("business_members")
+    .select("*")
+    .eq("email", userEmail)
+    .eq("member_status", "active")
+    .limit(1)
+    .maybeSingle();
 
   if (existingMember.data?.business_id) {
-    const { data: business, error } = await supabase.from("businesses").select("*").eq("id", existingMember.data.business_id).single();
+    const { data: business, error } = await supabase
+      .from("businesses")
+      .select("*")
+      .eq("id", existingMember.data.business_id)
+      .single();
+
     if (error || !business) throw new Error("İşletme bilgisi alınamadı.");
+
     const subscription = await ensureSubscription(business.id, userEmail);
 
     return {
@@ -97,11 +197,17 @@ async function ensureBusinessForCurrentUser() {
     } satisfies BusinessContext;
   }
 
-  const existingBusiness = await supabase.from("businesses").select("*").eq("owner_email", userEmail).limit(1).maybeSingle();
+  const existingBusiness = await supabase
+    .from("businesses")
+    .select("*")
+    .eq("owner_email", userEmail)
+    .limit(1)
+    .maybeSingle();
 
   if (existingBusiness.data) {
     const ownerMember = await ensureOwnerMember(existingBusiness.data.id, userEmail);
     const subscription = await ensureSubscription(existingBusiness.data.id, userEmail);
+
     return {
       userEmail,
       business: existingBusiness.data,
@@ -112,8 +218,14 @@ async function ensureBusinessForCurrentUser() {
     } satisfies BusinessContext;
   }
 
-  const { data: createdBusiness, error } = await supabase.from("businesses").insert({ owner_email: userEmail, name: "İşletmem", email: userEmail }).select("*").single();
-  if (error || !createdBusiness) throw new Error("İşletme oluşturulamadı.");
+  const { data: createdBusiness, error } = await supabase
+    .from("businesses")
+    .insert({ owner_email: userEmail, name: "İşletmem", email: userEmail })
+    .select("*")
+    .single();
+
+  if (error || !createdBusiness) throw new Error(`İşletme oluşturulamadı: ${error?.message ?? "Bilinmeyen hata"}`);
+
   const ownerMember = await ensureOwnerMember(createdBusiness.id, userEmail);
   const subscription = await ensureSubscription(createdBusiness.id, userEmail);
 
@@ -127,28 +239,86 @@ async function ensureBusinessForCurrentUser() {
   } satisfies BusinessContext;
 }
 
-function withBusinessFields(context: BusinessContext) {
-  return { business_id: context.business.id, created_by: context.userEmail };
-}
-
 function formatCurrency(value: number | null | undefined) {
-  return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 }).format(Number(value ?? 0));
+  return new Intl.NumberFormat("tr-TR", {
+    style: "currency",
+    currency: "TRY",
+    maximumFractionDigits: 0,
+  }).format(Number(value ?? 0));
 }
 
-function isToday(date: string) {
-  const d = new Date(date);
-  const n = new Date();
-  return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate();
+function formatDate(date: string | null | undefined) {
+  if (!date) return "-";
+
+  return new Intl.DateTimeFormat("tr-TR", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(date));
+}
+
+function isToday(date: string | null | undefined) {
+  if (!date) return false;
+
+  const current = new Date(date);
+  const now = new Date();
+
+  return (
+    current.getFullYear() === now.getFullYear() &&
+    current.getMonth() === now.getMonth() &&
+    current.getDate() === now.getDate()
+  );
+}
+
+function isSameDay(date: string | null | undefined, target: Date) {
+  if (!date) return false;
+
+  const current = new Date(date);
+
+  return (
+    current.getFullYear() === target.getFullYear() &&
+    current.getMonth() === target.getMonth() &&
+    current.getDate() === target.getDate()
+  );
+}
+
+function getOrderPaidAmount(order: Order) {
+  return Number(order.paid_amount ?? 0);
+}
+
+function getPaymentAmount(payment: Payment) {
+  return Number(payment.amount ?? 0);
+}
+
+function getMarketplaceLabel(marketplace: string | null | undefined) {
+  if (marketplace === "trendyol") return "Trendyol";
+  if (marketplace === "hepsiburada") return "Hepsiburada";
+  if (marketplace === "amazon") return "Amazon";
+  if (marketplace === "ciceksepeti") return "ÇiçekSepeti";
+  return null;
+}
+
+function methodLabel(method: string | null | undefined) {
+  if (method === "cash") return "Nakit";
+  if (method === "card") return "Kart";
+  if (method === "transfer") return "Havale";
+  if (method === "marketplace") return "Pazaryeri";
+  return "Diğer";
+}
+
+function methodClass(method: string | null | undefined) {
+  if (method === "cash") return "text-emerald-300";
+  if (method === "card") return "text-blue-300";
+  if (method === "transfer") return "text-cyan-300";
+  if (method === "marketplace") return "text-orange-300";
+  return "text-slate-300";
 }
 
 export default function DashboardPage() {
   const [context, setContext] = useState<BusinessContext | null>(null);
-  const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [returns, setReturns] = useState<ReturnItem[]>([]);
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [noteTitle, setNoteTitle] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -160,25 +330,61 @@ export default function DashboardPage() {
       const ctx = await ensureBusinessForCurrentUser();
       setContext(ctx);
 
-      const [productsResult, ordersResult, paymentsResult, returnsResult, notesResult] = await Promise.all([
-        supabase.from("products").select("id, name, product_code, category, price, stock, min_stock, created_at").eq("business_id", ctx.business.id).order("created_at", { ascending: false }),
-        supabase.from("orders").select("id, order_no, order_status, shipping_status, total_amount, paid_amount, remaining_amount, created_at").eq("business_id", ctx.business.id).order("created_at", { ascending: false }),
-        supabase.from("payments").select("id, payment_method, amount, payment_date, created_at").eq("business_id", ctx.business.id).order("created_at", { ascending: false }),
-        supabase.from("returns").select("id, status, amount, created_at").eq("business_id", ctx.business.id).order("created_at", { ascending: false }),
-        supabase.from("app_notes").select("*").eq("business_id", ctx.business.id).order("created_at", { ascending: false }).limit(8),
+      const [ordersResult, paymentsResult, productsResult, returnsResult] = await Promise.all([
+        supabase
+          .from("orders")
+          .select("*")
+          .eq("business_id", ctx.business.id)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("payments")
+          .select("*")
+          .eq("business_id", ctx.business.id)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("products")
+          .select("id, name, stock, min_stock, price")
+          .eq("business_id", ctx.business.id)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("returns")
+          .select("id, status, refund_amount, amount, created_at")
+          .eq("business_id", ctx.business.id)
+          .order("created_at", { ascending: false }),
       ]);
 
-      setProducts(productsResult.data ?? []);
-      setOrders(ordersResult.data ?? []);
-      setPayments(paymentsResult.data ?? []);
-      setReturns(returnsResult.data ?? []);
-      setNotes(notesResult.data ?? []);
+      if (ordersResult.error) {
+        setMessage(`Siparişler alınamadı: ${ordersResult.error.message}`);
+        return;
+      }
+
+      if (paymentsResult.error) {
+        setMessage(`Ödemeler alınamadı: ${paymentsResult.error.message}`);
+        return;
+      }
+
+      if (productsResult.error) {
+        setMessage(`Ürünler alınamadı: ${productsResult.error.message}`);
+        return;
+      }
+
+      if (returnsResult.error) {
+        setMessage(`İadeler alınamadı: ${returnsResult.error.message}`);
+        return;
+      }
+
+      setOrders((ordersResult.data ?? []) as Order[]);
+      setPayments((paymentsResult.data ?? []) as Payment[]);
+      setProducts((productsResult.data ?? []) as Product[]);
+      setReturns((returnsResult.data ?? []) as ReturnItem[]);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Dashboard verisi alınamadı.";
+
       if (errorMessage.includes("Oturum bulunamadı")) {
         window.location.replace("/login");
         return;
       }
+
       setMessage(errorMessage);
     } finally {
       setLoading(false);
@@ -189,267 +395,355 @@ export default function DashboardPage() {
     fetchData();
   }, []);
 
-  async function addNote(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!context) return;
-    const cleanTitle = noteTitle.trim();
-    if (!cleanTitle) return;
-
-    const { data } = await supabase.from("app_notes").insert({ ...withBusinessFields(context), title: cleanTitle }).select("*").single();
-    if (data) setNotes((current) => [data, ...current]);
-    setNoteTitle("");
-  }
-
-  async function toggleNote(note: Note) {
-    if (!context) return;
-    setNotes((current) => current.map((item) => item.id === note.id ? { ...item, is_done: !item.is_done } : item));
-    await supabase.from("app_notes").update({ is_done: !note.is_done }).eq("business_id", context.business.id).eq("id", note.id);
-  }
-
-  async function deleteNote(id: string) {
-    if (!context) return;
-    setNotes((current) => current.filter((item) => item.id !== id));
-    await supabase.from("app_notes").delete().eq("business_id", context.business.id).eq("id", id);
-  }
-
-  const totalRevenue = orders.reduce((sum, order) => sum + Number(order.total_amount ?? 0), 0);
-  const totalPaid = orders.reduce((sum, order) => sum + Number(order.paid_amount ?? 0), 0);
-  const totalRemaining = orders.reduce((sum, order) => sum + Number(order.remaining_amount ?? 0), 0);
-  const todayPaid = payments.filter((payment) => isToday(payment.payment_date || payment.created_at)).reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0);
-  const todayCash = payments.filter((payment) => payment.payment_method === "cash" && isToday(payment.payment_date || payment.created_at)).reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0);
-  const todayCard = payments.filter((payment) => payment.payment_method === "card" && isToday(payment.payment_date || payment.created_at)).reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0);
-  const todayTransfer = payments.filter((payment) => payment.payment_method === "transfer" && isToday(payment.payment_date || payment.created_at)).reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0);
-  const stockValue = products.reduce((sum, product) => sum + Number(product.price ?? 0) * Number(product.stock ?? 0), 0);
-  const criticalProducts = products.filter((product) => Number(product.min_stock ?? 0) > 0 && Number(product.stock ?? 0) <= Number(product.min_stock ?? 0));
-  const waitingOrders = orders.filter((order) => order.order_status === "new" || order.order_status === "preparing").length;
-  const unshippedOrders = orders.filter((order) => order.shipping_status !== "shipped" && order.shipping_status !== "delivered").length;
-  const activeReturns = returns.filter((item) => item.status !== "refunded" && item.status !== "rejected").length;
-  const isPro = context?.subscription?.plan === "pro";
-  const orderLimit = Number(context?.subscription?.order_limit ?? 15);
-  const remainingFreeOrders = Math.max(orderLimit - orders.length, 0);
-  const usagePercentage = isPro ? 100 : Math.min(Math.round((orders.length / orderLimit) * 100), 100);
-
-  const weeklyBars = useMemo(() => {
-    const labels = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
-    const totals = [0, 0, 0, 0, 0, 0, 0];
-
-    payments.forEach((payment) => {
-      const day = new Date(payment.payment_date || payment.created_at).getDay();
-      const index = day === 0 ? 6 : day - 1;
-      totals[index] += Number(payment.amount ?? 0);
+  const stats = useMemo(() => {
+    const todayPayments = payments.filter((payment) => isToday(payment.payment_date || payment.created_at));
+    const todayMarketplaceOrders = orders.filter((order) => {
+      return (
+        isToday(order.created_at) &&
+        order.payment_status === "paid" &&
+        order.payment_method === "marketplace"
+      );
     });
 
-    const max = Math.max(...totals, 1);
-    return labels.map((label, i) => ({ label, total: totals[i], height: Math.max((totals[i] / max) * 100, totals[i] > 0 ? 12 : 3) }));
-  }, [payments]);
+    const todayCash = todayPayments
+      .filter((payment) => payment.payment_method === "cash")
+      .reduce((sum, payment) => sum + getPaymentAmount(payment), 0);
+
+    const todayCard = todayPayments
+      .filter((payment) => payment.payment_method === "card")
+      .reduce((sum, payment) => sum + getPaymentAmount(payment), 0);
+
+    const todayTransfer = todayPayments
+      .filter((payment) => payment.payment_method === "transfer")
+      .reduce((sum, payment) => sum + getPaymentAmount(payment), 0);
+
+    const todayMarketplace = todayMarketplaceOrders.reduce((sum, order) => sum + getOrderPaidAmount(order), 0);
+
+    const todayTotal = todayCash + todayCard + todayTransfer + todayMarketplace;
+
+    const totalRevenue = orders.reduce((sum, order) => sum + Number(order.total_amount ?? 0), 0);
+    const totalPaidFromOrders = orders.reduce((sum, order) => sum + Number(order.paid_amount ?? 0), 0);
+    const totalRemaining = orders.reduce((sum, order) => sum + Number(order.remaining_amount ?? 0), 0);
+
+    const marketplaceRevenue = orders
+      .filter((order) => Boolean(order.marketplace))
+      .reduce((sum, order) => sum + Number(order.total_amount ?? 0), 0);
+
+    const criticalProducts = products.filter((product) => {
+      const minStock = Number(product.min_stock ?? 0);
+      return minStock > 0 && Number(product.stock ?? 0) <= minStock;
+    });
+
+    const stockValue = products.reduce((sum, product) => {
+      return sum + Number(product.stock ?? 0) * Number(product.price ?? 0);
+    }, 0);
+
+    const activeReturns = returns.filter((item) => item.status !== "refunded" && item.status !== "rejected").length;
+
+    return {
+      todayCash,
+      todayCard,
+      todayTransfer,
+      todayMarketplace,
+      todayTotal,
+      totalRevenue,
+      totalPaidFromOrders,
+      totalRemaining,
+      marketplaceRevenue,
+      criticalProducts,
+      stockValue,
+      activeReturns,
+    };
+  }, [orders, payments, products, returns]);
+
+  const chartData = useMemo(() => {
+    const days = Array.from({ length: 7 }).map((_, index) => {
+      const day = new Date();
+      day.setDate(day.getDate() - (6 - index));
+      return day;
+    });
+
+    return days.map((day) => {
+      const paymentTotal = payments
+        .filter((payment) => isSameDay(payment.payment_date || payment.created_at, day))
+        .reduce((sum, payment) => sum + getPaymentAmount(payment), 0);
+
+      const marketplaceTotal = orders
+        .filter((order) => {
+          return (
+            isSameDay(order.created_at, day) &&
+            order.payment_status === "paid" &&
+            order.payment_method === "marketplace"
+          );
+        })
+        .reduce((sum, order) => sum + getOrderPaidAmount(order), 0);
+
+      const total = paymentTotal + marketplaceTotal;
+
+      return {
+        day,
+        label: new Intl.DateTimeFormat("tr-TR", { weekday: "short" }).format(day),
+        total,
+      };
+    });
+  }, [orders, payments]);
+
+  const maxChartValue = Math.max(...chartData.map((item) => item.total), 1);
+
+  const latestOrders = orders.slice(0, 6);
+  const latestMoneyMoves = [
+    ...payments.map((payment) => ({
+      id: `payment-${payment.id}`,
+      title: payment.customer_name || "Tahsilat",
+      subtitle: methodLabel(payment.payment_method),
+      amount: getPaymentAmount(payment),
+      date: payment.payment_date || payment.created_at,
+      method: payment.payment_method,
+    })),
+    ...orders
+      .filter((order) => order.payment_method === "marketplace" && order.payment_status === "paid")
+      .map((order) => ({
+        id: `order-${order.id}`,
+        title: order.customer_name || getMarketplaceLabel(order.marketplace) || "Pazaryeri",
+        subtitle: getMarketplaceLabel(order.marketplace) || "Pazaryeri",
+        amount: Number(order.paid_amount ?? 0),
+        date: order.created_at,
+        method: "marketplace",
+      })),
+  ]
+    .sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime())
+    .slice(0, 6);
+
+  const freeOrderLimit = Number(context?.subscription?.order_limit ?? 15);
+  const isPro = context?.subscription?.plan === "pro" && context?.subscription?.status === "active";
+  const usagePercent = isPro ? 100 : Math.min(Math.round((orders.length / freeOrderLimit) * 100), 100);
 
   return (
-    <section className="mx-auto grid w-full max-w-[1500px] gap-3 text-white">
-      <div className="grid gap-3 xl:grid-cols-[1fr_280px]">
-        <div className="rounded-[20px] border border-white/10 bg-[#111a2e] p-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-300">Business Dashboard</p>
-              <h1 className="mt-1 text-2xl font-black tracking-[-0.04em]">{context?.business.name || "İşletme Özeti"}</h1>
-              <p className="mt-1 text-xs text-slate-400">Sipariş, tahsilat, stok, kargo ve iade özeti.</p>
-            </div>
-            <div className="flex gap-2">
-              <button onClick={fetchData} className="rounded-xl bg-white/10 px-3 py-2 text-xs font-black transition hover:-translate-y-0.5">Yenile</button>
-              <Link href="/app/orders" className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-black transition hover:-translate-y-0.5">Yeni Sipariş</Link>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 rounded-[20px] border border-white/10 bg-[#111a2e] p-3">
-          <Quick href="/app/orders" label="Sipariş" />
-          <Quick href="/app/shipments" label="Kargo" />
-          <Quick href="/app/returns" label="İade" />
-          <Quick href="/app/billing" label="Abonelik" />
-        </div>
-      </div>
-
-      {message ? <div className="rounded-2xl bg-blue-500/10 px-4 py-3 text-sm font-bold text-blue-200 ring-1 ring-blue-400/20">{message}</div> : null}
-
-      <div className="rounded-[20px] border border-white/10 bg-[#111a2e] p-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <section className="mx-auto w-full max-w-[1500px] space-y-4 pb-10 text-white">
+      <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm font-black">{isPro ? "Takipio Pro aktif" : `Ücretsiz kullanım: ${orders.length}/${orderLimit} sipariş`}</p>
-              <span className={`rounded-full px-3 py-1 text-[10px] font-black ${isPro ? "bg-emerald-400/15 text-emerald-300" : "bg-blue-400/15 text-blue-300"}`}>{isPro ? "PRO" : "FREE"}</span>
+            <div className="mb-3 inline-flex rounded-full bg-blue-500/15 px-3 py-2 text-xs font-black text-blue-300">
+              Live Dashboard
             </div>
-            <p className="mt-1 text-xs text-slate-500">{isPro ? "Sınırsız sipariş ve premium özellikler açık." : `${remainingFreeOrders} ücretsiz sipariş hakkın kaldı. İlk ay ₺89 ile Pro'ya geçebilirsin.`}</p>
+            <h1 className="text-[34px] font-black tracking-[-0.05em] sm:text-5xl">
+              {context?.business.name || "Takipio"} Paneli
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
+              Sipariş, tahsilat, stok, kargo, iade ve pazaryeri verilerini tek ekranda takip et.
+            </p>
           </div>
-          <div className="flex flex-col gap-2 lg:w-[360px]">
-            <div className="h-2 overflow-hidden rounded-full bg-white/8">
-              <div className={isPro ? "h-full rounded-full bg-emerald-400" : "h-full rounded-full bg-blue-500"} style={{ width: `${usagePercentage}%` }} />
+
+          <button onClick={fetchData} className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-500">
+            Yenile
+          </button>
+        </div>
+      </div>
+
+      {message ? (
+        <div className="rounded-2xl bg-blue-500/10 px-4 py-3 text-sm font-bold text-blue-200 ring-1 ring-blue-400/20">
+          {message}
+        </div>
+      ) : null}
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Metric label="Bugün Tahsilat" value={loading ? "..." : formatCurrency(stats.todayTotal)} valueClass="text-emerald-300" />
+        <Metric label="Toplam Ciro" value={loading ? "..." : formatCurrency(stats.totalRevenue)} valueClass="text-blue-300" />
+        <Metric label="Kalan Tahsilat" value={loading ? "..." : formatCurrency(stats.totalRemaining)} valueClass="text-amber-300" />
+        <Metric label="Stok Değeri" value={loading ? "..." : formatCurrency(stats.stockValue)} valueClass="text-cyan-300" />
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+        <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
+          <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h2 className="text-2xl font-black">Tahsilat Grafiği</h2>
+              <p className="mt-1 text-sm text-slate-400">
+                Payments tablosu + pazaryeri/demo paid siparişleri birlikte hesaplanır.
+              </p>
             </div>
-            <Link href="/app/billing" className="self-start rounded-xl bg-blue-600 px-3 py-2 text-xs font-black text-white lg:self-end">Paketi Gör</Link>
+            <span className="rounded-full bg-white/8 px-3 py-1 text-xs font-black text-slate-300 ring-1 ring-white/10">
+              Son 7 gün
+            </span>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-4">
+            <MiniMoney label="Nakit" value={stats.todayCash} className="text-emerald-300" />
+            <MiniMoney label="Kart" value={stats.todayCard} className="text-blue-300" />
+            <MiniMoney label="Havale" value={stats.todayTransfer} className="text-cyan-300" />
+            <MiniMoney label="Pazaryeri" value={stats.todayMarketplace} className="text-orange-300" />
+          </div>
+
+          <div className="mt-6 flex h-64 items-end gap-3 rounded-[24px] bg-[#0b1220] p-4 ring-1 ring-white/10">
+            {chartData.map((item) => {
+              const height = Math.max(Math.round((item.total / maxChartValue) * 100), item.total > 0 ? 8 : 3);
+
+              return (
+                <div key={item.day.toISOString()} className="flex min-w-0 flex-1 flex-col items-center gap-2">
+                  <div className="flex h-48 w-full items-end">
+                    <div
+                      className="w-full rounded-t-2xl bg-gradient-to-t from-blue-700 to-cyan-300 shadow-lg shadow-blue-950/30 transition"
+                      style={{ height: `${height}%` }}
+                      title={formatCurrency(item.total)}
+                    />
+                  </div>
+                  <p className="text-[11px] font-black text-slate-500">{item.label}</p>
+                  <p className="max-w-full truncate text-[10px] font-bold text-slate-400">{formatCurrency(item.total)}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="grid gap-4">
+          <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
+            <h2 className="text-2xl font-black">Bugünkü Dağılım</h2>
+            <div className="mt-5 grid gap-3">
+              <Distribution label="Nakit" value={stats.todayCash} total={stats.todayTotal} colorClass="bg-emerald-400" />
+              <Distribution label="Kart" value={stats.todayCard} total={stats.todayTotal} colorClass="bg-blue-400" />
+              <Distribution label="Havale" value={stats.todayTransfer} total={stats.todayTotal} colorClass="bg-cyan-400" />
+              <Distribution label="Pazaryeri" value={stats.todayMarketplace} total={stats.todayTotal} colorClass="bg-orange-400" />
+            </div>
+          </div>
+
+          <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
+            <h2 className="text-2xl font-black">Abonelik Kullanımı</h2>
+            <p className="mt-2 text-sm text-slate-400">
+              {isPro ? "Pro plan aktif. Sipariş limiti yok." : `Free plan: ${orders.length}/${freeOrderLimit} sipariş`}
+            </p>
+            <div className="mt-4 h-3 overflow-hidden rounded-full bg-white/8">
+              <div className={`${isPro ? "bg-emerald-400" : "bg-blue-500"} h-full rounded-full`} style={{ width: `${usagePercent}%` }} />
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-6">
-        <Metric label="Bugün" value={loading ? "..." : formatCurrency(todayPaid)} sub="tahsilat" />
-        <Metric label="Nakit" value={loading ? "..." : formatCurrency(todayCash)} sub="bugünkü nakit" />
-        <Metric label="Kart" value={loading ? "..." : formatCurrency(todayCard)} sub="bugünkü kart" />
-        <Metric label="Havale" value={loading ? "..." : formatCurrency(todayTransfer)} sub="bugünkü EFT" />
-        <Metric label="Kalan" value={loading ? "..." : formatCurrency(totalRemaining)} sub="tahsilat" />
-        <Metric label="İade" value={loading ? "..." : String(activeReturns)} sub="aktif talep" />
-      </div>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
+          <div className="mb-5 flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-black">Son Siparişler</h2>
+              <p className="mt-1 text-sm text-slate-400">Manuel + demo + pazaryeri siparişleri.</p>
+            </div>
+            <span className="rounded-full bg-white/8 px-3 py-1 text-xs font-black text-slate-300 ring-1 ring-white/10">
+              {orders.length} kayıt
+            </span>
+          </div>
 
-      <div className="grid gap-3 xl:grid-cols-[1.2fr_0.8fr_0.7fr]">
-        <Panel title="Tahsilat Grafiği" actionHref="/app/sales">
-          <div className="relative h-[230px] rounded-[18px] border border-white/8 bg-[#0b1220] p-3">
-            <div className="absolute inset-x-3 top-1/4 border-t border-dashed border-white/10" />
-            <div className="absolute inset-x-3 top-1/2 border-t border-dashed border-white/10" />
-            <div className="absolute inset-x-3 top-3/4 border-t border-dashed border-white/10" />
-            <div className="relative flex h-full items-end gap-2">
-              {weeklyBars.map((bar) => (
-                <div key={bar.label} className="flex min-w-0 flex-1 flex-col items-center justify-end gap-2">
-                  <div className="flex h-[165px] items-end">
-                    <div className="w-5 rounded-t-full bg-gradient-to-t from-blue-700 to-cyan-300 transition hover:scale-y-105" style={{ height: `${bar.height}%` }} />
+          {latestOrders.length === 0 ? (
+            <EmptyState text="Henüz sipariş yok." />
+          ) : (
+            <div className="grid gap-3">
+              {latestOrders.map((order) => (
+                <div key={order.id} className="rounded-[20px] border border-white/10 bg-[#0b1220] p-4">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-black">{order.order_no || "-"}</h3>
+                        {getMarketplaceLabel(order.marketplace) ? (
+                          <span className="rounded-full bg-orange-500/15 px-2.5 py-1 text-[10px] font-black text-orange-300 ring-1 ring-orange-400/20">
+                            {getMarketplaceLabel(order.marketplace)}
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="mt-1 text-sm text-slate-400">{order.customer_name || "Müşteri yok"} · {order.product_name || "Ürün yok"}</p>
+                      <p className="mt-1 text-xs text-slate-500">{formatDate(order.created_at)}</p>
+                    </div>
+                    <div className="text-left lg:text-right">
+                      <p className="text-lg font-black text-emerald-300">{formatCurrency(order.total_amount)}</p>
+                      <p className="text-xs font-bold text-slate-500">{order.payment_status || "payment"}</p>
+                    </div>
                   </div>
-                  <span className="text-[10px] font-black text-slate-500">{bar.label}</span>
                 </div>
               ))}
             </div>
-          </div>
-        </Panel>
-
-        <Panel title="Ciro & Tahsilat">
-          <SmallBar label="Sipariş Tutarı" value={formatCurrency(totalRevenue)} width={totalRevenue > 0 ? 100 : 0} color="bg-blue-500" />
-          <SmallBar label="Alınan Ödeme" value={formatCurrency(totalPaid)} width={totalRevenue > 0 ? Math.round((totalPaid / totalRevenue) * 100) : 0} color="bg-emerald-400" />
-          <SmallBar label="Kalan Tahsilat" value={formatCurrency(totalRemaining)} width={totalRevenue > 0 ? Math.round((totalRemaining / totalRevenue) * 100) : 0} color="bg-amber-400" />
-          <SmallBar label="Stok Değeri" value={formatCurrency(stockValue)} width={stockValue > 0 ? 100 : 0} color="bg-violet-400" />
-        </Panel>
-
-        <Panel title="Notlar">
-          <form onSubmit={addNote} className="mb-2 flex gap-2">
-            <input value={noteTitle} onChange={(e) => setNoteTitle(e.target.value)} placeholder="Not yaz..." className="min-w-0 flex-1 rounded-xl border border-white/10 bg-[#0b1220] px-3 py-2 text-xs outline-none placeholder:text-slate-500" />
-            <button className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-black">Ekle</button>
-          </form>
-          <div className="space-y-2">
-            {notes.length === 0 ? <Empty text="Not yok" /> : notes.map((note) => (
-              <div key={note.id} className="flex items-center gap-2 rounded-[14px] bg-[#0b1220] p-2.5">
-                <button onClick={() => toggleNote(note)} className={`h-4 w-4 shrink-0 rounded-full ${note.is_done ? "bg-emerald-400" : "bg-white/10"}`} />
-                <p className={`min-w-0 flex-1 truncate text-xs font-bold ${note.is_done ? "text-slate-500 line-through" : "text-white"}`}>{note.title}</p>
-                <button onClick={() => deleteNote(note.id)} className="text-xs font-black text-red-300">Sil</button>
-              </div>
-            ))}
-          </div>
-        </Panel>
-      </div>
-
-      <div className="grid gap-3 xl:grid-cols-3">
-        <Panel title="Son Siparişler" actionHref="/app/orders">
-          <div className="space-y-2">
-            {orders.slice(0, 5).length === 0 ? <Empty text="Sipariş yok" /> : orders.slice(0, 5).map((order) => (
-              <div key={order.id} className="flex items-center justify-between gap-3 rounded-[14px] bg-[#0b1220] p-2.5 transition hover:bg-[#111d31]">
-                <div className="min-w-0">
-                  <p className="truncate text-xs font-black">{order.order_no || "Sipariş"}</p>
-                  <p className="text-[10px] text-slate-500">{order.order_status || "new"}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs font-black">{formatCurrency(order.total_amount)}</p>
-                  <p className="text-[10px] text-amber-300">Kalan {formatCurrency(order.remaining_amount)}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Panel>
-
-        <Panel title="Kritik Stok" actionHref="/app/products">
-          <div className="space-y-2">
-            {criticalProducts.slice(0, 5).length === 0 ? <Empty text="Kritik stok yok" /> : criticalProducts.slice(0, 5).map((product) => (
-              <div key={product.id} className="flex items-center justify-between gap-3 rounded-[14px] bg-[#0b1220] p-2.5 transition hover:bg-[#111d31]">
-                <div className="min-w-0">
-                  <p className="truncate text-xs font-black">{product.name}</p>
-                  <p className="text-[10px] text-slate-500">{product.product_code}</p>
-                </div>
-                <span className="rounded-full bg-red-500/15 px-2 py-1 text-xs font-black text-red-300">{product.stock ?? 0}</span>
-              </div>
-            ))}
-          </div>
-        </Panel>
-
-        <Panel title="Kritik Uyarılar">
-          <Alert label="Kritik stok" value={`${criticalProducts.length} ürün`} tone="red" href="/app/products" />
-          <Alert label="Bekleyen ödeme" value={formatCurrency(totalRemaining)} tone="amber" href="/app/orders" />
-          <Alert label="Hazırlık bekleyen" value={`${waitingOrders} sipariş`} tone="blue" href="/app/orders" />
-          <Alert label="Kargoya verilmeyen" value={`${unshippedOrders} sipariş`} tone="red" href="/app/shipments" />
-          <Alert label="Aktif iade" value={`${activeReturns} talep`} tone="green" href="/app/returns" />
-        </Panel>
-      </div>
-
-      <div className="grid gap-3 lg:grid-cols-2">
-        <div className="rounded-[20px] border border-white/10 bg-[#111a2e] p-4">
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Destek</p>
-          <h2 className="mt-2 text-lg font-black">Öneri, şikayet veya destek talebin mi var?</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-400">Takipio ile ilgili geri bildirim, hata bildirimi veya geliştirme önerileri için iletişim sayfasından bize ulaşabilirsin.</p>
-          <Link href="/app/contact" className="mt-4 inline-flex rounded-2xl bg-blue-600 px-4 py-3 text-sm font-black transition hover:bg-blue-500">İletişime Geç</Link>
+          )}
         </div>
 
-        <div className="rounded-[20px] border border-white/10 bg-[#111a2e] p-4">
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Rehber</p>
-          <h2 className="mt-2 text-lg font-black">Takipio nasıl kullanılır?</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-400">Ürün, stok, sipariş, kargo, iade, müşteri, fatura ve ekip yetkilerini adım adım öğren.</p>
-          <Link href="/app/help" className="mt-4 inline-flex rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-blue-200 ring-1 ring-white/10 transition hover:bg-white/15">Tıkla, Öğren</Link>
+        <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
+          <div className="mb-5">
+            <h2 className="text-2xl font-black">Son Para Hareketleri</h2>
+            <p className="mt-1 text-sm text-slate-400">Payments + pazaryeri paid siparişleri birlikte gösterilir.</p>
+          </div>
+
+          {latestMoneyMoves.length === 0 ? (
+            <EmptyState text="Henüz tahsilat hareketi yok." />
+          ) : (
+            <div className="grid gap-3">
+              {latestMoneyMoves.map((move) => (
+                <div key={move.id} className="rounded-[20px] border border-white/10 bg-[#0b1220] p-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="font-black">{move.title}</p>
+                      <p className={`mt-1 text-xs font-black ${methodClass(move.method)}`}>{move.subtitle}</p>
+                      <p className="mt-1 text-xs text-slate-500">{formatDate(move.date)}</p>
+                    </div>
+                    <p className={`text-lg font-black ${methodClass(move.method)}`}>{formatCurrency(move.amount)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <StatusCard title="Kritik Stok" value={String(stats.criticalProducts.length)} text="Minimum stoğa yaklaşan ürünler" colorClass="text-amber-300" />
+        <StatusCard title="Aktif İade" value={String(stats.activeReturns)} text="Para iadesi/reddedilme bekleyenler" colorClass="text-red-300" />
+        <StatusCard title="Pazaryeri Cirosu" value={formatCurrency(stats.marketplaceRevenue)} text="Demo + gerçek pazaryeri siparişleri" colorClass="text-orange-300" />
       </div>
     </section>
   );
 }
 
-function Metric({ label, value, sub }: { label: string; value: string; sub: string }) {
+function Metric({ label, value, valueClass }: { label: string; value: string; valueClass?: string }) {
   return (
-    <div className="rounded-[18px] border border-white/10 bg-[#111a2e] p-3 transition hover:-translate-y-0.5 hover:bg-[#17233b]">
-      <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{label}</p>
-      <p className="mt-1 text-lg font-black">{value}</p>
-      <p className="mt-1 text-[10px] text-slate-500">{sub}</p>
+    <div className="rounded-[22px] border border-white/10 bg-[#111a2e] p-5">
+      <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">{label}</p>
+      <p className={["mt-3 text-2xl font-black sm:text-3xl", valueClass || "text-white"].join(" ")}>{value}</p>
     </div>
   );
 }
 
-function Panel({ title, children, actionHref }: { title: string; children: React.ReactNode; actionHref?: string }) {
+function MiniMoney({ label, value, className }: { label: string; value: number; className: string }) {
   return (
-    <div className="rounded-[20px] border border-white/10 bg-[#111a2e] p-3">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-black">{title}</h2>
-        {actionHref ? <Link href={actionHref} className="rounded-lg bg-white/10 px-2 py-1 text-[10px] font-black text-blue-200">Git</Link> : null}
-      </div>
-      {children}
+    <div className="rounded-[18px] border border-white/10 bg-[#0b1220] p-4">
+      <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">{label}</p>
+      <p className={`mt-2 text-xl font-black ${className}`}>{formatCurrency(value)}</p>
     </div>
   );
 }
 
-function Quick({ href, label }: { href: string; label: string }) {
-  return <Link href={href} className="rounded-[14px] bg-[#0b1220] px-3 py-2.5 text-center text-xs font-black ring-1 ring-white/8 transition hover:bg-[#111d31]">{label}</Link>;
-}
+function Distribution({ label, value, total, colorClass }: { label: string; value: number; total: number; colorClass: string }) {
+  const percent = total > 0 ? Math.round((value / total) * 100) : 0;
 
-function SmallBar({ label, value, width, color }: { label: string; value: string; width: number; color: string }) {
   return (
-    <div className="mb-3">
-      <div className="mb-1 flex justify-between text-xs font-black">
-        <span className="text-slate-400">{label}</span>
-        <span>{value}</span>
+    <div>
+      <div className="mb-2 flex items-center justify-between text-sm font-black">
+        <span>{label}</span>
+        <span className="text-slate-400">{formatCurrency(value)}</span>
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-white/8">
-        <div className={`h-full rounded-full ${color}`} style={{ width: `${width}%` }} />
+        <div className={`${colorClass} h-full rounded-full`} style={{ width: `${percent}%` }} />
       </div>
     </div>
   );
 }
 
-function Alert({ label, value, tone, href }: { label: string; value: string; tone: "red" | "amber" | "blue" | "green"; href: string }) {
-  const color = tone === "red" ? "text-red-300" : tone === "amber" ? "text-amber-300" : tone === "green" ? "text-emerald-300" : "text-blue-300";
+function EmptyState({ text }: { text: string }) {
   return (
-    <Link href={href} className="mb-2 flex items-center justify-between rounded-[14px] bg-[#0b1220] p-2.5 transition hover:bg-[#111d31]">
-      <span className="text-xs font-bold text-slate-400">{label}</span>
-      <span className={`text-xs font-black ${color}`}>{value}</span>
-    </Link>
+    <div className="rounded-[22px] border border-dashed border-white/10 bg-[#0b1220] p-8 text-center">
+      <p className="text-sm font-bold text-slate-500">{text}</p>
+    </div>
   );
 }
 
-function Empty({ text }: { text: string }) {
-  return <div className="rounded-[14px] border border-dashed border-white/10 p-4 text-center text-xs text-slate-500">{text}</div>;
+function StatusCard({ title, value, text, colorClass }: { title: string; value: string; text: string; colorClass: string }) {
+  return (
+    <div className="rounded-[26px] border border-white/10 bg-[#111a2e] p-5">
+      <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{title}</p>
+      <p className={`mt-3 text-3xl font-black ${colorClass}`}>{value}</p>
+      <p className="mt-2 text-sm text-slate-400">{text}</p>
+    </div>
+  );
 }
