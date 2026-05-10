@@ -263,7 +263,7 @@ function RegisterClient() {
           data: {
             display_name: displayName,
           },
-          emailRedirectTo: `${window.location.origin}/register?invite=${encodeURIComponent(inviteToken)}&email=${encodeURIComponent(cleanEmail)}`,
+          emailRedirectTo: `${window.location.origin}/app/register?invite=${encodeURIComponent(inviteToken)}&email=${encodeURIComponent(cleanEmail)}`,
         },
       });
 
