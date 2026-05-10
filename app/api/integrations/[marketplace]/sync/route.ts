@@ -42,7 +42,7 @@ function marketplaceName(key: string) {
   return key;
 }
 
-async function getBusinessContext(supabase: ReturnType<typeof createClient>, token: string) {
+async function getBusinessContext(supabase: any, token: string) {
   const userResult = await supabase.auth.getUser(token);
   const userEmail = normalizeEmail(userResult.data.user?.email);
 
@@ -80,7 +80,7 @@ async function getBusinessContext(supabase: ReturnType<typeof createClient>, tok
   };
 }
 
-async function getIntegration(supabase: ReturnType<typeof createClient>, businessId: string, marketplace: string) {
+async function getIntegration(supabase: any, businessId: string, marketplace: string) {
   const result = await supabase
     .from("marketplace_integrations")
     .select("id, business_id, marketplace, is_active, api_key, api_secret, seller_id, merchant_id")
