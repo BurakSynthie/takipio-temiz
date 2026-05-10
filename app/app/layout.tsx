@@ -84,6 +84,8 @@ const businessItems: NavItem[] = [
 ];
 
 const centerItems: NavItem[] = [
+  { href: "/app/reports", label: "Raporlar", sub: "Analiz merkezi", icon: "sales", permission: "can_view_dashboard" },
+  { href: "/app/notifications", label: "Bildirimler", sub: "Uyarılar", icon: "invoices", permission: "can_view_dashboard" },
   { href: "/app/billing", label: "Abonelik", sub: "Plan & ödeme", icon: "billing", permission: "can_manage_billing" },
   { href: "/app/business-setup", label: "İşletme", sub: "Firma bilgileri", icon: "business", permission: "can_manage_settings" },
   { href: "/app/settings", label: "Ayarlar", sub: "Ekip & yetki", icon: "settings", permission: "can_manage_settings" },
@@ -101,6 +103,30 @@ function normalizeEmail(email: string | null | undefined) {
 function pageTitle(pathname: string) {
   const all = [...operationItems, ...businessItems, ...centerItems];
   return all.find((item) => item.href === pathname)?.label ?? "Dashboard";
+}
+
+function routePermission(pathname: string): keyof Member | null {
+  const all = [...operationItems, ...businessItems, ...centerItems];
+
+  const exact = all.find((item) => item.href === pathname);
+  if (exact?.permission) return exact.permission;
+
+  const nested = all
+    .filter((item) => item.href !== "/app")
+    .sort((a, b) => b.href.length - a.href.length)
+    .find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`));
+
+  return nested?.permission ?? null;
+}
+
+function isAlwaysAllowedAppRoute(pathname: string) {
+  return (
+    pathname.startsWith("/app/register") ||
+    pathname.startsWith("/app/profile") ||
+    pathname.startsWith("/app/help") ||
+    pathname.startsWith("/app/contact") ||
+    pathname.startsWith("/app/about")
+  );
 }
 
 function iconPath(icon: string) {
@@ -354,11 +380,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   ]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [removedFromBusiness, setRemovedFromBusiness] = useState(false);
 
   const isOwner = normalizeEmail(userEmail) === normalizeEmail(business?.owner_email);
 
   async function loadContext() {
     setLoading(true);
+    setRemovedFromBusiness(false);
 
     if (isInviteRegisterPage) {
       setLoading(false);
@@ -381,6 +409,67 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (!email) {
       setLoading(false);
       window.location.replace("/login");
+      return;
+    }
+
+    const { data: ownedBusiness } = await supabase
+      .from("businesses")
+      .select("id, name, owner_email, logo_url")
+      .eq("owner_email", email)
+      .limit(1)
+      .maybeSingle();
+
+    if (ownedBusiness?.id) {
+      setBusiness(ownedBusiness);
+
+      const { data: ownerMember } = await supabase
+        .from("business_members")
+        .select("*")
+        .eq("business_id", ownedBusiness.id)
+        .eq("email", email)
+        .maybeSingle();
+
+      setMember(ownerMember ?? {
+        email,
+        role_name: "Sahip",
+        can_view_dashboard: true,
+        can_manage_products: true,
+        can_manage_stock: true,
+        can_manage_sales: true,
+        can_manage_orders: true,
+        can_manage_shipments: true,
+        can_manage_returns: true,
+        can_manage_invoices: true,
+        can_manage_customers: true,
+        can_manage_integrations: true,
+        can_manage_billing: true,
+        can_manage_settings: true,
+      });
+
+      const [notificationResult, messageResult, profileResult] = await Promise.all([
+        supabase
+          .from("app_notifications")
+          .select("id, title, message, type, is_read, created_at")
+          .eq("business_id", ownedBusiness.id)
+          .order("created_at", { ascending: false })
+          .limit(8),
+        supabase
+          .from("app_messages")
+          .select("id, title, message, sender_name, is_read, created_at")
+          .eq("business_id", ownedBusiness.id)
+          .order("created_at", { ascending: false })
+          .limit(8),
+        supabase
+          .from("app_user_profiles")
+          .select("email, full_name, avatar_url, role_name")
+          .eq("email", email)
+          .maybeSingle(),
+      ]);
+
+      setNotifications(notificationResult.data ?? []);
+      setMessages(messageResult.data ?? []);
+      setProfile(profileResult.data ?? null);
+      setLoading(false);
       return;
     }
 
@@ -426,8 +515,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       setNotifications(notificationResult.data ?? []);
       setMessages(messageResult.data ?? []);
       setProfile(profileResult.data ?? null);
+      setLoading(false);
+      return;
     }
 
+    setBusiness(null);
+    setMember(null);
+    setRemovedFromBusiness(true);
     setLoading(false);
   }
 
@@ -442,8 +536,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   function canSee(item: NavItem) {
     if (!item.permission) return true;
-    if (isOwner) return true;
-    if (!member) return true;
+    if (isOwner || member?.role_name === "Sahip") return true;
+    if (!member) return false;
     return Boolean(member[item.permission]);
   }
 
@@ -453,6 +547,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const unreadNotifications = notifications.filter((item) => !item.is_read).length;
   const unreadMessages = messages.filter((item) => !item.is_read).length;
+
+  const requiredPermission = routePermission(pathname);
+  const hasRouteAccess =
+    isAlwaysAllowedAppRoute(pathname) ||
+    !requiredPermission ||
+    isOwner ||
+    member?.role_name === "Sahip" ||
+    Boolean(member?.[requiredPermission]);
 
   function toggleTheme() {
     const next = theme === "dark" ? "light" : "dark";
@@ -586,6 +688,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   if (isInviteRegisterPage) {
     return <>{children}</>;
   }
+
+  if (removedFromBusiness && !loading) {
+    return <RemovedFromBusinessScreen onSignOut={signOut} />;
+  }
+
+  const protectedChildren = hasRouteAccess ? (
+    children
+  ) : (
+    <AccessDeniedScreen title={pageTitle(pathname)} onBack={() => router.push("/app")} />
+  );
 
   return (
     <div className="min-h-screen bg-[#07111f] text-white">
@@ -732,7 +844,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </header>
 
         <main className="relative z-10 px-3 py-4 pb-28 sm:px-4 lg:px-5 lg:pb-6">
-          {children}
+          {protectedChildren}
         </main>
 
         <nav className="fixed inset-x-3 bottom-3 z-50 rounded-[26px] border border-white/10 bg-[#0b1220]/95 p-2 shadow-2xl shadow-black/30 backdrop-blur-xl lg:hidden">
@@ -846,6 +958,45 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </div>
 
       {sidebarOpen ? <div onClick={() => setSidebarOpen(false)} className="fixed inset-0 z-40 bg-slate-950/60 lg:hidden" /> : null}
+    </div>
+  );
+}
+
+
+function AccessDeniedScreen({ title, onBack }: { title: string; onBack: () => void }) {
+  return (
+    <div className="flex min-h-[70vh] items-center justify-center px-4">
+      <div className="max-w-xl rounded-[30px] border border-white/10 bg-[#111a2e] p-8 text-center shadow-2xl">
+        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-[24px] bg-red-500/15 text-red-300 ring-1 ring-red-400/20">
+          <Icon name="settings" className="h-7 w-7" />
+        </div>
+        <h2 className="text-3xl font-black tracking-[-0.04em]">Erişim yetkin yok</h2>
+        <p className="mt-3 text-sm leading-6 text-slate-400">
+          {title} sayfasını kullanmak için bu modüle ait yetkin açık olmalı. İşletme sahibinden rol/yetki güncellemesi isteyebilirsin.
+        </p>
+        <button onClick={onBack} className="mt-6 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-500">
+          Dashboard’a Dön
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function RemovedFromBusinessScreen({ onSignOut }: { onSignOut: () => void }) {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-[#07111f] px-4 text-white">
+      <div className="max-w-xl rounded-[30px] border border-white/10 bg-[#111a2e] p-8 text-center shadow-2xl">
+        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-[24px] bg-amber-500/15 text-amber-300 ring-1 ring-amber-400/20">
+          <Icon name="profile" className="h-7 w-7" />
+        </div>
+        <h2 className="text-3xl font-black tracking-[-0.04em]">İşletme erişimin kapalı</h2>
+        <p className="mt-3 text-sm leading-6 text-slate-400">
+          Bu hesap aktif bir işletmeye bağlı görünmüyor. Hesabın pasife alınmış veya ekipten kaldırılmış olabilir.
+        </p>
+        <button onClick={onSignOut} className="mt-6 rounded-2xl bg-red-500/15 px-5 py-3 text-sm font-black text-red-300 ring-1 ring-red-400/20">
+          Çıkış Yap
+        </button>
+      </div>
     </div>
   );
 }
